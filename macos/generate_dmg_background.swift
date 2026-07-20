@@ -5,9 +5,12 @@ import CoreGraphics
 let width: CGFloat = 660
 let height: CGFloat = 400
 
-// Версия читается из version.json (единый источник правды)
+// Версия читается из version.json (единый источник правды, лежит в КОРНЕ репо —
+// путь строим от расположения скрипта, а не от CWD).
 func readVersion() -> String {
-    let path = FileManager.default.currentDirectoryPath + "/version.json"
+    let path = URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent().deletingLastPathComponent()
+        .appendingPathComponent("version.json").path
     guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
           let v = json["version"] as? String else {

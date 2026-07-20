@@ -72,10 +72,14 @@ struct TriggerConfig {
 
     /// issue #14: конфиг хоткея чистого переключения раскладки. nil — выключен.
     /// Совпадение с триггером конверсии игнорируем (иначе один тап делал бы оба действия).
+    /// Белый список обязателен: parse() маппит неизвестные строки в Option — рукописный
+    /// мусор в defaults дублировал бы дефолтный триггер (ревью-находка).
     static func switchHotkey() -> TriggerConfig? {
+        let known: Set<String> = ["option", "command", "control", "shift",
+                                  "command+shift", "control+shift", "command+option", "control+option"]
         let s = SettingsManager.shared
         let key = s.switchHotkey
-        guard !key.isEmpty, key != "capsLock", key != s.triggerKey else { return nil }
+        guard known.contains(key), key != s.triggerKey else { return nil }
         return parse(key: key, rightOnly: false, doubleTap: false)
     }
 

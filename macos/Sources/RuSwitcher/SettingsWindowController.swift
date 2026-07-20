@@ -550,6 +550,14 @@ final class SettingsWindowController {
             popup.addItem(withTitle: it.title)
             popup.menu?.items.last?.representedObject = it.key as NSString
         }
+        // Пункт, совпадающий с триггером конверсии, гасим: движок его всё равно
+        // игнорирует (один тап не должен делать два действия) — не даём выбрать
+        // «мёртвую» настройку без индикации (ревью-находка).
+        popup.autoenablesItems = false
+        let triggerKey = SettingsManager.shared.triggerKey
+        for item in popup.menu?.items ?? [] where (item.representedObject as? String) == triggerKey {
+            item.isEnabled = false
+        }
         let current = SettingsManager.shared.switchHotkey
         if let idx = popup.menu?.items.firstIndex(where: { ($0.representedObject as? String) == current }) {
             popup.selectItem(at: idx)
