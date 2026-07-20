@@ -320,6 +320,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // явной смены раскладки неактуален — тот же паттерн, что per-app restore и меню.
         keyboardMonitor.onSwitchHotkey = { [weak self] in
             guard let self, SettingsManager.shared.autoSwitchEnabled else { return }
+            if AutoSwitchPolicy.shouldDeferToRemoteClient {
+                // Удалёнка (фокус в клиенте Screen Sharing): переключаем только СВОЮ
+                // раскладку, как defer-ветка триггера. markConverted/clearState тут лишние —
+                // буфер наполняется через handleForwardedChar, а проброшенные модификаторы
+                // сами переключат раскладку на контролируемой машине.
+                LayoutSwitcher.switchToOpposite()
+                self.updateStatusIcon()
+                rslog("switch hotkey: local layout switched (remote client focused)")
+                return
+            }
             LayoutSwitcher.switchToOpposite()
             self.keyboardMonitor.markConverted()
             self.textConverter.clearState()
