@@ -80,7 +80,7 @@ struct TriggerConfig {
         let s = SettingsManager.shared
         let key = s.switchHotkey
         guard known.contains(key), key != s.triggerKey else { return nil }
-        return parse(key: key, rightOnly: false, doubleTap: s.switchDoubleTap)
+        return parse(key: key, rightOnly: s.switchRightOnly, doubleTap: s.switchDoubleTap)
     }
 
     static func parse(key: String, rightOnly: Bool, doubleTap: Bool) -> TriggerConfig {
@@ -484,7 +484,7 @@ final class KeyboardMonitor: @unchecked Sendable {
         case .capsLock:
             return
         case let .modifier(mask, left, right):
-            let accepted: Set<UInt16> = [left, right]
+            let accepted: Set<UInt16> = cfg.rightOnly ? [right] : [left, right]
             let otherMods = allMods.subtracting(mask)
             if flags.contains(mask) {
                 if accepted.contains(keyCode) && flags.intersection(otherMods).isEmpty {

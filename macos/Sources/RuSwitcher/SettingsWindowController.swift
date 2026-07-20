@@ -32,7 +32,7 @@ final class SettingsWindowController {
         }
 
         let win = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 480, height: 726),
+            contentRect: NSRect(x: 0, y: 0, width: 480, height: 752),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false
@@ -72,8 +72,8 @@ final class SettingsWindowController {
         let item = NSTabViewItem()
         item.label = L10n.settingsTabGeneral
 
-        let view = NSView(frame: NSRect(x: 0, y: 0, width: 460, height: 666))
-        var y: CGFloat = 626
+        let view = NSView(frame: NSRect(x: 0, y: 0, width: 460, height: 692))
+        var y: CGFloat = 652
 
         // Автопереключение
         let autoSwitch = NSButton(checkboxWithTitle: L10n.settingsAutoSwitch, target: self, action: #selector(autoSwitchChanged))
@@ -119,6 +119,13 @@ final class SettingsWindowController {
         switchPopup.action = #selector(switchHotkeyChanged)
         view.addSubview(switchPopup)
         y -= 34   // как зазор popup→rightOnly у триггера (попап высотой 26 на y-2)
+
+        // issue #14: только правая клавиша хоткея смены (зеркало rightOnly триггера).
+        let switchRightOnlyCheckbox = NSButton(checkboxWithTitle: L10n.settingsTriggerRightOnly, target: self, action: #selector(switchRightOnlyChanged))
+        switchRightOnlyCheckbox.frame = NSRect(x: 40, y: y, width: 390, height: 22)
+        switchRightOnlyCheckbox.state = SettingsManager.shared.switchRightOnly ? .on : .off
+        view.addSubview(switchRightOnlyCheckbox)
+        y -= 26
 
         // issue #14: смена по двойному тапу выбранного хоткея (зеркало double-tap триггера).
         let switchDoubleTapCheckbox = NSButton(checkboxWithTitle: L10n.settingsTriggerDoubleTap, target: self, action: #selector(switchDoubleTapChanged))
@@ -580,6 +587,11 @@ final class SettingsWindowController {
 
     @objc private func switchDoubleTapChanged(_ sender: NSButton) {
         SettingsManager.shared.switchDoubleTap = sender.state == .on
+        onTriggerChanged?()
+    }
+
+    @objc private func switchRightOnlyChanged(_ sender: NSButton) {
+        SettingsManager.shared.switchRightOnly = sender.state == .on
         onTriggerChanged?()
     }
 

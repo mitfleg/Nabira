@@ -26,6 +26,7 @@ final class SettingsManager: @unchecked Sendable {
         static let triggerDoubleTap = "com.ruswitcher.triggerDoubleTap"
         static let switchHotkey = "com.ruswitcher.switchHotkey"
         static let switchDoubleTap = "com.ruswitcher.switchDoubleTap"
+        static let switchRightOnly = "com.ruswitcher.switchRightOnly"
         static let autoConvert = "com.ruswitcher.autoConvert"
         static let remoteDesktopMode = "com.ruswitcher.remoteDesktopMode"
         static let showRemoteDesktopBeta = "com.ruswitcher.showRemoteDesktopBeta"
@@ -151,6 +152,13 @@ final class SettingsManager: @unchecked Sendable {
     var switchDoubleTap: Bool {
         get { defaults.bool(forKey: Keys.switchDoubleTap) }
         set { defaults.set(newValue, forKey: Keys.switchDoubleTap) }
+    }
+
+    /// issue #14: реагировать только на ПРАВУЮ клавишу хоткея (зеркало triggerRightOnly).
+    /// Действует лишь для одиночных модификаторов; для комбо сторона не различается.
+    var switchRightOnly: Bool {
+        get { defaults.bool(forKey: Keys.switchRightOnly) }
+        set { defaults.set(newValue, forKey: Keys.switchRightOnly) }
     }
 
     /// Caps Lock как триггер требует consume-tap (чтобы подавить переключение регистра).
