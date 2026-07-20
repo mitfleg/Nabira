@@ -67,8 +67,21 @@ struct TriggerConfig {
 
     static func current() -> TriggerConfig {
         let s = SettingsManager.shared
+        return parse(key: s.triggerKey, rightOnly: s.triggerRightOnly, doubleTap: s.triggerDoubleTap)
+    }
+
+    /// issue #14: конфиг хоткея чистого переключения раскладки. nil — выключен.
+    /// Совпадение с триггером конверсии игнорируем (иначе один тап делал бы оба действия).
+    static func switchHotkey() -> TriggerConfig? {
+        let s = SettingsManager.shared
+        let key = s.switchHotkey
+        guard !key.isEmpty, key != "capsLock", key != s.triggerKey else { return nil }
+        return parse(key: key, rightOnly: false, doubleTap: false)
+    }
+
+    static func parse(key: String, rightOnly: Bool, doubleTap: Bool) -> TriggerConfig {
         let kind: Kind
-        switch s.triggerKey {
+        switch key {
         case "command": kind = .modifier(mask: .maskCommand, left: KC.leftCommand, right: KC.rightCommand)
         case "control": kind = .modifier(mask: .maskControl, left: KC.leftControl, right: KC.rightControl)
         case "shift":   kind = .modifier(mask: .maskShift,   left: KC.leftShift,   right: KC.rightShift)
@@ -82,7 +95,7 @@ struct TriggerConfig {
         case "capsLock": kind = .capsLock
         default:        kind = .modifier(mask: .maskAlternate, left: KC.leftOption, right: KC.rightOption)
         }
-        return TriggerConfig(kind: kind, rightOnly: s.triggerRightOnly, doubleTap: s.triggerDoubleTap)
+        return TriggerConfig(kind: kind, rightOnly: rightOnly, doubleTap: doubleTap)
     }
 }
 
@@ -121,6 +134,12 @@ final class KeyboardMonitor: @unchecked Sendable {
 
     // Конфиг триггера (кэш; обновляется в start/reconfigure)
     private var triggerConfig = TriggerConfig.current()
+    /// issue #14: второй хоткей — чистое переключение раскладки (nil = выключен).
+    private var switchConfig = TriggerConfig.switchHotkey()
+    private var switchArmed = false
+    private var switchPressTime: Date?
+    /// Колбэк чистого переключения раскладки (issue #14). Ставится из AppDelegate.
+    var onSwitchHotkey: (() -> Void)?
 
     // Детект соло-тапа модификатора
     private var triggerArmed = false
@@ -144,7 +163,8 @@ final class KeyboardMonitor: @unchecked Sendable {
         }
 
         triggerConfig = TriggerConfig.current()
-        rslog("Attempting to create event tap... (trigger=\(SettingsManager.shared.triggerKey) capsLock=\(triggerConfig.isCapsLock))")
+        switchConfig = TriggerConfig.switchHotkey()
+        rslog("Attempting to create event tap... (trigger=\(SettingsManager.shared.triggerKey) switch=\(SettingsManager.shared.switchHotkey.isEmpty ? "off" : SettingsManager.shared.switchHotkey) capsLock=\(triggerConfig.isCapsLock))")
         let mask: CGEventMask =
             (1 << CGEventType.keyDown.rawValue)
             | (1 << CGEventType.flagsChanged.rawValue)
@@ -232,6 +252,7 @@ final class KeyboardMonitor: @unchecked Sendable {
     /// (курсор мог уехать в другое место).
     fileprivate func resetBuffersOnClick() {
         triggerArmed = false
+        switchArmed = false
         lastTapTime = nil
         keysTypedSinceConversion = true
         if caretFlagEnabled { DispatchQueue.main.async { [weak self] in self?.onUserInput?() } }   // issue #10: клик прячет флаг у каретки
@@ -242,6 +263,7 @@ final class KeyboardMonitor: @unchecked Sendable {
 
     fileprivate func handleKeyDown(keyCode: UInt16, flags: CGEventFlags, char: Character? = nil) {
         triggerArmed = false
+        switchArmed = false   // issue #14: клавиша между модификаторами = шорткат, не хоткей
         lastTapTime = nil
         keysTypedSinceConversion = true
         if caretFlagEnabled { DispatchQueue.main.async { [weak self] in self?.onUserInput?() } }   // issue #10: спрятать флаг при печати
@@ -389,6 +411,7 @@ final class KeyboardMonitor: @unchecked Sendable {
 
     /// Возвращает true, если событие надо «съесть» (только Caps Lock в consume-режиме).
     fileprivate func handleFlagsChanged(flags: CGEventFlags, keyCode: UInt16) -> Bool {
+        handleSwitchFlags(flags: flags, keyCode: keyCode)   // issue #14: второй хоткей
         switch triggerConfig.kind {
         case .capsLock:
             guard keyCode == KC.capsLock else { return false }
@@ -441,6 +464,57 @@ final class KeyboardMonitor: @unchecked Sendable {
             // частичное состояние (зажат один из двух) — ждём, ничего не трогаем
             return false
         }
+    }
+
+    /// issue #14: параллельная машина второго хоткея — чистое переключение раскладки.
+    /// Зеркалит триггерную логику; Caps Lock и double-tap не поддерживаются, сторона
+    /// (left/right) не различается. Разоружается на keyDown/клике вместе с триггером —
+    /// Ctrl+Shift+P и подобные шорткаты раскладку не переключают.
+    private func handleSwitchFlags(flags: CGEventFlags, keyCode: UInt16) {
+        guard let cfg = switchConfig else { return }
+        let allMods: CGEventFlags = [.maskCommand, .maskControl, .maskAlternate, .maskShift]
+        switch cfg.kind {
+        case .capsLock:
+            return
+        case let .modifier(mask, left, right):
+            let accepted: Set<UInt16> = [left, right]
+            let otherMods = allMods.subtracting(mask)
+            if flags.contains(mask) {
+                if accepted.contains(keyCode) && flags.intersection(otherMods).isEmpty {
+                    switchArmed = true
+                    switchPressTime = Date()
+                } else {
+                    switchArmed = false
+                }
+            } else {
+                if switchArmed, accepted.contains(keyCode), let t = switchPressTime,
+                   Date().timeIntervalSince(t) < tapWindow {
+                    fireSwitch()
+                }
+                switchArmed = false
+                switchPressTime = nil
+            }
+        case let .combo(maskA, maskB):
+            let both: CGEventFlags = [maskA, maskB]
+            let others = allMods.subtracting(both)
+            if !flags.intersection(others).isEmpty {
+                switchArmed = false
+            } else if flags.contains(both) {
+                switchArmed = true
+                switchPressTime = Date()
+            } else if flags.intersection(allMods).isEmpty {
+                if switchArmed, let t = switchPressTime, Date().timeIntervalSince(t) < tapWindow {
+                    fireSwitch()
+                }
+                switchArmed = false
+                switchPressTime = nil
+            }
+        }
+    }
+
+    private func fireSwitch() {
+        rslog("switch hotkey: fire")
+        DispatchQueue.main.async { [weak self] in self?.onSwitchHotkey?() }
     }
 
     /// Учитывает одиночный/двойной тап и запускает конвертацию.

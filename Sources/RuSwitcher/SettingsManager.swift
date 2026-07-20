@@ -24,6 +24,7 @@ final class SettingsManager: @unchecked Sendable {
         static let triggerKey = "com.ruswitcher.triggerKey"
         static let triggerRightOnly = "com.ruswitcher.triggerRightOnly"
         static let triggerDoubleTap = "com.ruswitcher.triggerDoubleTap"
+        static let switchHotkey = "com.ruswitcher.switchHotkey"
         static let autoConvert = "com.ruswitcher.autoConvert"
         static let remoteDesktopMode = "com.ruswitcher.remoteDesktopMode"
         static let showRemoteDesktopBeta = "com.ruswitcher.showRemoteDesktopBeta"
@@ -135,6 +136,14 @@ final class SettingsManager: @unchecked Sendable {
     var triggerDoubleTap: Bool {
         get { defaults.bool(forKey: Keys.triggerDoubleTap) }
         set { defaults.set(newValue, forKey: Keys.triggerDoubleTap) }
+    }
+
+    /// issue #14: отдельный хоткей «просто переключить раскладку» (без конверсии) —
+    /// в т.ч. модификаторные комбо (Ctrl+Shift), которые системно назначить нельзя.
+    /// Кодировка как у triggerKey; пустая строка — выключен (дефолт).
+    var switchHotkey: String {
+        get { defaults.string(forKey: Keys.switchHotkey) ?? "" }
+        set { defaults.set(newValue, forKey: Keys.switchHotkey) }
     }
 
     /// Caps Lock как триггер требует consume-tap (чтобы подавить переключение регистра).

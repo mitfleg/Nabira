@@ -316,6 +316,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             self?.handleAutoConvert()
         }
         keyboardMonitor.onUserInput = { [weak self] in self?.caretIndicator?.userTyped() }  // issue #10
+        // issue #14: хоткей чистого переключения раскладки (без конверсии). Буфер после
+        // явной смены раскладки неактуален — тот же паттерн, что per-app restore и меню.
+        keyboardMonitor.onSwitchHotkey = { [weak self] in
+            guard let self, SettingsManager.shared.autoSwitchEnabled else { return }
+            LayoutSwitcher.switchToOpposite()
+            self.keyboardMonitor.markConverted()
+            self.textConverter.clearState()
+            self.updateStatusIcon()
+        }
         updateStatusIcon()        // сначала выставляем флаг меню-бара, пока индикатора ещё нет
         syncCaretIndicator()      // затем создаём индикатор — без стартового ложного «попа»
         // Страховка к issue #9: системное уведомление о смене раскладки ненадёжно

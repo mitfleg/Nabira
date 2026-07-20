@@ -32,7 +32,7 @@ final class SettingsWindowController {
         }
 
         let win = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 480, height: 660),
+            contentRect: NSRect(x: 0, y: 0, width: 480, height: 700),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false
@@ -72,8 +72,8 @@ final class SettingsWindowController {
         let item = NSTabViewItem()
         item.label = L10n.settingsTabGeneral
 
-        let view = NSView(frame: NSRect(x: 0, y: 0, width: 460, height: 600))
-        var y: CGFloat = 560
+        let view = NSView(frame: NSRect(x: 0, y: 0, width: 460, height: 640))
+        var y: CGFloat = 600
 
         // Автопереключение
         let autoSwitch = NSButton(checkboxWithTitle: L10n.settingsAutoSwitch, target: self, action: #selector(autoSwitchChanged))
@@ -105,7 +105,20 @@ final class SettingsWindowController {
         doubleTapCheckbox.frame = NSRect(x: 40, y: y, width: 390, height: 22)
         doubleTapCheckbox.state = SettingsManager.shared.triggerDoubleTap ? .on : .off
         view.addSubview(doubleTapCheckbox)
-        y -= 26
+        y -= 30
+
+        // issue #14: отдельный хоткей чистого переключения раскладки (без конверсии) —
+        // в т.ч. Ctrl+Shift и другие модификаторные комбо, недоступные системным настройкам.
+        let switchLabel = NSTextField(labelWithString: L10n.settingsSwitchHotkey)
+        switchLabel.frame = NSRect(x: 20, y: y, width: 150, height: 22)
+        view.addSubview(switchLabel)
+
+        let switchPopup = NSPopUpButton(frame: NSRect(x: 175, y: y - 2, width: 255, height: 26))
+        populateSwitchHotkeyPopup(switchPopup)
+        switchPopup.target = self
+        switchPopup.action = #selector(switchHotkeyChanged)
+        view.addSubview(switchPopup)
+        y -= 32
 
         let triggerHint = NSTextField(wrappingLabelWithString: L10n.settingsTriggerHint)
         triggerHint.frame = NSRect(x: 40, y: y - 22, width: 400, height: 36)
@@ -508,6 +521,46 @@ final class SettingsWindowController {
     @objc private func triggerChanged(_ sender: NSPopUpButton) {
         SettingsManager.shared.triggerKey = (sender.selectedItem?.representedObject as? String) ?? "option"
         onTriggerChanged?()
+    }
+
+    /// issue #14: попап второго хоткея — «Выключен» + те же модификаторы/комбо (без Caps Lock).
+    private func populateSwitchHotkeyPopup(_ popup: NSPopUpButton) {
+        popup.removeAllItems()
+        popup.addItem(withTitle: L10n.settingsSwitchHotkeyOff)
+        popup.menu?.items.last?.representedObject = "" as NSString
+        popup.menu?.addItem(.separator())
+        let items: [(key: String, title: String)] = [
+            ("option", "Option ⌥ (Alt)"),
+            ("command", "Command ⌘"),
+            ("control", "Control ⌃"),
+            ("shift", "Shift ⇧"),
+        ]
+        let comboItems: [(key: String, title: String)] = [
+            ("command+shift", "⌘ + ⇧  (Command + Shift)"),
+            ("control+shift", "⌃ + ⇧  (Control + Shift)"),
+            ("command+option", "⌘ + ⌥  (Command + Option)"),
+            ("control+option", "⌃ + ⌥  (Control + Option)"),
+        ]
+        for it in items {
+            popup.addItem(withTitle: it.title)
+            popup.menu?.items.last?.representedObject = it.key as NSString
+        }
+        popup.menu?.addItem(.separator())
+        for it in comboItems {
+            popup.addItem(withTitle: it.title)
+            popup.menu?.items.last?.representedObject = it.key as NSString
+        }
+        let current = SettingsManager.shared.switchHotkey
+        if let idx = popup.menu?.items.firstIndex(where: { ($0.representedObject as? String) == current }) {
+            popup.selectItem(at: idx)
+        } else {
+            popup.selectItem(at: 0)
+        }
+    }
+
+    @objc private func switchHotkeyChanged(_ sender: NSPopUpButton) {
+        SettingsManager.shared.switchHotkey = (sender.selectedItem?.representedObject as? String) ?? ""
+        onTriggerChanged?()   // reconfigure перечитает и switchConfig
     }
 
     @objc private func triggerRightOnlyChanged(_ sender: NSButton) {
