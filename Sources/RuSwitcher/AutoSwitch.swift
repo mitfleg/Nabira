@@ -44,6 +44,31 @@ enum LayoutDetector {
         let cur = String(currentLang.prefix(2))
         let oth = String(otherLang.prefix(2))
 
+        // --- Кросс-скрипт пары с ивритом (3.0) ---
+        // Системный ивритский словарь macOS для детекта БЕСПОЛЕЗЕН: он принимает любой
+        // набор букв как «валидное слово» (проверено эмпирически), двусторонняя проверка
+        // на стороне иврита невозможна. Поэтому конвертим ТОЛЬКО при положительном
+        // сигнале второй (не-ивритской) стороны — её собственным словарём:
+        //   • набрано в иврит-раскладке, а конверсия — валидное слово второй раскладки
+        //     → задумана она, конвертим;
+        //   • набрано во второй раскладке и это её валидное слово → keep (не трогаем);
+        //   • всё остальное (имена, бренды, опечатки, «задуман иврит») → .undecided:
+        //     направление «в иврит» без словаря честно не решаемо — точность важнее
+        //     полноты. Ручной триггер конвертирует любые пары всегда.
+        // Второй словарь берём по ЯЗЫКУ ПАРЫ (ru/de/fr/…), не хардкодим en — иначе
+        // пара русский+иврит конвертила бы каждое валидное русское слово в иврит
+        // (ревью-находка июльского аудита).
+        if isHebrew(cur) || isHebrew(oth) {
+            let hebrewIsCurrent = isHebrew(cur)
+            let sideLang = hebrewIsCurrent ? oth : cur
+            guard !isHebrew(sideLang), Dict.isAvailable(sideLang) else { return .undecided }
+            if hebrewIsCurrent {
+                return Dict.isValidWord(converted.lowercased(), lang: sideLang)
+                    ? .switchToConverted : .undecided
+            }
+            return Dict.isValidWord(typed.lowercased(), lang: sideLang) ? .keep : .undecided
+        }
+
         // Словарь — без учёта регистра (Caps Lock не должен мешать определению слова).
         guard Dict.isAvailable(oth) else { return .undecided }
         guard Dict.isValidWord(converted.lowercased(), lang: oth) else { return .keep }
@@ -68,6 +93,12 @@ enum LayoutDetector {
         var core = s[...]
         while let last = core.last, punct.contains(last) { core = core.dropLast() }
         return (core.count, String(s.dropFirst(core.count)))
+    }
+
+    /// Язык — иврит (BCP-47 `he` или устаревший `iw`). 3.0: гейт кросс-скрипт-детекта.
+    static func isHebrew(_ lang: String) -> Bool {
+        let two = lang.lowercased().prefix(2)
+        return two == "he" || two == "iw"
     }
 
     private static func isAllCaps(_ s: String) -> Bool {
