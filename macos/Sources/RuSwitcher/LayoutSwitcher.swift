@@ -32,8 +32,7 @@ enum LayoutSwitcher {
         let targetID = (current == id1) ? id2 : id1
 
         if let target = sources.first(where: { sourceID($0) == targetID }) {
-            TISEnableInputSource(target)
-            TISSelectInputSource(target)
+            select(target)
         }
     }
 
@@ -41,9 +40,21 @@ enum LayoutSwitcher {
     static func switchTo(layoutID: String) {
         let sources = installedLayouts()
         if let target = sources.first(where: { sourceID($0) == layoutID }) {
-            TISEnableInputSource(target)
-            TISSelectInputSource(target)
+            select(target)
         }
+    }
+
+    /// issue #19: выбирает источник, вызывая TISEnableInputSource ТОЛЬКО если он
+    /// реально выключен. На сторонних раскладках (напр. «Ilya Birman Typography»)
+    /// enable уже включённого источника даёт системный запрос безопасности на КАЖДОЕ
+    /// переключение. Наш `installedLayouts()` через TISCreateInputSourceList(_, false)
+    /// и так отдаёт только включённые источники, так что обычно enable не нужен вовсе.
+    private static func select(_ source: TISInputSource) {
+        if let ptr = TISGetInputSourceProperty(source, kTISPropertyInputSourceIsEnabled),
+           Unmanaged<CFBoolean>.fromOpaque(ptr).takeUnretainedValue() != kCFBooleanTrue {
+            TISEnableInputSource(source)
+        }
+        TISSelectInputSource(source)
     }
 
     /// Все установленные раскладки
