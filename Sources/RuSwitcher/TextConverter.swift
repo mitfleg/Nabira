@@ -254,6 +254,9 @@ final class TextConverter {
 
         lastConvertedCount = converted.count
         lastBoundaryCount = usedBoundary
+        // Симметрично Попытке 1: актуализируем флаг, чтобы прошлое RTL-выделение
+        // не блокировало реконверт свежей LTR-конверсии (залипший флаг).
+        lastClipboardRTL = TextConverter.containsRTL(text) || TextConverter.containsRTL(converted)
         conversionSucceeded = true
         scheduleClipboardRestore()
         return true
@@ -310,6 +313,7 @@ final class TextConverter {
         lastOriginal = ""
         lastConverted = ""
         lastWasBuffer = false
+        lastClipboardRTL = false
     }
 
     // MARK: - Private

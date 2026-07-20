@@ -73,13 +73,18 @@ enum DynamicKeyMapping {
     }
 
     /// Конвертирует текст из текущей раскладки в целевую
-    static func convert(_ text: String) -> String {
+    static func convert(_ inputText: String) -> String {
+        // LTR-текст в NFD (декомпозированные ё/й/умляуты — типично из Finder/PDF)
+        // сначала прекомпозируем: иначе bail по комбинирующим знакам ниже отказал бы
+        // там, где 2.7.0 конвертировал. RTL не нормализуем (никуд, см. normalizedForInsert).
+        let text = TextConverter.containsRTL(inputText)
+            ? inputText : inputText.precomposedStringWithCanonicalMapping
         // Комбинирующие знаки (никуд/харакат): char-мап работает по графемным кластерам,
         // «буква+знак» в карте не находится и прошла бы насквозь при конверсии соседних
         // букв → полу-конвертированная смесь. Точность важнее полноты — не трогаем.
         if text.unicodeScalars.contains(where: { $0.properties.generalCategory == .nonspacingMark }) {
             rslog("DynamicKeyMapping: combining marks in text — bail")
-            return text
+            return inputText
         }
         let settings = SettingsManager.shared
         let layouts = LayoutSwitcher.installedLayouts()
@@ -92,11 +97,13 @@ enum DynamicKeyMapping {
         guard let source = layouts.first(where: { LayoutSwitcher.sourceID($0) == currentID }),
               let targetID = (currentID == layout1ID) ? layout2ID : layout1ID as String?,
               let target = layouts.first(where: { LayoutSwitcher.sourceID($0) == targetID }) else {
-            // Fallback на статический маппинг — но НЕ для пар с ивритом: EN↔RU таблица
-            // подменила бы целевой язык (EN-слово → RU-мешанина). Честный отказ.
-            if pairHasHebrew(layouts: layouts, id1: layout1ID, id2: layout2ID) {
-                rslog("DynamicKeyMapping: hebrew pair unresolved — no static fallback")
-                return text
+            // Статический EN↔RU фолбэк — только когда ОБА языка пары ПОЛОЖИТЕЛЬНО en/ru.
+            // Нерезолвящийся ID (настроенный, но удалённый из системы иврит — installedLayouts
+            // отдаёт только включённые источники!) — это НЕ «пара без иврита»: фолбэк
+            // подменил бы целевой язык (ревью-находка, раунд 2). Честный отказ.
+            guard pairIsStaticSafe(layouts: layouts, id1: layout1ID, id2: layout2ID) else {
+                rslog("DynamicKeyMapping: pair unresolved and not en/ru — no static fallback")
+                return inputText
             }
             rslog("DynamicKeyMapping: fallback to static mapping")
             return KeyMapping.convert(text)
@@ -105,9 +112,9 @@ enum DynamicKeyMapping {
         let map = buildMap(from: source, to: target)
 
         if map.isEmpty {
-            if pairHasHebrew(layouts: layouts, id1: layout1ID, id2: layout2ID) {
-                rslog("DynamicKeyMapping: hebrew pair empty map — no static fallback")
-                return text
+            guard pairIsStaticSafe(layouts: layouts, id1: layout1ID, id2: layout2ID) else {
+                rslog("DynamicKeyMapping: empty map, pair not en/ru — no static fallback")
+                return inputText
             }
             rslog("DynamicKeyMapping: empty map, fallback to static")
             return KeyMapping.convert(text)
@@ -121,13 +128,15 @@ enum DynamicKeyMapping {
         mapCache.removeAll()
     }
 
-    /// Настроенная пара раскладок содержит иврит (для гейтов фолбэков).
-    private static func pairHasHebrew(layouts: [TISInputSource], id1: String, id2: String) -> Bool {
-        [id1, id2].contains { id in
+    /// Статический EN↔RU фолбэк уместен, только когда оба языка пары положительно
+    /// определены как en/ru. Из неудачи резолва ID «безопасность» не выводится.
+    private static func pairIsStaticSafe(layouts: [TISInputSource], id1: String, id2: String) -> Bool {
+        let langs: [String] = [id1, id2].compactMap { id in
             guard let src = layouts.first(where: { LayoutSwitcher.sourceID($0) == id }),
-                  let lang = LayoutSwitcher.languageCode(src) else { return false }
-            return LayoutDetector.isHebrew(lang)
+                  let lang = LayoutSwitcher.languageCode(src) else { return nil }
+            return String(lang.lowercased().prefix(2))
         }
+        return langs.count == 2 && langs.allSatisfy { $0 == "en" || $0 == "ru" }
     }
 
     /// Конвертирует набранные keycodes в строки исходной и целевой раскладок —
