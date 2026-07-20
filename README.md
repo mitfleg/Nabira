@@ -55,6 +55,16 @@ Because the check relies on the **macOS system dictionary** — which is less co
 - **Never convert** — words it must never touch (nicknames, logins, brands). After a wrong fix, tap the trigger to undo and RuSwitcher offers to add the word here.
 - **Always convert** — words to always fix even if they aren't in the dictionary (compound words, slang). Add the **target** word — the result you want.
 
+### Hebrew — right-to-left, experimental (new in 3.0)
+
+RuSwitcher's **first right-to-left layout**. Any layout pair involving Hebrew now converts: typed `akuo` in the wrong layout? One tap makes it `שלום`, in either direction, with any second layout. Because conversion is keycode-based, right-to-left text is handled safely and niqqud marks are never reordered.
+
+**Automatic conversion for Hebrew pairs is deliberately conservative** — the macOS Hebrew dictionary accepts any letter sequence, so auto only fires on a positive signal (you typed in Hebrew but the word is a real word of your other layout's language). The reverse direction is left to the manual trigger — no corrupted words. This is a new, experimental feature; **the interface itself is not yet localized into Hebrew (RTL UI is planned separately)**, and reports from Hebrew typists are very welcome.
+
+### Layout-switch hotkey (new in 3.0)
+
+Besides the conversion trigger, you can set a **second hotkey that only switches the layout** — no conversion — in Settings. It supports modifier-only combos like **Ctrl+Shift** that macOS system settings can't assign, plus **right-key-only** and **double-tap** options (e.g. double-Shift to switch). Off by default.
+
 ### Remote desktop (beta — new in 2.5)
 
 RuSwitcher works through **Apple Screen Sharing**. Type into a remote Mac's session and fix wrong-layout text right there — by trigger or automatically — just like on your local machine. Run RuSwitcher on **both** Macs and turn on **Remote Desktop mode** (beta, marked in the menu). Conversion happens on the Mac you're controlling, where the text actually lives.
@@ -66,8 +76,10 @@ After you switch layout, RuSwitcher can briefly show the layout flag **right nex
 ### Features
 
 - **Any two layouts** — configure any pair from your installed system layouts. No hardcoded tables.
+- **Hebrew — right-to-left (experimental, new in 3.0)** — the first RTL layout; convert to/from Hebrew with any second layout. Auto-conversion is conservative by design; the manual trigger works both ways.
 - **Switch layout from the menu** *(new in 2.6.1)* — pick any installed layout right from the menu-bar menu (flag, name, a check on the current one) and click to switch.
 - **Configurable trigger** — Option, Command, Control or Shift (left/right, single/double-tap), or a two-key combo like ⌘+⇧.
+- **Layout-switch hotkey** *(new in 3.0)* — a separate hotkey that only switches the layout (no conversion), including Ctrl+Shift and other modifier-only combos macOS can't assign; right-key-only and double-tap options. Off by default.
 - **Automatic conversion (beta)** — optionally fix the layout as you type, with a precision-first system-dictionary check. Off by default.
 - **Remote desktop (beta)** — fix the layout over Apple Screen Sharing, on the Mac you're controlling.
 - **Exception lists** — a per-app exclusion list plus never-convert and always-convert word lists.
@@ -183,6 +195,16 @@ RuSwitcher умеет исправлять раскладку **автомати
 - **Никогда не конвертировать** — слова, которые трогать нельзя (ники, логины, бренды). После ошибочной замены нажмите триггер для отмены — RuSwitcher предложит добавить слово сюда.
 - **Всегда конвертировать** — слова, которые исправлять всегда, даже если их нет в словаре (составные слова, сленг). Добавляйте **целевое** слово — то, что должно получиться.
 
+### Иврит — справа налево, экспериментально (новое в 3.0)
+
+**Первая раскладка с письмом справа налево.** Теперь конвертируется любая пара раскладок с ивритом: набрали `akuo` не в той раскладке? Один тап — и это `שלום`, в обе стороны, с любой второй раскладкой. Конверсия кейкодная, поэтому RTL-текст обрабатывается безопасно, а огласовки (никуд) никогда не переставляются.
+
+**Авто-конверсия для пар с ивритом сознательно консервативна** — системный ивритский словарь macOS принимает любой набор букв, поэтому авто срабатывает только при положительном сигнале (вы набрали в иврите, а слово — настоящее слово языка второй раскладки). Обратное направление — ручным триггером, никаких испорченных слов. Это новая, экспериментальная функция; **сам интерфейс пока не переведён на иврит (RTL-интерфейс — отдельным этапом)**, и отзывы от тех, кто печатает на иврите, очень приветствуются.
+
+### Хоткей переключения раскладки (новое в 3.0)
+
+Помимо триггера конверсии можно назначить **второй хоткей, который только переключает раскладку** — без конверсии — в Настройках. Поддерживает комбо из одних модификаторов вроде **Ctrl+Shift**, которые системные настройки macOS назначить не позволяют, плюс опции **только правая клавиша** и **двойной тап** (например, двойной Shift → смена). По умолчанию выключен.
+
 ### Режим удалённого стола (бета — новое в 2.5)
 
 RuSwitcher работает через **Apple Screen Sharing**. Печатаете в сессии удалённого Mac — и неправильная раскладка исправляется прямо там, по триггеру или автоматически, как на локальной машине. Запустите RuSwitcher на **обеих** машинах и включите **Режим удалённого стола** (бета, помечен в меню). Конверсия происходит на управляемой машине, где и находится текст.
@@ -194,8 +216,10 @@ RuSwitcher работает через **Apple Screen Sharing**. Печатае�
 ### Возможности
 
 - **Любая пара раскладок** — настраивается любая пара из установленных в системе. Без захардкоженных таблиц.
+- **Иврит — справа налево (экспериментально, новое в 3.0)** — первая RTL-раскладка; конверсия в/из иврита с любой второй раскладкой. Авто-конверсия консервативна by design; ручной триггер работает в обе стороны.
 - **Переключение раскладки из меню** *(новое в 2.6.1)* — выберите любую установленную раскладку прямо в меню-баре (флаг, имя, галочка на текущей) и кликните для переключения.
 - **Настраиваемый триггер** — Option, Command, Control или Shift (левый/правый, одиночный/двойной тап), либо комбо из двух клавиш вроде ⌘+⇧.
+- **Хоткей переключения раскладки** *(новое в 3.0)* — отдельный хоткей только для смены раскладки (без конверсии), включая Ctrl+Shift и другие комбо модификаторов, недоступные системным настройкам; опции «только правая» и «двойной тап». По умолчанию выключен.
 - **Автоматическая конверсия (бета)** — опционально исправляет раскладку по ходу набора, с проверкой по системному словарю. По умолчанию выключено.
 - **Режим удалённого стола (бета)** — исправление раскладки через Apple Screen Sharing, на управляемой машине.
 - **Списки исключений** — список приложений плюс словари never-convert и always-convert.
