@@ -25,6 +25,7 @@ final class SettingsManager: @unchecked Sendable {
         static let triggerRightOnly = "com.ruswitcher.triggerRightOnly"
         static let triggerDoubleTap = "com.ruswitcher.triggerDoubleTap"
         static let switchHotkey = "com.ruswitcher.switchHotkey"
+        static let switchDoubleTap = "com.ruswitcher.switchDoubleTap"
         static let autoConvert = "com.ruswitcher.autoConvert"
         static let remoteDesktopMode = "com.ruswitcher.remoteDesktopMode"
         static let showRemoteDesktopBeta = "com.ruswitcher.showRemoteDesktopBeta"
@@ -144,6 +145,12 @@ final class SettingsManager: @unchecked Sendable {
     var switchHotkey: String {
         get { defaults.string(forKey: Keys.switchHotkey) ?? "" }
         set { defaults.set(newValue, forKey: Keys.switchHotkey) }
+    }
+
+    /// issue #14: смена раскладки по ДВОЙНОМУ тапу хоткея (зеркало triggerDoubleTap).
+    var switchDoubleTap: Bool {
+        get { defaults.bool(forKey: Keys.switchDoubleTap) }
+        set { defaults.set(newValue, forKey: Keys.switchDoubleTap) }
     }
 
     /// Caps Lock как триггер требует consume-tap (чтобы подавить переключение регистра).

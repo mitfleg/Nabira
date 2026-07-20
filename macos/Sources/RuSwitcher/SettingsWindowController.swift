@@ -32,7 +32,7 @@ final class SettingsWindowController {
         }
 
         let win = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 480, height: 700),
+            contentRect: NSRect(x: 0, y: 0, width: 480, height: 726),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false
@@ -72,8 +72,8 @@ final class SettingsWindowController {
         let item = NSTabViewItem()
         item.label = L10n.settingsTabGeneral
 
-        let view = NSView(frame: NSRect(x: 0, y: 0, width: 460, height: 640))
-        var y: CGFloat = 600
+        let view = NSView(frame: NSRect(x: 0, y: 0, width: 460, height: 666))
+        var y: CGFloat = 626
 
         // Автопереключение
         let autoSwitch = NSButton(checkboxWithTitle: L10n.settingsAutoSwitch, target: self, action: #selector(autoSwitchChanged))
@@ -118,6 +118,13 @@ final class SettingsWindowController {
         switchPopup.target = self
         switchPopup.action = #selector(switchHotkeyChanged)
         view.addSubview(switchPopup)
+        y -= 26
+
+        // issue #14: смена по двойному тапу выбранного хоткея (зеркало double-tap триггера).
+        let switchDoubleTapCheckbox = NSButton(checkboxWithTitle: L10n.settingsTriggerDoubleTap, target: self, action: #selector(switchDoubleTapChanged))
+        switchDoubleTapCheckbox.frame = NSRect(x: 40, y: y, width: 390, height: 22)
+        switchDoubleTapCheckbox.state = SettingsManager.shared.switchDoubleTap ? .on : .off
+        view.addSubview(switchDoubleTapCheckbox)
         y -= 32
 
         let triggerHint = NSTextField(wrappingLabelWithString: L10n.settingsTriggerHint)
@@ -569,6 +576,11 @@ final class SettingsWindowController {
     @objc private func switchHotkeyChanged(_ sender: NSPopUpButton) {
         SettingsManager.shared.switchHotkey = (sender.selectedItem?.representedObject as? String) ?? ""
         onTriggerChanged?()   // reconfigure перечитает и switchConfig
+    }
+
+    @objc private func switchDoubleTapChanged(_ sender: NSButton) {
+        SettingsManager.shared.switchDoubleTap = sender.state == .on
+        onTriggerChanged?()
     }
 
     @objc private func triggerRightOnlyChanged(_ sender: NSButton) {

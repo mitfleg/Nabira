@@ -80,7 +80,7 @@ struct TriggerConfig {
         let s = SettingsManager.shared
         let key = s.switchHotkey
         guard known.contains(key), key != s.triggerKey else { return nil }
-        return parse(key: key, rightOnly: false, doubleTap: false)
+        return parse(key: key, rightOnly: false, doubleTap: s.switchDoubleTap)
     }
 
     static func parse(key: String, rightOnly: Bool, doubleTap: Bool) -> TriggerConfig {
@@ -142,6 +142,7 @@ final class KeyboardMonitor: @unchecked Sendable {
     private var switchConfig = TriggerConfig.switchHotkey()
     private var switchArmed = false
     private var switchPressTime: Date?
+    private var switchLastTapTime: Date?   // для double-tap хоткея смены
     /// Колбэк чистого переключения раскладки (issue #14). Ставится из AppDelegate.
     var onSwitchHotkey: (() -> Void)?
 
@@ -258,6 +259,7 @@ final class KeyboardMonitor: @unchecked Sendable {
         triggerArmed = false
         switchArmed = false
         lastTapTime = nil
+        switchLastTapTime = nil
         keysTypedSinceConversion = true
         if caretFlagEnabled { DispatchQueue.main.async { [weak self] in self?.onUserInput?() } }   // issue #10: клик прячет флаг у каретки
         fullReset()
@@ -269,6 +271,7 @@ final class KeyboardMonitor: @unchecked Sendable {
         triggerArmed = false
         switchArmed = false   // issue #14: клавиша между модификаторами = шорткат, не хоткей
         lastTapTime = nil
+        switchLastTapTime = nil
         keysTypedSinceConversion = true
         if caretFlagEnabled { DispatchQueue.main.async { [weak self] in self?.onUserInput?() } }   // issue #10: спрятать флаг при печати
 
@@ -471,9 +474,9 @@ final class KeyboardMonitor: @unchecked Sendable {
     }
 
     /// issue #14: параллельная машина второго хоткея — чистое переключение раскладки.
-    /// Зеркалит триггерную логику; Caps Lock и double-tap не поддерживаются, сторона
-    /// (left/right) не различается. Разоружается на keyDown/клике вместе с триггером —
-    /// Ctrl+Shift+P и подобные шорткаты раскладку не переключают.
+    /// Зеркалит триггерную логику; Caps Lock не поддерживается, сторона (left/right) не
+    /// различается, одиночный/двойной тап — как у триггера (switchDoubleTap). Разоружается
+    /// на keyDown/клике вместе с триггером — Ctrl+Shift+P и подобные не переключают.
     private func handleSwitchFlags(flags: CGEventFlags, keyCode: UInt16) {
         guard let cfg = switchConfig else { return }
         let allMods: CGEventFlags = [.maskCommand, .maskControl, .maskAlternate, .maskShift]
@@ -493,7 +496,7 @@ final class KeyboardMonitor: @unchecked Sendable {
             } else {
                 if switchArmed, accepted.contains(keyCode), let t = switchPressTime,
                    Date().timeIntervalSince(t) < tapWindow {
-                    fireSwitch()
+                    registerSwitchTap()
                 }
                 switchArmed = false
                 switchPressTime = nil
@@ -508,11 +511,25 @@ final class KeyboardMonitor: @unchecked Sendable {
                 switchPressTime = Date()
             } else if flags.intersection(allMods).isEmpty {
                 if switchArmed, let t = switchPressTime, Date().timeIntervalSince(t) < tapWindow {
-                    fireSwitch()
+                    registerSwitchTap()
                 }
                 switchArmed = false
                 switchPressTime = nil
             }
+        }
+    }
+
+    /// Учитывает одиночный/двойной тап хоткея смены (зеркало registerTap).
+    private func registerSwitchTap() {
+        if switchConfig?.doubleTap == true {
+            if let last = switchLastTapTime, Date().timeIntervalSince(last) < tapWindow {
+                switchLastTapTime = nil
+                fireSwitch()
+            } else {
+                switchLastTapTime = Date()  // ждём второй тап
+            }
+        } else {
+            fireSwitch()
         }
     }
 
