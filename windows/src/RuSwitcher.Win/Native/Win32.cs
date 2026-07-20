@@ -14,7 +14,7 @@ internal static class Win32
 
     // Marker written into the dwExtraInfo of our own injected events, so the hook can
     // ignore them (the Windows counterpart of the macOS kRuSwitcherEventMarker userData).
-    public static readonly IntPtr InjectedMarker = 0x52555357; // 'RUSW'
+    public static readonly IntPtr InjectedMarker = (IntPtr)0x52555357; // 'RUSW'
 
     [StructLayout(LayoutKind.Sequential)]
     public struct KBDLLHOOKSTRUCT

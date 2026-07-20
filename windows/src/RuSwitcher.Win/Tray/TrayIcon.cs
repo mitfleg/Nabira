@@ -53,7 +53,7 @@ internal sealed class TrayIcon : IDisposable
     {
         switch (msg)
         {
-            case WM_TRAYICON when (uint)lParam is WM_RBUTTONUP or WM_LBUTTONUP:
+            case WM_TRAYICON when ((uint)(lParam.ToInt64() & 0xFFFF)) is WM_RBUTTONUP or WM_LBUTTONUP:
                 ShowMenu();
                 return IntPtr.Zero;
 

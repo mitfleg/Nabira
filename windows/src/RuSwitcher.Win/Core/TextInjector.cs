@@ -17,8 +17,8 @@ internal static class TextInjector
 
         for (int i = 0; i < backspaces; i++)
         {
-            inputs.Add(Key(VK_BACK, 0, dwFlags: 0));
-            inputs.Add(Key(VK_BACK, 0, dwFlags: KEYEVENTF_KEYUP));
+            inputs.Add(Key(VK_BACK, '\0', dwFlags: 0));
+            inputs.Add(Key(VK_BACK, '\0', dwFlags: KEYEVENTF_KEYUP));
         }
         foreach (char c in text)
         {
