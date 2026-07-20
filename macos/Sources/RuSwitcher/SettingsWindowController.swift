@@ -118,7 +118,7 @@ final class SettingsWindowController {
         switchPopup.target = self
         switchPopup.action = #selector(switchHotkeyChanged)
         view.addSubview(switchPopup)
-        y -= 26
+        y -= 34   // как зазор popup→rightOnly у триггера (попап высотой 26 на y-2)
 
         // issue #14: смена по двойному тапу выбранного хоткея (зеркало double-tap триггера).
         let switchDoubleTapCheckbox = NSButton(checkboxWithTitle: L10n.settingsTriggerDoubleTap, target: self, action: #selector(switchDoubleTapChanged))
