@@ -26,3 +26,6 @@ jobs:
 
       - name: Build (Release)
         run: dotnet build windows/src/RuSwitcher.Win/RuSwitcher.Win.csproj -c Release --nologo
+
+      - name: Test (pure-logic unit tests)
+        run: dotnet test windows/tests/RuSwitcher.Win.Tests/RuSwitcher.Win.Tests.csproj -c Release --nologo
