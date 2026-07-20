@@ -395,7 +395,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // Первая не-буква — стоп: дальше хвост пунктуация и в целевой раскладке,
         // двусмысленности нет. NSSpellChecker токенизирует («привет!» для него валиден),
         // поэтому проверять полную конверсию целиком нельзя — только буквенные префиксы.
-        if !suffix.isEmpty, Dict.isAvailable(langs.opposite) {
+        // Для пар с ивритом walk не нужен: направление «в иврит» авто-путём не конвертится
+        // by design (см. иврит-ветку decide), а ивритский словарь принимает любые буквы —
+        // walk дал бы бессмысленный bail на первом же шаге и мусорную строку в логе.
+        if !suffix.isEmpty, !LayoutDetector.isHebrew(langs.opposite), Dict.isAvailable(langs.opposite) {
             let oth = String(langs.opposite.prefix(2))
             let fullConv = Array(fullPair.converted)
             var candidate = String(fullConv[..<split.coreLength])
@@ -656,7 +659,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// Подпись монохромной плашки — родная аббревиатура языка, как у системного индикатора.
     private func currentBadgeLabel() -> String {
         if let lang = LayoutSwitcher.currentLanguageCode()?.lowercased(), !lang.isEmpty {
-            let code = String(lang.prefix(2))
+            // 'iw' — устаревший код иврита: нормализуем, как и flagBadge.
+            let code = LayoutDetector.isHebrew(lang) ? "he" : String(lang.prefix(2))
             let labels: [String: String] = [
                 "ru": "РУ", "en": "EN", "uk": "УК", "be": "БЕ",
                 "de": "DE", "fr": "FR", "es": "ES", "it": "IT",
@@ -708,7 +712,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// Единый бейдж раскладки для иконки меню-бара и списка раскладок в меню:
     /// «🇷🇺» для известных языков, иначе код («EL»).
     private static func flagBadge(forLanguage lang: String) -> String {
-        let code = String(lang.lowercased().prefix(2))
+        // Иврит может прийти устаревшим кодом 'iw' — движок его понимает (isHebrew),
+        // индикация должна тоже, иначе в баре будет «IW» вместо 🇮🇱.
+        let code = LayoutDetector.isHebrew(lang) ? "he" : String(lang.lowercased().prefix(2))
         let flags: [String: String] = [
             "ru": "🇷🇺", "en": "🇺🇸", "uk": "🇺🇦", "be": "🇧🇾",
             "de": "🇩🇪", "fr": "🇫🇷", "es": "🇪🇸", "it": "🇮🇹",

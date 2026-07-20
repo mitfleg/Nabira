@@ -74,6 +74,13 @@ enum DynamicKeyMapping {
 
     /// Конвертирует текст из текущей раскладки в целевую
     static func convert(_ text: String) -> String {
+        // Комбинирующие знаки (никуд/харакат): char-мап работает по графемным кластерам,
+        // «буква+знак» в карте не находится и прошла бы насквозь при конверсии соседних
+        // букв → полу-конвертированная смесь. Точность важнее полноты — не трогаем.
+        if text.unicodeScalars.contains(where: { $0.properties.generalCategory == .nonspacingMark }) {
+            rslog("DynamicKeyMapping: combining marks in text — bail")
+            return text
+        }
         let settings = SettingsManager.shared
         let layouts = LayoutSwitcher.installedLayouts()
         let currentID = LayoutSwitcher.currentLayoutID()
@@ -85,7 +92,12 @@ enum DynamicKeyMapping {
         guard let source = layouts.first(where: { LayoutSwitcher.sourceID($0) == currentID }),
               let targetID = (currentID == layout1ID) ? layout2ID : layout1ID as String?,
               let target = layouts.first(where: { LayoutSwitcher.sourceID($0) == targetID }) else {
-            // Fallback на статический маппинг
+            // Fallback на статический маппинг — но НЕ для пар с ивритом: EN↔RU таблица
+            // подменила бы целевой язык (EN-слово → RU-мешанина). Честный отказ.
+            if pairHasHebrew(layouts: layouts, id1: layout1ID, id2: layout2ID) {
+                rslog("DynamicKeyMapping: hebrew pair unresolved — no static fallback")
+                return text
+            }
             rslog("DynamicKeyMapping: fallback to static mapping")
             return KeyMapping.convert(text)
         }
@@ -93,6 +105,10 @@ enum DynamicKeyMapping {
         let map = buildMap(from: source, to: target)
 
         if map.isEmpty {
+            if pairHasHebrew(layouts: layouts, id1: layout1ID, id2: layout2ID) {
+                rslog("DynamicKeyMapping: hebrew pair empty map — no static fallback")
+                return text
+            }
             rslog("DynamicKeyMapping: empty map, fallback to static")
             return KeyMapping.convert(text)
         }
@@ -103,6 +119,15 @@ enum DynamicKeyMapping {
     /// Очистить кэш (при смене раскладок в настройках)
     static func clearCache() {
         mapCache.removeAll()
+    }
+
+    /// Настроенная пара раскладок содержит иврит (для гейтов фолбэков).
+    private static func pairHasHebrew(layouts: [TISInputSource], id1: String, id2: String) -> Bool {
+        [id1, id2].contains { id in
+            guard let src = layouts.first(where: { LayoutSwitcher.sourceID($0) == id }),
+                  let lang = LayoutSwitcher.languageCode(src) else { return false }
+            return LayoutDetector.isHebrew(lang)
+        }
     }
 
     /// Конвертирует набранные keycodes в строки исходной и целевой раскладок —

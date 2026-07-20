@@ -18,15 +18,23 @@ final class TextConverter {
     private var lastOriginal = ""
     private var lastConverted = ""
     private var lastWasBuffer = false
+    /// Последняя clipboard-конверсия содержала RTL — реконверт стрелками небезопасен.
+    private var lastClipboardRTL = false
+
+    /// RTL-скаляры: иврит, арабский + презентационные формы (копипаста из PDF).
+    nonisolated static func containsRTL(_ s: String) -> Bool {
+        s.unicodeScalars.contains {
+            ($0.value >= 0x0590 && $0.value <= 0x06FF)
+            || ($0.value >= 0xFB1D && $0.value <= 0xFDFF)
+            || ($0.value >= 0xFE70 && $0.value <= 0xFEFF)
+        }
+    }
 
     /// NFC-нормализация перед вставкой — но НЕ для иврита/арабского: канонич. композиция
     /// может переставить/слить комбинирующие знаки (никуд/харакат), и число кодпоинтов
     /// разъедется со счётчиком Backspace/Shift-Left. Для RTL оставляем строку как есть.
     nonisolated static func normalizedForInsert(_ s: String) -> String {
-        let hasRTL = s.unicodeScalars.contains {
-            ($0.value >= 0x0590 && $0.value <= 0x05FF) || ($0.value >= 0x0600 && $0.value <= 0x06FF)
-        }
-        return hasRTL ? s : s.precomposedStringWithCanonicalMapping
+        containsRTL(s) ? s : s.precomposedStringWithCanonicalMapping
     }
 
     /// Создаёт CGEventSource с маркером, чтобы KeyboardMonitor игнорировал наши события
@@ -179,15 +187,36 @@ final class TextConverter {
         if let text = tryCopy(pasteboard) {
             rslog("convert: selection len=\(text.count)")
             let converted = TextConverter.normalizedForInsert(DynamicKeyMapping.convert(text))
+            // Конверсия не изменила текст (пара не разрешилась / комбинирующие знаки —
+            // см. bail'ы в DynamicKeyMapping) — не гоняем вставку впустую.
+            if converted == text {
+                rslog("convert: no-op conversion — bail")
+                return false
+            }
             pasteText(converted, pasteboard: pasteboard)
             // Курсор остаётся в конце вставленного текста — не пере-выделяем,
             // чтобы следующий ввод не затёр результат. Для reconvert используется
             // унифицированный путь через selectBack(lastConvertedCount).
             lastConvertedCount = converted.count
             lastBoundaryCount = 0
+            // RTL: реконверт этого результата шёл бы стрелочной селекцией, а стрелки
+            // двигают каретку ВИЗУАЛЬНО — в RTL выделился бы не тот диапазон и
+            // конверсия заменила бы чужой текст (ревью-находка). Помечаем, чтобы
+            // reconvertViaClipboard отказался.
+            lastClipboardRTL = TextConverter.containsRTL(text) || TextConverter.containsRTL(converted)
             conversionSucceeded = true
             scheduleClipboardRestore()
             return true
+        }
+
+        // RTL-пара: счётчиковый путь выделяет Shift+Left'ами, а в RTL «влево» —
+        // логически вперёд: выделили бы не то и заменили чужой текст. Точность
+        // важнее полноты — отказ (буферный движок ивриту не нужен только при
+        // выделении мышью, а это Попытка 1 выше).
+        if let l = LayoutSwitcher.currentAndOppositeLanguage(),
+           LayoutDetector.isHebrew(l.current) || LayoutDetector.isHebrew(l.opposite) {
+            rslog("convert: hebrew pair — count-based clipboard path unsafe, bail")
+            return false
         }
 
         // --- Попытка 2: выделяем слово по счётчику ---
@@ -241,6 +270,11 @@ final class TextConverter {
 
         rslog("reconvert: lastCount=\(lastConvertedCount) boundary=\(lastBoundaryCount)")
         guard lastConvertedCount > 0 else { return false }
+        // RTL-результат: стрелочная селекция в RTL выделит не тот диапазон (см. convert).
+        guard !lastClipboardRTL else {
+            rslog("reconvert: RTL selection — arrow-based path unsafe, bail")
+            return false
+        }
 
         let pasteboard = NSPasteboard.general
         // Отменяем отложенное восстановление clipboard — мы ещё работаем

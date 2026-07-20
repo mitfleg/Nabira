@@ -63,6 +63,12 @@ enum LayoutDetector {
             let sideLang = hebrewIsCurrent ? oth : cur
             guard !isHebrew(sideLang), Dict.isAvailable(sideLang) else { return .undecided }
             if hebrewIsCurrent {
+                // NSSpellChecker токенизирует («привет!» для него валиден), а часть ивритских
+                // букв живёт на пунктуационных клавишах — EN-образ КОРРЕКТНОГО иврита может
+                // получиться «слово + пунктуация» и ложно пройти словарь (ревью-находка,
+                // тот же класс, что «думаю vs дума.» в 2.7.0). Словарю отдаём только
+                // целиком буквенный образ; иначе .undecided — ручной триггер работает.
+                guard converted.allSatisfy({ $0.isLetter }) else { return .undecided }
                 return Dict.isValidWord(converted.lowercased(), lang: sideLang)
                     ? .switchToConverted : .undecided
             }
