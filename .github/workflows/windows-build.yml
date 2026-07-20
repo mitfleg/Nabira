@@ -1,0 +1,28 @@
+name: windows-build
+
+# Builds the Windows version on a real Windows runner — the only way to verify it,
+# since the maintainer works on macOS. Also the project's first build CI (the audit
+# flagged that pushes were never compile-checked).
+on:
+  push:
+    branches: [wip/windows, main]
+    paths:
+      - 'windows/**'
+      - '.github/workflows/windows-build.yml'
+  pull_request:
+    paths:
+      - 'windows/**'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Build (Release)
+        run: dotnet build windows/src/RuSwitcher.Win/RuSwitcher.Win.csproj -c Release --nologo

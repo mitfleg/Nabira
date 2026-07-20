@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- RuSwitcher for Windows. Zero external dependencies (Win32 P/Invoke only),
+       mirroring the macOS app's philosophy. NativeAOT single-exe comes at the
+       distribution stage; for now a plain Release build. -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <RootNamespace>RuSwitcher.Win</RootNamespace>
+    <AssemblyName>RuSwitcher</AssemblyName>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <LangVersion>latest</LangVersion>
+    <Platforms>x64;ARM64</Platforms>
+  </PropertyGroup>
+
+</Project>
