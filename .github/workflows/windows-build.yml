@@ -29,3 +29,19 @@ jobs:
 
       - name: Test (pure-logic unit tests)
         run: dotnet test windows/tests/RuSwitcher.Win.Tests/RuSwitcher.Win.Tests.csproj -c Release --nologo
+
+      # Self-contained single .exe — runs on any Windows x64 without installing .NET.
+      # Download it from this run's "Artifacts" section to test on a real machine.
+      - name: Publish single-file exe
+        run: >
+          dotnet publish windows/src/RuSwitcher.Win/RuSwitcher.Win.csproj
+          -c Release -r win-x64 --self-contained true
+          -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
+          -o publish --nologo
+
+      - name: Upload exe artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: RuSwitcher-win-x64
+          path: publish/RuSwitcher.exe
+          if-no-files-found: error
