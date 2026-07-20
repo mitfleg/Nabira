@@ -1,12 +1,16 @@
 # RuSwitcher
 
 <p align="center">
-  <img src="icon.png" width="128" alt="RuSwitcher icon">
+  <img src="macos/icon.png" width="128" alt="RuSwitcher icon">
 </p>
 
 <p align="center">
   <b>Lightweight keyboard layout switcher for macOS</b><br>
   Free and open-source alternative to PuntoSwitcher
+</p>
+
+<p align="center">
+  <sub>macOS app lives in <a href="macos/">macos/</a> · Windows version is <a href="windows/">planned</a> · cross-platform behaviour contract in <a href="shared/">shared/</a></sub>
 </p>
 
 <p align="center">

@@ -6,7 +6,8 @@ APP_NAME="RuSwitcher"
 APP_BUNDLE="$PROJECT_DIR/$APP_NAME.app"
 # Universal-сборка кладёт продукт сюда (а не в .build/release)
 BUILD_DIR="$PROJECT_DIR/.build/apple/Products/Release"
-VERSION_JSON="$PROJECT_DIR/version.json"
+# version.json живёт в КОРНЕ репозитория (живой фид обновлений) — не переносить!
+VERSION_JSON="$PROJECT_DIR/../version.json"
 
 # version.json — единый источник правды. Значения в Info.plist в репо
 # игнорируются: скрипт штампует CFBundleShortVersionString и CFBundleVersion

@@ -3,9 +3,10 @@ set -e
 
 APP_NAME="RuSwitcher"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-# Единый источник версии — version.json в корне репозитория.
-VERSION=$(/usr/bin/python3 -c "import json;print(json.load(open('version.json'))['version'])")
-BUILD=$(/usr/bin/python3 -c "import json;print(json.load(open('version.json')).get('build','1'))")
+cd "$SCRIPT_DIR"   # все относительные пути — от macos/ (аудит: раньше зависели от CWD)
+# Единый источник версии — version.json в КОРНЕ репозитория (живой фид обновлений).
+VERSION=$(/usr/bin/python3 -c "import json;print(json.load(open('../version.json'))['version'])")
+BUILD=$(/usr/bin/python3 -c "import json;print(json.load(open('../version.json')).get('build','1'))")
 DMG_NAME="${APP_NAME}-${VERSION}.dmg"
 # Нотаризация: предпочитаем API-ключ App Store Connect — файл на диске, НЕ зависит
 # от Keychain (keychain-профиль уже дважды пропадал: 2026-07-01 и 2026-07-10).
@@ -217,10 +218,10 @@ echo "→ Writing sha256 into version.json and ruswitcher.rb..."
 /usr/bin/python3 - "$DMG_SHA" <<'PY'
 import json, sys
 sha = sys.argv[1]
-with open("version.json") as f:
+with open("../version.json") as f:
     data = json.load(f)
 data["sha256"] = sha
-with open("version.json", "w") as f:
+with open("../version.json", "w") as f:
     json.dump(data, f, indent=2)
     f.write("\n")
 PY
