@@ -461,8 +461,10 @@ final class KeyboardMonitor: @unchecked Sendable {
                 triggerArmed = true                  // ровно оба нужных, без посторонних → армим
                 triggerPressTime = Date()
             } else if flags.intersection(allMods).isEmpty {
-                // всё отпущено: тап-комбо, если был армлен, быстро и без клавиш между
-                if triggerArmed, let t = triggerPressTime, Date().timeIntervalSince(t) < tapWindow {
+                // всё отпущено: комбо, если был армлен и без клавиш между (triggerArmed это
+                // гарантирует). Окно tapWindow убрано (issue #21): удержанный аккорд из двух
+                // модификаторов держат дольше 0.4с, что ломало срабатывание combo-триггера.
+                if triggerArmed {
                     registerTap()
                 }
                 triggerArmed = false
@@ -510,7 +512,11 @@ final class KeyboardMonitor: @unchecked Sendable {
                 switchArmed = true
                 switchPressTime = Date()
             } else if flags.intersection(allMods).isEmpty {
-                if switchArmed, let t = switchPressTime, Date().timeIntervalSince(t) < tapWindow {
+                // issue #21: два зажатых модификатора без keyDown между ними (switchArmed это
+                // гарантирует — handleKeyDown его сбрасывает) — уже однозначный хоткей.
+                // Длительность удержания аккорда НЕ ограничиваем: окно 0.4с было слишком узким,
+                // аккорд из двух модификаторов держат заметно дольше флика одной клавиши.
+                if switchArmed {
                     registerSwitchTap()
                 }
                 switchArmed = false

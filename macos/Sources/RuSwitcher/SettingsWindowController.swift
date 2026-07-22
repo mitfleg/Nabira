@@ -571,6 +571,9 @@ final class SettingsWindowController {
         let triggerKey = SettingsManager.shared.triggerKey
         for item in popup.menu?.items ?? [] where (item.representedObject as? String) == triggerKey {
             item.isEnabled = false
+            // issue #20: не оставлять пункт немым серым — объяснить, что он занят триггером.
+            item.title += L10n.settingsSwitchHotkeyBusy
+            item.toolTip = L10n.settingsSwitchHotkeyBusy
         }
         let current = SettingsManager.shared.switchHotkey
         if let idx = popup.menu?.items.firstIndex(where: { ($0.representedObject as? String) == current }) {
