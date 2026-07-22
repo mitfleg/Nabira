@@ -10,6 +10,8 @@ final class SettingsWindowController {
     private var checkUpdatesCheckbox: NSButton?
     private var debugLogCheckbox: NSButton?
     private var caretFlagCheckbox: NSButton?
+    private var autoConvertCheckbox: NSButton?      // #4: синк тумблера меню → окно настроек
+    private var remoteDesktopCheckbox: NSButton?    // #5: то же (опционален — за фичефлагом)
     private var layout1Popup: NSPopUpButton?
     private var layout2Popup: NSPopUpButton?
     private var languagePopup: NSPopUpButton?
@@ -65,6 +67,14 @@ final class SettingsWindowController {
     /// Обновить чекбокс «флаг у курсора» извне (когда переключили из меню)
     func updateCaretFlagState(_ enabled: Bool) {
         caretFlagCheckbox?.state = enabled ? .on : .off
+    }
+
+    /// #4/#5: синхронизировать чекбоксы с переключением из меню-бара.
+    func updateAutoConvertState(_ enabled: Bool) {
+        autoConvertCheckbox?.state = enabled ? .on : .off
+    }
+    func updateRemoteDesktopState(_ enabled: Bool) {
+        remoteDesktopCheckbox?.state = enabled ? .on : .off
     }
 
     // MARK: - General Tab
@@ -240,6 +250,7 @@ final class SettingsWindowController {
         autoConvert.frame = NSRect(x: 20, y: y - 22, width: 420, height: 22)
         autoConvert.state = SettingsManager.shared.autoConvert ? .on : .off
         view.addSubview(autoConvert)
+        autoConvertCheckbox = autoConvert
         y -= 24
         let acHint = NSTextField(wrappingLabelWithString: L10n.settingsAutoConvertHint)
         acHint.frame = NSRect(x: 40, y: y - 32, width: 400, height: 32)
@@ -266,6 +277,7 @@ final class SettingsWindowController {
             remote.frame = NSRect(x: 20, y: y - 22, width: 420, height: 22)
             remote.state = SettingsManager.shared.remoteDesktopMode ? .on : .off
             view.addSubview(remote)
+            remoteDesktopCheckbox = remote
             y -= 24
             let rHint = NSTextField(wrappingLabelWithString: L10n.settingsRemoteDesktopHint)
             rHint.frame = NSRect(x: 40, y: y - 44, width: 400, height: 44)

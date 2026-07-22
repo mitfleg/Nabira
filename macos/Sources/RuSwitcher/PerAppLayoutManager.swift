@@ -10,6 +10,9 @@ final class PerAppLayoutManager {
     var onLayoutRestored: (() -> Void)?
 
     func start() {
+        // #6: идемпотентность — повторный start() без stop() иначе перезапишет observer
+        // новым токеном и потеряет старый (утечка + задвоение handleAppActivated).
+        guard observer == nil else { rslog("PerAppLayout: already started"); return }
         previousBundleID = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
         observer = NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didActivateApplicationNotification,

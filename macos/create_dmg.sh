@@ -228,6 +228,13 @@ PY
 /usr/bin/sed -i '' -E "s/^([[:space:]]*sha256 \").*(\")/\1${DMG_SHA}\2/" "$SCRIPT_DIR/ruswitcher.rb"
 /usr/bin/sed -i '' -E "s/^([[:space:]]*version \").*(\")/\1${VERSION}\2/" "$SCRIPT_DIR/ruswitcher.rb"
 
+# Проверяем, что подстановка реально произошла: sed при отсутствии совпадения выходит
+# с кодом 0 (set -e не ловит), поэтому дрейф формата каска прошёл бы молча со старой версией.
+if ! grep -q "sha256 \"${DMG_SHA}\"" "$SCRIPT_DIR/ruswitcher.rb" || ! grep -q "version \"${VERSION}\"" "$SCRIPT_DIR/ruswitcher.rb"; then
+    echo "ERROR: cask update via sed did not take (format drift in ruswitcher.rb?). Aborting." >&2
+    exit 1
+fi
+
 echo ""
 echo "=== Done! ==="
 echo "DMG: $(pwd)/$DMG_NAME ($(du -h "$DMG_NAME" | cut -f1))"

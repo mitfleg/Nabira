@@ -775,6 +775,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func toggleAutoConvert(_ sender: NSMenuItem) {
         SettingsManager.shared.autoConvert.toggle()
         sender.state = SettingsManager.shared.autoConvert ? .on : .off
+        settingsController.updateAutoConvertState(SettingsManager.shared.autoConvert)   // #4
     }
 
     @objc private func toggleKeySound(_ sender: NSMenuItem) {
@@ -798,6 +799,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func toggleRemoteDesktop(_ sender: NSMenuItem) {
         SettingsManager.shared.remoteDesktopMode.toggle()
         sender.state = SettingsManager.shared.remoteDesktopMode ? .on : .off
+        settingsController.updateRemoteDesktopState(SettingsManager.shared.remoteDesktopMode)   // #5
         reconfigureTap()  // уровень event tap зависит от режима
     }
 
