@@ -152,6 +152,12 @@ final class KeyboardMonitor: @unchecked Sendable {
     // Для двойного тапа
     private var lastTapTime: Date?
     private let tapWindow: TimeInterval = 0.4
+    // issue #21: окно «тапа» для КОМБО из двух модификаторов. Намеренно большое: аккорд
+    // из двух клавиш держат заметно дольше флика одной (0.4с было слишком узко). Но верхний
+    // потолок оставлен — иначе комбо срабатывало бы и на «случайное» долгое удержание
+    // модификаторов во время скролла/жеста (эти события не сбрасывают armed — их нет в маске
+    // event tap'а). 2с покрывает любой намеренный тап и отсекает попутные удержания.
+    private let comboTapWindow: TimeInterval = 2.0
 
     func start(
         onAltTap: @escaping () -> Void,
@@ -462,9 +468,9 @@ final class KeyboardMonitor: @unchecked Sendable {
                 triggerPressTime = Date()
             } else if flags.intersection(allMods).isEmpty {
                 // всё отпущено: комбо, если был армлен и без клавиш между (triggerArmed это
-                // гарантирует). Окно tapWindow убрано (issue #21): удержанный аккорд из двух
-                // модификаторов держат дольше 0.4с, что ломало срабатывание combo-триггера.
-                if triggerArmed {
+                // гарантирует). Окно расширено 0.4→2с (comboTapWindow, issue #21), но потолок
+                // сохранён — не срабатывать на попутное удержание во время скролла/жеста.
+                if triggerArmed, let t = triggerPressTime, Date().timeIntervalSince(t) < comboTapWindow {
                     registerTap()
                 }
                 triggerArmed = false
@@ -512,11 +518,10 @@ final class KeyboardMonitor: @unchecked Sendable {
                 switchArmed = true
                 switchPressTime = Date()
             } else if flags.intersection(allMods).isEmpty {
-                // issue #21: два зажатых модификатора без keyDown между ними (switchArmed это
-                // гарантирует — handleKeyDown его сбрасывает) — уже однозначный хоткей.
-                // Длительность удержания аккорда НЕ ограничиваем: окно 0.4с было слишком узким,
-                // аккорд из двух модификаторов держат заметно дольше флика одной клавиши.
-                if switchArmed {
+                // issue #21: окно расширено 0.4→2с (comboTapWindow) — аккорд держат дольше
+                // флика, но потолок оставлен, чтобы не срабатывать на попутное удержание
+                // во время скролла/жеста (не сбрасывают switchArmed).
+                if switchArmed, let t = switchPressTime, Date().timeIntervalSince(t) < comboTapWindow {
                     registerSwitchTap()
                 }
                 switchArmed = false
@@ -616,7 +621,9 @@ private func keyboardCallback(
             if len >= 1, let scalar = UnicodeScalar(buf[0]) {
                 forwardedChar = Character(scalar)
                 if SettingsManager.shared.debugLogEnabled {
-                    rslog("remote: forwarded char U+\(String(buf[0], radix: 16))")
+                    // Приватность: НЕ логируем сам символ/кодпоинт — иначе получается посимвольный
+                    // лог удалённой сессии. Фиксируем только факт проброса.
+                    rslog("remote: forwarded char")
                 }
             }
         }

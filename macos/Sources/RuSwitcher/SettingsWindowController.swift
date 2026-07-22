@@ -13,6 +13,7 @@ final class SettingsWindowController {
     private var layout1Popup: NSPopUpButton?
     private var layout2Popup: NSPopUpButton?
     private var languagePopup: NSPopUpButton?
+    private var switchHotkeyPopup: NSPopUpButton?   // issue #20/#3: пере-populate при смене триггера
     private var exceptionEditors: [ExceptionListEditor] = []
 
     /// Callback для обновления меню
@@ -118,6 +119,7 @@ final class SettingsWindowController {
         switchPopup.target = self
         switchPopup.action = #selector(switchHotkeyChanged)
         view.addSubview(switchPopup)
+        switchHotkeyPopup = switchPopup
         y -= 34   // как зазор popup→rightOnly у триггера (попап высотой 26 на y-2)
 
         // issue #14: только правая клавиша хоткея смены (зеркало rightOnly триггера).
@@ -535,6 +537,9 @@ final class SettingsWindowController {
     @objc private func triggerChanged(_ sender: NSPopUpButton) {
         SettingsManager.shared.triggerKey = (sender.selectedItem?.representedObject as? String) ?? "option"
         onTriggerChanged?()
+        // issue #3: «занят триггером» в списке хоткея смены зависит от текущего триггера —
+        // пере-populate, иначе метка устареет и можно выбрать хоткей = триггеру (молча мёртвый).
+        if let p = switchHotkeyPopup { populateSwitchHotkeyPopup(p) }
     }
 
     /// issue #14: попап второго хоткея — «Выключен» + те же модификаторы/комбо (без Caps Lock).
