@@ -265,6 +265,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             onAltTap: { [weak self] in
                 guard let self else { return }
                 guard SettingsManager.shared.autoSwitchEnabled else { return }
+                // Приватность: в защищённом поле (пароль) ничего не делаем — ставим ДО
+                // remote-defer, чтобы поведение точно совпадало с handleAutoConvert.
+                guard !AutoSwitchPolicy.secureInputActive else { rslog("trigger: bail secure-input"); return }
                 if AutoSwitchPolicy.shouldDeferToRemoteClient {
                     // Удалёнка: текст конвертит офисный инстанс по реальным проброшенным символам
                     // (Fix №6). А здесь меняем СВОЮ раскладку — чтобы дальнейший ввод пошёл уже
@@ -274,9 +277,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     rslog("trigger: local layout switched, conversion handled by controlled instance")
                     return
                 }
-                // Приватность: в защищённом поле (пароль/Secure Keyboard Entry) не трогаем
-                // текст даже по ручному триггеру — как и авто-путь (handleAutoConvert).
-                guard !AutoSwitchPolicy.secureInputActive else { rslog("trigger: bail secure-input"); return }
                 let keys = self.keyboardMonitor.currentWordKeys
                 let prevKeys = self.keyboardMonitor.prevWordKeys
                 let bc = self.keyboardMonitor.boundaryCount
@@ -290,6 +290,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             onAltReconvert: { [weak self] in
                 guard let self else { return }
                 guard SettingsManager.shared.autoSwitchEnabled else { return }
+                guard !AutoSwitchPolicy.secureInputActive else { rslog("reconvert: bail secure-input"); return }
                 if AutoSwitchPolicy.shouldDeferToRemoteClient {
                     // Удалёнка: текст конвертит офисный инстанс по реальным проброшенным символам
                     // (Fix №6). А здесь меняем СВОЮ раскладку — чтобы дальнейший ввод пошёл уже
@@ -299,7 +300,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     rslog("trigger: local layout switched, conversion handled by controlled instance")
                     return
                 }
-                guard !AutoSwitchPolicy.secureInputActive else { rslog("reconvert: bail secure-input"); return }
                 if self.textConverter.reconvert() {
                     self.keyboardMonitor.markConverted()
                     LayoutSwitcher.switchToOpposite()
