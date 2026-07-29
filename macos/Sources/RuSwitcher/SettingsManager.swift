@@ -31,6 +31,7 @@ final class SettingsManager: @unchecked Sendable {
         static let remoteDesktopMode = "com.ruswitcher.remoteDesktopMode"
         static let showRemoteDesktopBeta = "com.ruswitcher.showRemoteDesktopBeta"
         static let autoConvertOffered = "com.ruswitcher.autoConvertOffered"
+        static let lastWhatsNewVersion = "com.ruswitcher.lastWhatsNewVersion"
         static let keySound = "com.ruswitcher.keySound"
         static let caretFlag = "com.ruswitcher.caretFlag"
         static let monochromeIcon = "com.ruswitcher.monochromeIcon"
@@ -198,6 +199,12 @@ final class SettingsManager: @unchecked Sendable {
     }
 
     /// Предлагали ли уже автозамену при первом запуске (онбординг показывается один раз).
+    /// Последняя версия, для которой показали окно «Что нового». Пусто = ещё не показывали.
+    var lastWhatsNewVersion: String {
+        get { defaults.string(forKey: Keys.lastWhatsNewVersion) ?? "" }
+        set { defaults.set(newValue, forKey: Keys.lastWhatsNewVersion) }
+    }
+
     var autoConvertOffered: Bool {
         get { defaults.bool(forKey: Keys.autoConvertOffered) }
         set { defaults.set(newValue, forKey: Keys.autoConvertOffered) }

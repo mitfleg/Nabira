@@ -21,6 +21,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         setupSettingsCallbacks()
         syncLoginItem()
         runPermissionWizard()
+        showWhatsNewIfNeeded()
         UpdateChecker.checkOnLaunch()
         // Периодическая авто-проверка обновлений, пока приложение работает (не только на старте).
         // Тикает каждые 6ч; сам запрос к GitHub не чаще раза в сутки (троттл в UpdateChecker) и
@@ -837,6 +838,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func openGitHub() {
         if let url = URL(string: SettingsManager.githubURL) {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    /// Окно «Что нового» — один раз после обновления, на языке приложения.
+    /// НЕ показываем на свежей установке (там визард первого запуска): отличаем по
+    /// launchAtLoginAsked — он выставляется на первом запуске, значит приложение уже
+    /// работало ⇒ пустой lastWhatsNewVersion при hasRunBefore = обновление со старой версии.
+    private func showWhatsNewIfNeeded() {
+        let current = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
+        guard !current.isEmpty else { return }
+        let settings = SettingsManager.shared
+        let stored = settings.lastWhatsNewVersion
+        guard stored != current else { return }           // для этой версии уже показывали
+        let hasRunBefore = settings.launchAtLoginAsked     // приложение уже запускалось раньше
+        settings.lastWhatsNewVersion = current             // запоминаем в любом случае
+        guard hasRunBefore else { return }                 // свежая установка — не показываем
+
+        let alert = NSAlert()
+        alert.alertStyle = .informational
+        alert.messageText = "\(L10n.whatsNewTitle) \(current)"
+        alert.informativeText = L10n.whatsNewBody
+        alert.addButton(withTitle: "OK")
+        alert.addButton(withTitle: L10n.whatsNewMore)
+        if alert.runModal() == .alertSecondButtonReturn,
+           let url = URL(string: "\(SettingsManager.githubURL)/releases/latest") {
             NSWorkspace.shared.open(url)
         }
     }
