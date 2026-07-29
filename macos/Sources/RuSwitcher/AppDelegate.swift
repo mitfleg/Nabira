@@ -608,6 +608,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         starItem.target = self
         menu.addItem(starItem)
 
+        let shareItem = NSMenuItem(title: L10n.menuShare, action: #selector(shareApp), keyEquivalent: "")
+        shareItem.target = self
+        menu.addItem(shareItem)
+
         menu.addItem(NSMenuItem.separator())
 
         let quitItem = NSMenuItem(title: L10n.menuQuit, action: #selector(quit), keyEquivalent: "q")
@@ -835,6 +839,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if let url = URL(string: SettingsManager.githubURL) {
             NSWorkspace.shared.open(url)
         }
+    }
+
+    /// Нативный share-sheet macOS: соцсети/мессенджеры/почта/AirDrop/копировать.
+    /// Якорим к иконке в меню-баре. Делимся ссылкой на проект + короткий текст.
+    @objc private func shareApp() {
+        guard let button = statusItem.button,
+              let url = URL(string: SettingsManager.githubURL) else { return }
+        let picker = NSSharingServicePicker(items: [L10n.shareMessage, url])
+        picker.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
     }
 
     func applicationWillTerminate(_ notification: Notification) {
