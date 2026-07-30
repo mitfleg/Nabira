@@ -609,8 +609,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         starItem.target = self
         menu.addItem(starItem)
 
-        let shareItem = NSMenuItem(title: L10n.menuShare, action: #selector(shareApp), keyEquivalent: "")
-        shareItem.target = self
+        let shareItem = NSMenuItem(title: L10n.menuShare, action: nil, keyEquivalent: "")
+        shareItem.submenu = buildShareSubmenu()
         menu.addItem(shareItem)
 
         menu.addItem(NSMenuItem.separator())
@@ -868,13 +868,58 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
-    /// Нативный share-sheet macOS: соцсети/мессенджеры/почта/AirDrop/копировать.
-    /// Якорим к иконке в меню-баре. Делимся ссылкой на проект + короткий текст.
-    @objc private func shareApp() {
-        guard let button = statusItem.button,
-              let url = URL(string: SettingsManager.githubURL) else { return }
-        let picker = NSSharingServicePicker(items: [L10n.shareMessage, url])
-        picker.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+    /// Подменю «Поделиться» — прямые share-intent ссылки на площадки, актуальные для
+    /// аудитории (Telegram/VK — главные для RU), + копирование. Нативный NSSharingServicePicker
+    /// на macOS для этого слаб (нет соцсетей/мессенджеров), поэтому свои web-intent'ы.
+    private func buildShareSubmenu() -> NSMenu {
+        let link = SettingsManager.githubURL
+        let text = L10n.shareMessage
+        let menu = NSMenu()
+
+        let copyItem = NSMenuItem(title: "📋 " + L10n.menuShareCopy, action: #selector(copyShareLink), keyEquivalent: "")
+        copyItem.target = self
+        menu.addItem(copyItem)
+        menu.addItem(NSMenuItem.separator())
+
+        // (заголовок, base, параметры). Порядок параметров сохраняем через массив пар.
+        let targets: [(String, String, [(String, String)])] = [
+            ("Telegram", "https://t.me/share/url",                 [("url", link), ("text", text)]),
+            ("VK",       "https://vk.com/share.php",                [("url", link), ("title", text)]),
+            ("X",        "https://twitter.com/intent/tweet",        [("text", text), ("url", link)]),
+            ("WhatsApp", "https://wa.me/",                          [("text", "\(text) \(link)")]),
+            ("Facebook", "https://www.facebook.com/sharer/sharer.php", [("u", link)]),
+            ("Reddit",   "https://www.reddit.com/submit",           [("url", link), ("title", text)]),
+            ("✉︎ " + L10n.menuShareEmail, "mailto:",                [("subject", "RuSwitcher"), ("body", "\(text) \(link)")]),
+        ]
+        for (title, base, params) in targets {
+            guard let shareURL = Self.buildQueryURL(base, params) else { continue }
+            let item = NSMenuItem(title: title, action: #selector(openShareLink(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = shareURL
+            menu.addItem(item)
+        }
+        return menu
+    }
+
+    /// Собирает URL с корректно закодированными query-параметрами (в т.ч. mailto).
+    private static func buildQueryURL(_ base: String, _ params: [(String, String)]) -> String? {
+        var comps = URLComponents(string: base)
+        comps?.queryItems = params.map { URLQueryItem(name: $0.0, value: $0.1) }
+        // URLComponents кодирует пробел как '+', но mailto/некоторые сервисы ждут %20 —
+        // приводим к %20 для единообразия.
+        return comps?.url?.absoluteString.replacingOccurrences(of: "+", with: "%20")
+    }
+
+    @objc private func openShareLink(_ sender: NSMenuItem) {
+        if let s = sender.representedObject as? String, let url = URL(string: s) {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    @objc private func copyShareLink() {
+        let pb = NSPasteboard.general
+        pb.clearContents()
+        pb.setString("\(L10n.shareMessage) \(SettingsManager.githubURL)", forType: .string)
     }
 
     func applicationWillTerminate(_ notification: Notification) {
