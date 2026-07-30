@@ -876,26 +876,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let text = L10n.shareMessage
         let menu = NSMenu()
 
-        let copyItem = NSMenuItem(title: "📋 " + L10n.menuShareCopy, action: #selector(copyShareLink), keyEquivalent: "")
+        let copyItem = NSMenuItem(title: L10n.menuShareCopy, action: #selector(copyShareLink), keyEquivalent: "")
         copyItem.target = self
+        copyItem.image = NSImage(systemSymbolName: "doc.on.doc", accessibilityDescription: nil)
         menu.addItem(copyItem)
         menu.addItem(NSMenuItem.separator())
 
-        // (заголовок, base, параметры). Порядок параметров сохраняем через массив пар.
-        let targets: [(String, String, [(String, String)])] = [
-            ("Telegram", "https://t.me/share/url",                 [("url", link), ("text", text)]),
-            ("VK",       "https://vk.com/share.php",                [("url", link), ("title", text)]),
-            ("X",        "https://twitter.com/intent/tweet",        [("text", text), ("url", link)]),
-            ("WhatsApp", "https://wa.me/",                          [("text", "\(text) \(link)")]),
-            ("Facebook", "https://www.facebook.com/sharer/sharer.php", [("u", link)]),
-            ("Reddit",   "https://www.reddit.com/submit",           [("url", link), ("title", text)]),
-            ("✉︎ " + L10n.menuShareEmail, "mailto:",                [("subject", "RuSwitcher"), ("body", "\(text) \(link)")]),
+        // (заголовок, icon-slug, base, параметры). icon: ключ ShareIcons или "sf:<symbol>".
+        let targets: [(String, String, String, [(String, String)])] = [
+            ("Telegram", "telegram", "https://t.me/share/url",                 [("url", link), ("text", text)]),
+            ("VK",       "vk",       "https://vk.com/share.php",                [("url", link), ("title", text)]),
+            ("X",        "x",        "https://twitter.com/intent/tweet",        [("text", text), ("url", link)]),
+            ("WhatsApp", "whatsapp", "https://wa.me/",                          [("text", "\(text) \(link)")]),
+            ("Facebook", "facebook", "https://www.facebook.com/sharer/sharer.php", [("u", link)]),
+            ("Reddit",   "reddit",   "https://www.reddit.com/submit",           [("url", link), ("title", text)]),
+            (L10n.menuShareEmail, "sf:envelope", "mailto:",                     [("subject", "RuSwitcher"), ("body", "\(text) \(link)")]),
         ]
-        for (title, base, params) in targets {
+        for (title, icon, base, params) in targets {
             guard let shareURL = Self.buildQueryURL(base, params) else { continue }
             let item = NSMenuItem(title: title, action: #selector(openShareLink(_:)), keyEquivalent: "")
             item.target = self
             item.representedObject = shareURL
+            if icon.hasPrefix("sf:") {
+                item.image = NSImage(systemSymbolName: String(icon.dropFirst(3)), accessibilityDescription: nil)
+            } else {
+                item.image = ShareIcons.image(icon)
+            }
             menu.addItem(item)
         }
         return menu
