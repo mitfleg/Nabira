@@ -32,7 +32,10 @@ enum LayoutDetector {
         if AutoSwitchPolicy.isAlwaysConvert(converted) { return .switchToConverted }
 
         // --- мягкие вето (дёшево, до словаря) ---
-        guard typed.count >= 3 else { return .undecided }                  // 1–2 буквы: слишком много коллизий между раскладками
+        // 1 буква — не трогаем никогда (неоднозначность запредельная). 2 буквы —
+        // отдельная ветка ниже через частотный список (ShortWords), т.к. на такой длине
+        // системный словарь ненадёжен; 3+ — обычный путь через NSSpellChecker.
+        guard typed.count >= 2 else { return .undecided }
         guard typed.allSatisfy({ $0.isLetter }) else { return .undecided } // цифры/пунктуация/URL/код/почта
         // Под Caps Lock весь текст в ВЕРХНЕМ регистре — это НЕ акроним и НЕ camelCase,
         // поэтому эти два вето применяем только когда Caps Lock выключен.
@@ -59,6 +62,7 @@ enum LayoutDetector {
         // пара русский+иврит конвертила бы каждое валидное русское слово в иврит
         // (ревью-находка июльского аудита).
         if isHebrew(cur) || isHebrew(oth) {
+            guard typed.count >= 3 else { return .undecided }              // короткий частотный сигнал для иврита не строим
             let hebrewIsCurrent = isHebrew(cur)
             let sideLang = hebrewIsCurrent ? oth : cur
             guard !isHebrew(sideLang), Dict.isAvailable(sideLang) else { return .undecided }
@@ -73,6 +77,22 @@ enum LayoutDetector {
                     ? .switchToConverted : .undecided
             }
             return Dict.isValidWord(typed.lowercased(), lang: sideLang) ? .keep : .undecided
+        }
+
+        // --- Короткие (2-буквенные) слова: позитивный частотный сигнал (3.1, issue #22) ---
+        // NSSpellChecker на длине 2 принимает почти любой набор букв за «слово», поэтому
+        // обычная двусторонняя проверка тут ненадёжна (ради этого и стоял гейт count>=3).
+        // Вместо словаря — компактный список ЧАСТЫХ коротких слов (ShortWords), строго как
+        // позитивный сигнал: конвертим 2 буквы ТОЛЬКО если конверсия — частое слово целевого
+        // языка, а набранное — не частое слово текущего (симметрия как у иврит-ветки).
+        // Коллизий «частое↔частое» нет (аудит образов раскладки). Пары с языком без списка
+        // сюда не попадают → 2-буквенные, как и раньше, не трогаются.
+        if typed.count == 2 {
+            guard let othShort = ShortWords.common(oth) else { return .undecided }
+            if let curShort = ShortWords.common(cur), curShort.contains(typed.lowercased()) {
+                return .keep   // уже частое слово в текущей раскладке — не трогаем
+            }
+            return othShort.contains(converted.lowercased()) ? .switchToConverted : .undecided
         }
 
         // Словарь — без учёта регистра (Caps Lock не должен мешать определению слова).
