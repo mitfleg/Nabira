@@ -136,6 +136,60 @@ final class TextConverter {
         return true
     }
 
+    /// issue #16: конверсия в Spotlight. Обычный путь оставляет лишнюю букву, потому что
+    /// Spotlight «съедает» первый Backspace серого автодополнения — счётчик нажатий (и даже
+    /// стирание по РЕАЛЬНОЙ длине) расходится с полем. AX-элемент Spotlight к тому же флейкует.
+    /// Надёжный путь БЕЗ Backspace и БЕЗ AX: выделить всё поле (Cmd+A), прочитать реальный
+    /// текст через буфер (Cmd+C), сконвертировать и вставить поверх выделения (Cmd+A+Cmd+V) —
+    /// selection-replace не задействует Backspace вовсе (проверено живым захватом 2026-08-01:
+    /// «ghbdtn»→«привет» без лишних букв). Конвертит ВСЮ строку поиска (для однострочного поля
+    /// Spotlight это ожидаемо). Реверсивно: повторный вызов конвертит назад. Буфер обмена
+    /// сохраняется/восстанавливается. false → вызывающий падает на обычный путь.
+    @MainActor
+    func convertSpotlight() -> Bool {
+        guard !isConverting else { return false }
+        isConverting = true
+        lastWasBuffer = false
+        let pasteboard = NSPasteboard.general
+        cancelClipboardRestore()
+        savedClipboardItems = snapshotPasteboard(pasteboard)
+        var conversionSucceeded = false
+        defer {
+            if !conversionSucceeded { restoreClipboardNow() }
+            isConverting = false
+        }
+
+        // 1. Выделить всё поле и прочитать реальный текст (Cmd+A → Cmd+C).
+        simKey(keyCode: KC.letterA, flags: .maskCommand)
+        usleep(30_000)
+        guard let text = tryCopy(pasteboard), !text.isEmpty else {
+            rslog("spotlight convert: read failed")
+            simKey(keyCode: KC.right, flags: [])   // снять выделение
+            return false
+        }
+
+        // 2. Конверсия (char-level, авто-направление).
+        let converted = TextConverter.normalizedForInsert(DynamicKeyMapping.convert(text))
+        guard converted != text else {
+            rslog("spotlight convert: no-op — bail")
+            simKey(keyCode: KC.right, flags: [])
+            return false
+        }
+
+        // 3. Заменить выделение вставкой (Cmd+A → Cmd+V) — без Backspace.
+        simKey(keyCode: KC.letterA, flags: .maskCommand)
+        usleep(30_000)
+        pasteText(converted, pasteboard: pasteboard)
+
+        rslog("spotlight convert: \(text.count)→\(converted.count) chars (Cmd+A + clipboard)")
+        lastConvertedCount = converted.count
+        lastBoundaryCount = 0
+        lastClipboardRTL = TextConverter.containsRTL(text) || TextConverter.containsRTL(converted)
+        conversionSucceeded = true
+        scheduleClipboardRestore()
+        return true
+    }
+
     /// Повторная конвертация (второй триггер) — на тот движок, которым делали последнюю.
     func reconvert() -> Bool {
         guard !isConverting else { return false }

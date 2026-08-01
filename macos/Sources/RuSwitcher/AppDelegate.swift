@@ -282,6 +282,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     rslog("trigger: local layout switched, conversion handled by controlled instance")
                     return
                 }
+                // issue #16: в Spotlight обычный путь оставляет лишнюю букву (серое
+                // автодополнение съедает Backspace). Особый путь: Cmd+A + буфер, без
+                // Backspace. Не вышло — падаем на обычный путь.
+                if SpotlightAX.isActive(), self.textConverter.convertSpotlight() {
+                    self.keyboardMonitor.markConverted()
+                    LayoutSwitcher.switchToOpposite()
+                    self.updateStatusIcon()
+                    self.lastAutoConverted = nil
+                    return
+                }
                 let keys = self.keyboardMonitor.currentWordKeys
                 let prevKeys = self.keyboardMonitor.prevWordKeys
                 let bc = self.keyboardMonitor.boundaryCount
@@ -303,6 +313,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     LayoutSwitcher.switchToOpposite()
                     self.updateStatusIcon()
                     rslog("trigger: local layout switched, conversion handled by controlled instance")
+                    return
+                }
+                // issue #16: в Spotlight реконверт — тот же путь (Cmd+A + буфер), он
+                // реверсивен (конвертит текущее содержимое обратно).
+                if SpotlightAX.isActive(), self.textConverter.convertSpotlight() {
+                    self.keyboardMonitor.markConverted()
+                    LayoutSwitcher.switchToOpposite()
+                    self.updateStatusIcon()
                     return
                 }
                 if self.textConverter.reconvert() {
