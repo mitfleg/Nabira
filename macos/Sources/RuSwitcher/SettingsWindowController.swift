@@ -384,8 +384,24 @@ final class SettingsWindowController {
         let item = NSTabViewItem()
         item.label = L10n.settingsTabAdvanced
 
-        let view = NSView(frame: NSRect(x: 0, y: 0, width: 460, height: 360))
-        var y: CGFloat = 310
+        let view = NSView(frame: NSRect(x: 0, y: 0, width: 460, height: 425))
+        var y: CGFloat = 375
+
+        // Бета-версии (пред-релизы) — для тестировщиков; по умолчанию ВЫКЛ.
+        let betaCheckbox = NSButton(checkboxWithTitle: L10n.settingsBetaChannel,
+                                    target: self, action: #selector(betaChannelChanged))
+        betaCheckbox.frame = NSRect(x: 20, y: y, width: 420, height: 22)
+        betaCheckbox.state = SettingsManager.shared.betaChannelEnabled ? .on : .off
+        betaCheckbox.toolTip = L10n.settingsBetaChannelHint
+        view.addSubview(betaCheckbox)
+        y -= 18
+
+        let betaHint = NSTextField(wrappingLabelWithString: L10n.settingsBetaChannelHint)
+        betaHint.frame = NSRect(x: 40, y: y - 18, width: 400, height: 32)
+        betaHint.font = .systemFont(ofSize: 11)
+        betaHint.textColor = .secondaryLabelColor
+        view.addSubview(betaHint)
+        y -= 47   // → 310, дальше debug/логи на прежних координатах
 
         // Debug log
         let debugCheckbox = NSButton(checkboxWithTitle: L10n.settingsDebugLog, target: self, action: #selector(debugLogChanged))
@@ -641,6 +657,10 @@ final class SettingsWindowController {
         let enabled = sender.state == .on
         SettingsManager.shared.caretFlag = enabled
         onCaretFlagChanged?(enabled)
+    }
+
+    @objc private func betaChannelChanged(_ sender: NSButton) {
+        SettingsManager.shared.betaChannelEnabled = sender.state == .on
     }
 
     @objc private func debugLogChanged(_ sender: NSButton) {

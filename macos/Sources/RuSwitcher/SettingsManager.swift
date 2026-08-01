@@ -17,6 +17,7 @@ final class SettingsManager: @unchecked Sendable {
         static let lastUpdateCheck = "com.ruswitcher.lastUpdateCheck"
         static let launchAtLogin = "com.ruswitcher.launchAtLogin"
         static let checkUpdatesEnabled = "com.ruswitcher.checkUpdatesEnabled"
+        static let betaChannelEnabled = "com.ruswitcher.betaChannelEnabled"
         static let interfaceLanguage = "com.ruswitcher.interfaceLanguage"
         static let permissionsWereGranted = "com.ruswitcher.permissionsWereGranted"
         static let launchAtLoginAsked = "com.ruswitcher.launchAtLoginAsked"
@@ -93,6 +94,14 @@ final class SettingsManager: @unchecked Sendable {
     var checkUpdatesEnabled: Bool {
         get { defaults.object(forKey: Keys.checkUpdatesEnabled) as? Bool ?? true }
         set { defaults.set(newValue, forKey: Keys.checkUpdatesEnabled) }
+    }
+
+    /// Канал бета-версий: когда включён, авто-проверка обновлений также смотрит фид
+    /// пред-релизов (version-beta.json) и предлагает более свежую бету. По умолчанию
+    /// ВЫКЛ — обычные пользователи получают только стабильные релизы.
+    var betaChannelEnabled: Bool {
+        get { defaults.bool(forKey: Keys.betaChannelEnabled) }
+        set { defaults.set(newValue, forKey: Keys.betaChannelEnabled) }
     }
 
     /// Язык интерфейса (пустая строка = авто-определение по системе)

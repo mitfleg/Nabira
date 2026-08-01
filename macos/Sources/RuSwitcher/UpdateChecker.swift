@@ -4,8 +4,11 @@ import Foundation
 /// Проверяет наличие обновлений через GitHub
 @MainActor
 enum UpdateChecker {
-    // URL к JSON с информацией о версии (заменить на реальный)
+    // URL к JSON с информацией о версии (стабильный фид).
     private static let versionURL = "https://raw.githubusercontent.com/rashn/RuSwitcher/main/version.json"
+    // Фид пред-релизов (бет). Читается ТОЛЬКО если включён бета-канал в настройках.
+    // Может отсутствовать (404) — тогда бета-клиент просто остаётся на стабильном фиде.
+    private static let betaVersionURL = "https://raw.githubusercontent.com/rashn/RuSwitcher/main/version-beta.json"
 
     /// Структура JSON версии
     private struct VersionInfo: Decodable {
@@ -49,36 +52,57 @@ enum UpdateChecker {
     }
 
     private static func check(silent: Bool) async {
-        guard let url = URL(string: versionURL) else { return }
+        guard let info = await fetchApplicableInfo() else {
+            // nil = стабильный фид недостижим (сеть). Бета-фид опционален и на это не влияет.
+            rslog("UpdateChecker: stable feed unreachable")
+            if !silent { await showErrorAlert() }
+            return
+        }
 
+        SettingsManager.shared.lastUpdateCheck = Date()
+
+        let currentVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0"
+
+        if compareVersions(info.version, isNewerThan: currentVersion) {
+            if SettingsManager.shared.skippedVersion == info.version && silent {
+                return // Пользователь пропустил эту версию
+            }
+            await showUpdateAlert(info: info)
+        } else if !silent {
+            await showUpToDateAlert()
+        }
+    }
+
+    /// Выбирает применимый фид. Стабильный — всегда. Если включён бета-канал, дополнительно
+    /// читает фид пред-релизов и возвращает более СВЕЖУЮ из двух версий (по semver). Так
+    /// бета-тестер получает беты, но автоматически «сходит» на финальный стабильный релиз,
+    /// когда тот обгонит бету. Отсутствие/ошибка бета-фида не мешает стабильному.
+    private static func fetchApplicableInfo() async -> VersionInfo? {
+        guard let stable = await fetchInfo(from: versionURL) else { return nil }
+        guard SettingsManager.shared.betaChannelEnabled else { return stable }
+        guard let beta = await fetchInfo(from: betaVersionURL) else { return stable }
+        return compareVersions(beta.version, isNewerThan: stable.version) ? beta : stable
+    }
+
+    /// Скачивает и декодирует VersionInfo из фида. nil при сетевой ошибке или не-200
+    /// (напр. бета-фида ещё нет — тогда вызывающий остаётся на стабильном).
+    private static func fetchInfo(from urlString: String) async -> VersionInfo? {
+        guard let url = URL(string: urlString) else { return nil }
         do {
-            let (data, _) = try await URLSession.shared.data(from: url)
-            let info = try JSONDecoder().decode(VersionInfo.self, from: data)
-
-            SettingsManager.shared.lastUpdateCheck = Date()
-
-            let currentVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0"
-
-            if compareVersions(info.version, isNewerThan: currentVersion) {
-                if SettingsManager.shared.skippedVersion == info.version && silent {
-                    return // Пользователь пропустил эту версию
-                }
-                await showUpdateAlert(info: info)
-            } else if !silent {
-                await showUpToDateAlert()
-            }
+            let (data, response) = try await URLSession.shared.data(from: url)
+            if let http = response as? HTTPURLResponse, http.statusCode != 200 { return nil }
+            return try JSONDecoder().decode(VersionInfo.self, from: data)
         } catch {
-            rslog("UpdateChecker error: \(error)")
-            if !silent {
-                await showErrorAlert()
-            }
+            rslog("UpdateChecker fetch \(urlString): \(error)")
+            return nil
         }
     }
 
     private static func showUpdateAlert(info: VersionInfo) async {
+        let isBeta = info.version.last?.isLetter ?? false   // «3.2.0a» — пред-релиз
         let alert = NSAlert()
         alert.alertStyle = .informational
-        alert.messageText = L10n.updateAvailable
+        alert.messageText = L10n.updateAvailable + (isBeta ? " " + L10n.updateBeta : "")
         alert.informativeText = "\(L10n.updateNewVersion) \(info.version)\n\(info.notes ?? "")"
         alert.addButton(withTitle: L10n.updateInstallRestart)  // 1st
         alert.addButton(withTitle: L10n.updateDownload)         // 2nd
@@ -106,7 +130,9 @@ enum UpdateChecker {
         let version = info.version
 
         // 0. Версия приходит из сети — не доверяем вслепую (попадёт в URL и в сравнение).
-        guard version.range(of: "^[0-9]+(\\.[0-9]+){1,3}$", options: .regularExpression) != nil else {
+        //    Разрешаем необязательную одну строчную букву-суффикс для бет: «3.2.0a».
+        //    Класс [0-9.a-z] исключает slash/пробел/метасимволы — безопасно для URL/тега.
+        guard version.range(of: "^[0-9]+(\\.[0-9]+){1,3}[a-z]?$", options: .regularExpression) != nil else {
             rslog("Update: rejected malformed version '\(version)'")
             // Семантически это недоверие данным фида, а не «повреждённый файл»:
             // на этом этапе ничего ещё не скачивалось.
@@ -369,17 +395,38 @@ enum UpdateChecker {
         showAlert(style: .warning, title: L10n.updateCheckFailed, message: L10n.updateCheckFailedDetail)
     }
 
-    /// Сравнивает версии ("2.0.1" > "1.9.0")
+    /// Строго ли v1 новее v2. Поддерживает пред-релизы: одна строчная буква-суффикс
+    /// («3.2.0a») — это БЕТА, и она СТАРШЕ по числовому ядру, но МЛАДШЕ финала того же
+    /// ядра. Порядок: 3.1.0 < 3.2.0a < 3.2.0b < 3.2.0 (финал). Так тестер на «3.2.0c»
+    /// получит обновление до финального «3.2.0», когда тот выйдет.
     private static func compareVersions(_ v1: String, isNewerThan v2: String) -> Bool {
-        let parts1 = v1.split(separator: ".").compactMap { Int($0) }
-        let parts2 = v2.split(separator: ".").compactMap { Int($0) }
+        semverCompare(v1, v2) == .orderedDescending
+    }
 
-        for i in 0..<max(parts1.count, parts2.count) {
-            let p1 = i < parts1.count ? parts1[i] : 0
-            let p2 = i < parts2.count ? parts2[i] : 0
-            if p1 > p2 { return true }
-            if p1 < p2 { return false }
+    /// Разбирает версию на числовое ядро и необязательную букву-пред-релиз.
+    private static func parseVersion(_ v: String) -> (core: [Int], pre: String) {
+        var s = Substring(v)
+        var pre = ""
+        if let last = s.last, last.isLetter {          // «3.2.0a» → pre="a", ядро "3.2.0"
+            pre = String(last).lowercased()
+            s = s.dropLast()
         }
-        return false
+        let core = s.split(separator: ".").map { Int($0) ?? 0 }
+        return (core, pre)
+    }
+
+    private static func semverCompare(_ a: String, _ b: String) -> ComparisonResult {
+        let (ca, pa) = parseVersion(a)
+        let (cb, pb) = parseVersion(b)
+        for i in 0..<max(ca.count, cb.count) {
+            let x = i < ca.count ? ca[i] : 0
+            let y = i < cb.count ? cb[i] : 0
+            if x != y { return x < y ? .orderedAscending : .orderedDescending }
+        }
+        // Ядра равны: финал (без буквы) старше любой беты; между бетами — по букве (a<b<c).
+        if pa == pb { return .orderedSame }
+        if pa.isEmpty { return .orderedDescending }    // a=финал, b=бета → a новее
+        if pb.isEmpty { return .orderedAscending }     // a=бета, b=финал → b новее
+        return pa < pb ? .orderedAscending : .orderedDescending
     }
 }
