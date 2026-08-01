@@ -20,8 +20,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         setupStatusItem()
         setupSettingsCallbacks()
         syncLoginItem()
+        // «Запускались раньше?» снимаем ДО визарда: он через startMonitoring →
+        // offerLaunchAtLoginIfNeeded выставляет launchAtLoginAsked уже на этом же
+        // первом запуске, иначе «Что нового» ложно показалось бы на свежей установке.
+        let ranBefore = SettingsManager.shared.launchAtLoginAsked
         runPermissionWizard()
-        showWhatsNewIfNeeded()
+        showWhatsNewIfNeeded(hasRunBefore: ranBefore)
         UpdateChecker.checkOnLaunch()
         // Периодическая авто-проверка обновлений, пока приложение работает (не только на старте).
         // Тикает каждые 6ч; сам запрос к GitHub не чаще раза в сутки (троттл в UpdateChecker) и
@@ -846,15 +850,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// НЕ показываем на свежей установке (там визард первого запуска): отличаем по
     /// launchAtLoginAsked — он выставляется на первом запуске, значит приложение уже
     /// работало ⇒ пустой lastWhatsNewVersion при hasRunBefore = обновление со старой версии.
-    private func showWhatsNewIfNeeded() {
+    private func showWhatsNewIfNeeded(hasRunBefore: Bool) {
         let current = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
         guard !current.isEmpty else { return }
         let settings = SettingsManager.shared
-        let stored = settings.lastWhatsNewVersion
-        guard stored != current else { return }           // для этой версии уже показывали
-        let hasRunBefore = settings.launchAtLoginAsked     // приложение уже запускалось раньше
-        settings.lastWhatsNewVersion = current             // запоминаем в любом случае
-        guard hasRunBefore else { return }                 // свежая установка — не показываем
+        // Показываем только на РЕАЛЬНОМ повышении версии: current строго новее сохранённой
+        // (numeric-сравнение, не строковое) — иначе даунгрейд 3.2→3.1 снова показал бы окно.
+        guard current.compare(settings.lastWhatsNewVersion, options: .numeric) == .orderedDescending else { return }
+        guard hasRunBefore else {                          // свежая установка: не показываем,
+            settings.lastWhatsNewVersion = current         // но фиксируем версию (и на 2-м запуске молчим)
+            return
+        }
+        // После обновления macOS мог сбросить права — идёт визард, мониторинг ещё не поднят.
+        // Не наваливаем промо поверх запроса прав: откладываем до следующего запуска,
+        // версию НЕ фиксируем (покажем, когда права выданы и мониторинг активен).
+        guard monitoringActive else { return }
+        settings.lastWhatsNewVersion = current             // фиксируем только когда реально показываем
 
         let alert = NSAlert()
         alert.alertStyle = .informational
@@ -911,9 +922,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private static func buildQueryURL(_ base: String, _ params: [(String, String)]) -> String? {
         var comps = URLComponents(string: base)
         comps?.queryItems = params.map { URLQueryItem(name: $0.0, value: $0.1) }
-        // URLComponents кодирует пробел как '+', но mailto/некоторые сервисы ждут %20 —
-        // приводим к %20 для единообразия.
-        return comps?.url?.absoluteString.replacingOccurrences(of: "+", with: "%20")
+        // URLComponents кодирует пробел как %20 (не '+'), а литеральный '+' в значении
+        // оставляет как есть — но многие сервисы трактуют '+' как пробел. Поэтому
+        // однозначно кодируем именно '+' → %2B (пробелы уже %20, их не трогаем).
+        return comps?.url?.absoluteString.replacingOccurrences(of: "+", with: "%2B")
     }
 
     @objc private func openShareLink(_ sender: NSMenuItem) {

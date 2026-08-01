@@ -198,13 +198,13 @@ final class SettingsManager: @unchecked Sendable {
         set { defaults.set(newValue, forKey: Keys.showRemoteDesktopBeta) }
     }
 
-    /// Предлагали ли уже автозамену при первом запуске (онбординг показывается один раз).
     /// Последняя версия, для которой показали окно «Что нового». Пусто = ещё не показывали.
     var lastWhatsNewVersion: String {
         get { defaults.string(forKey: Keys.lastWhatsNewVersion) ?? "" }
         set { defaults.set(newValue, forKey: Keys.lastWhatsNewVersion) }
     }
 
+    /// Предлагали ли уже автозамену при первом запуске (онбординг показывается один раз).
     var autoConvertOffered: Bool {
         get { defaults.bool(forKey: Keys.autoConvertOffered) }
         set { defaults.set(newValue, forKey: Keys.autoConvertOffered) }
