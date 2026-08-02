@@ -34,7 +34,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             Task { @MainActor in UpdateChecker.checkPeriodic() }
         }
     }
-
     private func setupSettingsCallbacks() {
         settingsController.onAutoSwitchChanged = { [weak self] _ in
             // Не адресуем пункт по индексу: с 2.5.0 item(at: 0) — строка версии, а со списком
@@ -284,12 +283,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 }
                 // issue #16: в Spotlight обычный путь оставляет лишнюю букву (серое
                 // автодополнение съедает Backspace). Особый путь: Cmd+A + буфер, без
-                // Backspace. Не вышло — падаем на обычный путь.
-                if SpotlightAX.isActive(), self.textConverter.convertSpotlight() {
-                    self.keyboardMonitor.markConverted()
-                    LayoutSwitcher.switchToOpposite()
-                    self.updateStatusIcon()
-                    self.lastAutoConverted = nil
+                // Backspace. Гейт isActive() строгий (окно видимо + Spotlight держит поле),
+                // поэтому здесь мы ТОЧНО в Spotlight — конвертим только своим путём и НЕ
+                // проваливаемся в буфер/count-пути (они тут дают лишнюю букву), что бы
+                // convertSpotlight ни вернул.
+                if SpotlightAX.isActive() {
+                    if self.textConverter.convertSpotlight() {
+                        self.keyboardMonitor.markConverted()
+                        LayoutSwitcher.switchToOpposite()
+                        self.updateStatusIcon()
+                        self.lastAutoConverted = nil
+                    }
                     return
                 }
                 let keys = self.keyboardMonitor.currentWordKeys
@@ -316,11 +320,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     return
                 }
                 // issue #16: в Spotlight реконверт — тот же путь (Cmd+A + буфер), он
-                // реверсивен (конвертит текущее содержимое обратно).
-                if SpotlightAX.isActive(), self.textConverter.convertSpotlight() {
-                    self.keyboardMonitor.markConverted()
-                    LayoutSwitcher.switchToOpposite()
-                    self.updateStatusIcon()
+                // реверсивен (конвертит текущее содержимое обратно). НЕ проваливаемся в
+                // count-based reconvert() в Spotlight (skeptic: он вайпит буфер и селектит
+                // по счётчику — ровно то, чего избегаем).
+                if SpotlightAX.isActive() {
+                    if self.textConverter.convertSpotlight() {
+                        self.keyboardMonitor.markConverted()
+                        LayoutSwitcher.switchToOpposite()
+                        self.updateStatusIcon()
+                    }
                     return
                 }
                 if self.textConverter.reconvert() {

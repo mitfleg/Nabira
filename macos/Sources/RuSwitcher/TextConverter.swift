@@ -152,7 +152,13 @@ final class TextConverter {
         lastWasBuffer = false
         let pasteboard = NSPasteboard.general
         cancelClipboardRestore()
-        savedClipboardItems = snapshotPasteboard(pasteboard)
+        // issue #16 (skeptic): НЕ пере-снимаем буфер, если восстановление уже отложено —
+        // иначе реконверт за <2с снял бы уже КОНВЕРТИРОВАННЫЙ текст и потерял оригинал
+        // пользователя навсегда. savedClipboardItems непусто ровно пока висит отложенный
+        // restore (нилится в его work-item), так что это надёжный признак «есть что вернуть».
+        if savedClipboardItems == nil {
+            savedClipboardItems = snapshotPasteboard(pasteboard)
+        }
         var conversionSucceeded = false
         defer {
             if !conversionSucceeded { restoreClipboardNow() }
