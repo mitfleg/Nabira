@@ -4,9 +4,19 @@ set -e
 APP_NAME="RuSwitcher"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR"   # все относительные пути — от macos/ (аудит: раньше зависели от CWD)
-# Единый источник версии — version.json в КОРНЕ репозитория (живой фид обновлений).
-VERSION=$(/usr/bin/python3 -c "import json;print(json.load(open('../version.json'))['version'])")
-BUILD=$(/usr/bin/python3 -c "import json;print(json.load(open('../version.json')).get('build','1'))")
+# --beta: собрать ПРЕД-РЕЛИЗ из version-beta.json, НЕ трогая стабильный фид (version.json)
+# и cask. Иначе — обычный стабильный релиз из version.json (живой фид обновлений).
+BETA=0
+VERSION_FILE="../version.json"
+if [ "${1:-}" = "--beta" ]; then
+    BETA=1
+    VERSION_FILE="../version-beta.json"
+    echo "=== BETA build (source: $VERSION_FILE — stable version.json/cask untouched) ==="
+fi
+# build_app.sh читает тот же источник версии через RS_VERSION_JSON.
+export RS_VERSION_JSON="$SCRIPT_DIR/$VERSION_FILE"
+VERSION=$(/usr/bin/python3 -c "import json;print(json.load(open('$VERSION_FILE'))['version'])")
+BUILD=$(/usr/bin/python3 -c "import json;print(json.load(open('$VERSION_FILE')).get('build','1'))")
 DMG_NAME="${APP_NAME}-${VERSION}.dmg"
 # Нотаризация: предпочитаем API-ключ App Store Connect — файл на диске, НЕ зависит
 # от Keychain (keychain-профиль уже дважды пропадал: 2026-07-01 и 2026-07-10).
@@ -214,8 +224,23 @@ fi
 # 11. Записываем sha256 обратно в version.json и cask — хэш механически привязан
 #     к реально собранному DMG, а не копируется руками (раньше это расходилось).
 DMG_SHA=$(shasum -a 256 "$DMG_NAME" | awk '{print $1}')
-echo "→ Writing sha256 into version.json and ruswitcher.rb..."
-/usr/bin/python3 - "$DMG_SHA" <<'PY'
+if [ "$BETA" = "1" ]; then
+    # Бета: пишем sha ТОЛЬКО в version-beta.json. Стабильный version.json и cask не трогаем
+    # (Homebrew отслеживает стабильные релизы; беты идут только через встроенный апдейтер).
+    echo "→ Writing sha256 into $VERSION_FILE (beta feed only; stable version.json/cask untouched)..."
+    /usr/bin/python3 - "$DMG_SHA" "$VERSION_FILE" <<'PY'
+import json, sys
+sha, path = sys.argv[1], sys.argv[2]
+with open(path) as f:
+    data = json.load(f)
+data["sha256"] = sha
+with open(path, "w") as f:
+    json.dump(data, f, indent=2)
+    f.write("\n")
+PY
+else
+    echo "→ Writing sha256 into version.json and ruswitcher.rb..."
+    /usr/bin/python3 - "$DMG_SHA" <<'PY'
 import json, sys
 sha = sys.argv[1]
 with open("../version.json") as f:
@@ -225,14 +250,15 @@ with open("../version.json", "w") as f:
     json.dump(data, f, indent=2)
     f.write("\n")
 PY
-/usr/bin/sed -i '' -E "s/^([[:space:]]*sha256 \").*(\")/\1${DMG_SHA}\2/" "$SCRIPT_DIR/ruswitcher.rb"
-/usr/bin/sed -i '' -E "s/^([[:space:]]*version \").*(\")/\1${VERSION}\2/" "$SCRIPT_DIR/ruswitcher.rb"
+    /usr/bin/sed -i '' -E "s/^([[:space:]]*sha256 \").*(\")/\1${DMG_SHA}\2/" "$SCRIPT_DIR/ruswitcher.rb"
+    /usr/bin/sed -i '' -E "s/^([[:space:]]*version \").*(\")/\1${VERSION}\2/" "$SCRIPT_DIR/ruswitcher.rb"
 
-# Проверяем, что подстановка реально произошла: sed при отсутствии совпадения выходит
-# с кодом 0 (set -e не ловит), поэтому дрейф формата каска прошёл бы молча со старой версией.
-if ! grep -q "sha256 \"${DMG_SHA}\"" "$SCRIPT_DIR/ruswitcher.rb" || ! grep -q "version \"${VERSION}\"" "$SCRIPT_DIR/ruswitcher.rb"; then
-    echo "ERROR: cask update via sed did not take (format drift in ruswitcher.rb?). Aborting." >&2
-    exit 1
+    # Проверяем, что подстановка реально произошла: sed при отсутствии совпадения выходит
+    # с кодом 0 (set -e не ловит), поэтому дрейф формата каска прошёл бы молча со старой версией.
+    if ! grep -q "sha256 \"${DMG_SHA}\"" "$SCRIPT_DIR/ruswitcher.rb" || ! grep -q "version \"${VERSION}\"" "$SCRIPT_DIR/ruswitcher.rb"; then
+        echo "ERROR: cask update via sed did not take (format drift in ruswitcher.rb?). Aborting." >&2
+        exit 1
+    fi
 fi
 
 echo ""
