@@ -86,13 +86,57 @@ enum LayoutSwitcher {
         return Unmanaged<CFString>.fromOpaque(ptr).takeUnretainedValue() as String
     }
 
-    /// Код языка раскладки (BCP-47, например "ru", "en"), из kTISPropertyInputSourceLanguages
+    /// Код языка раскладки (BCP-47, например "ru", "en").
+    /// Стандартные раскладки Apple отдают конкретный код первым в kTISPropertyInputSourceLanguages
+    /// ("ru"/"uk"/"en"…). Сторонние `.keylayout` (Ilya Birman и др.) НЕ декларируют язык — macOS
+    /// отдаёт пустую строку первой и мусорный список дальше (проверено: ["", "af", …]), из-за чего
+    /// флаг/авто/каретка ломались (#18). Поэтому при пустых метаданных определяем язык по РЕАЛЬНОМУ
+    /// выводу раскладки (UCKeyTranslate → скрипт → язык).
     static func languageCode(_ source: TISInputSource) -> String? {
-        guard let ptr = TISGetInputSourceProperty(source, kTISPropertyInputSourceLanguages) else {
+        if let ptr = TISGetInputSourceProperty(source, kTISPropertyInputSourceLanguages),
+           let langs = Unmanaged<CFArray>.fromOpaque(ptr).takeUnretainedValue() as? [String],
+           let first = langs.first, !first.isEmpty {
+            return first                       // стандартная раскладка: конкретный язык из метаданных
+        }
+        return scriptLanguage(source)          // сторонняя: определяем по выводу
+    }
+
+    /// Язык по СКРИПТУ реального вывода раскладки (для сторонних раскладок без метаданных).
+    /// Пробуем несколько буквенных клавиш домашнего ряда, берём скрипт первого буквенного глифа.
+    static func scriptLanguage(_ source: TISInputSource) -> String? {
+        guard let dp = TISGetInputSourceProperty(source, kTISPropertyUnicodeKeyLayoutData) else {
             return nil
         }
-        let langs = Unmanaged<CFArray>.fromOpaque(ptr).takeUnretainedValue() as? [String]
-        return langs?.first
+        let data = Unmanaged<CFData>.fromOpaque(dp).takeUnretainedValue() as Data
+        // keycodes домашнего ряда QWERTY: a s d f j k l — буквы почти в любой раскладке
+        for keyCode: UInt16 in [0, 1, 2, 3, 38, 40, 37] {
+            guard let ch = translate(data, keyCode: keyCode)?.unicodeScalars.first, ch.properties.isAlphabetic else { continue }
+            switch ch.value {
+            case 0x0400...0x04FF: return "ru"   // кириллица (конкретика ru/uk/be недоступна без метаданных — берём ru как самый частый)
+            case 0x0041...0x005A, 0x0061...0x007A: return "en"  // латиница
+            case 0x0590...0x05FF: return "he"   // иврит
+            case 0x0370...0x03FF: return "el"   // греческий
+            case 0x0530...0x058F: return "hy"   // армянский
+            case 0x10A0...0x10FF: return "ka"   // грузинский
+            case 0x0600...0x06FF: return "ar"   // арабский
+            default: continue
+            }
+        }
+        return nil
+    }
+
+    /// Один символ, который печатает раскладка для keyCode (без мёртвых клавиш, без модификаторов).
+    private static func translate(_ layoutData: Data, keyCode: UInt16) -> String? {
+        var deadState: UInt32 = 0
+        var len = 0
+        var chars = [UniChar](repeating: 0, count: 4)
+        let status = layoutData.withUnsafeBytes { raw -> OSStatus in
+            guard let kl = raw.bindMemory(to: UCKeyboardLayout.self).baseAddress else { return -1 }
+            return UCKeyTranslate(kl, keyCode, UInt16(kUCKeyActionDown), 0, UInt32(LMGetKbdType()),
+                                  OptionBits(kUCKeyTranslateNoDeadKeysBit), &deadState, chars.count, &len, &chars)
+        }
+        guard status == noErr, len > 0 else { return nil }
+        return String(utf16CodeUnits: chars, count: len)
     }
 
     /// Коды языков текущей и противоположной раскладок (для авто-детекта раскладки).
@@ -113,9 +157,13 @@ enum LayoutSwitcher {
 
     // MARK: - Auto-detect
 
-    /// Авто-определение «английской» раскладки (используется и из DynamicKeyMapping).
+    /// Авто-определение «английской» (латинской) раскладки (используется и из DynamicKeyMapping).
     static func autoDetectID1(from sources: [TISInputSource]) -> String {
-        // Ищем английскую
+        // По ЯЗЫКУ (теперь надёжно и для сторонних раскладок — см. languageCode/scriptLanguage).
+        if let en = sources.first(where: { languageCode($0) == "en" }) {
+            return sourceID(en)
+        }
+        // Фолбэк на подстроку ID (вдруг язык не определился вовсе).
         for source in sources {
             let id = sourceID(source)
             if id.contains("ABC") || id.contains("US") || id.contains("British") {
