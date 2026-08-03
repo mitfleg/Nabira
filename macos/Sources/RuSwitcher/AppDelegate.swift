@@ -34,6 +34,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             Task { @MainActor in UpdateChecker.checkPeriodic() }
         }
     }
+
     private func setupSettingsCallbacks() {
         settingsController.onAutoSwitchChanged = { [weak self] _ in
             // Не адресуем пункт по индексу: с 2.5.0 item(at: 0) — строка версии, а со списком
@@ -480,6 +481,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             updateStatusIcon()
             rslog("auto: local layout switched, conversion handled by controlled instance")
             return
+        }
+
+        // issue #16 (авто): в Spotlight стирание по счётчику оставляет лишнюю букву (серое
+        // автодополнение ест Backspace). Решение по буферу уже принято верно — меняем только
+        // способ замены: по-словное выделение (Shift+Option+Left) + печать поверх, без
+        // Backspace. Суффикс-случай (#15) в Spotlight редок и фиддловат — его не трогаем.
+        if SpotlightAX.isActive() {
+            if suffix.isEmpty,
+               textConverter.convertSpotlightWord(converted: pair.converted, boundaryCount: bc) {
+                keyboardMonitor.markConverted()
+                LayoutSwitcher.switchToOpposite()
+                updateStatusIcon()
+                lastAutoConverted = (pair.original, Date())
+            }
+            return   // Spotlight: обычный count-путь неприменим
         }
 
         rslog("auto: convert \(keys.count) keys (+\(suffix.count) punct, +\(bc) sp)")
