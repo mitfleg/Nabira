@@ -3,11 +3,16 @@ import Foundation
 /// issue #22 (вариант B): умная по-словная конверсия ВЫДЕЛЕННОГО текста.
 ///
 /// Обычный путь конвертирует всё выделение в одну сторону (по активной раскладке), поэтому
-/// mixed-мусор «ghtlkj d ьшчув» чинится лишь наполовину, а застрявшее слово («z» вместо «я»)
-/// не исправить вовсе. Здесь решаем ПО КАЖДОМУ СЛОВУ: переворачиваем слово только если оно
-/// «мусор в своей письменности, но валидное слово после флипа» (по системному словарю).
-/// Так «z не могу» → «я не могу», mixed-мусор чинится целиком, а намеренное «iPhone стоит»
-/// остаётся нетронутым (оба — реальные слова).
+/// mixed-мусор «ghtlkj d ьшчув» чинится лишь наполовину. Здесь решаем ПО КАЖДОМУ СЛОВУ:
+/// переворачиваем слово только если оно «мусор в своей письменности, но валидное слово после
+/// флипа» (по системному словарю). Так mixed-мусор чинится целиком, а намеренное «iPhone
+/// стоит» и «стоит,» остаются нетронутыми.
+///
+/// Точность важнее полноты (скептик #22):
+/// • 1-буквенные НЕ трогаем вовсе — «c» (витамин C), «e» (число e) неотличимы от мусора «z»;
+/// • 2-буквенные — только через частотный ShortWords (NSSpellChecker на длине 2 ненадёжен),
+///   как в LayoutDetector.decide;
+/// • ALL-CAPS акронимы и camelCase/смешанные — пропускаем (те же гейты, что в decide).
 ///
 /// Тумблер «Конвертировать по тексту» (вариант A) идёт мимо этого — там тотальный флип
 /// (DynamicKeyMapping.convertBidirectional). Пары не «латиница+кириллица» (иврит и т.п.) сюда
@@ -15,111 +20,66 @@ import Foundation
 enum SmartConvert {
     private enum Script { case cyr, lat, other, mixed }
 
-    /// Умная по-словная конверсия выделения. Возвращает исходный текст без изменений, если
-    /// пара не латиница+кириллица или словари недоступны (тогда вызывающий берёт обычный путь).
+    /// Умная по-словная конверсия выделения. Возвращает обычную одностороннюю конверсию, если
+    /// пара не латиница+кириллица или словари недоступны.
     @MainActor
     static func selection(_ text: String) -> String {
         guard let (latLang, cyrLang) = classifyPair(),
               Dict.isAvailable(latLang), Dict.isAvailable(cyrLang) else {
             return DynamicKeyMapping.convert(text)   // не Lat+Cyr пара — обычный путь
         }
-
-        let tokens = tokenize(text)
-
-        // --- Пас 1: решение по каждому слову ---
-        enum Decision {
-            case text(String, script: Script)          // готово (keep или flip), с письменностью результата
-            case ambiguousShort(orig: String)          // 1 буква — решаем в пасе 2 по доминанте
-            case verbatim(String)                      // разделитель / без букв / mixed
-        }
-        var decisions: [Decision] = []
-        for tok in tokens {
-            guard tok.isWord else { decisions.append(.verbatim(tok.str)); continue }
-            let w = tok.str
-            let core = letterCore(w)
-            let script = dominantScript(core)
-            guard core.count >= 1, script == .cyr || script == .lat else {
-                decisions.append(.verbatim(w)); continue
-            }
-            let wordLang = (script == .cyr) ? cyrLang : latLang
-            let flipLang = (script == .cyr) ? latLang : cyrLang
-            let flippedScript: Script = (script == .cyr) ? .lat : .cyr
-
-            // Уже валидное слово своего языка → не трогаем (iPhone, стоит).
-            if core.count >= 2, Dict.isValidWord(core.lowercased(), lang: wordLang) {
-                decisions.append(.text(w, script: script)); continue
-            }
-            // 2-буквенное частое слово своего языка → не трогаем.
-            if core.count == 2, let cur = ShortWords.common(wordLang),
-               cur.contains(core.lowercased()) {
-                decisions.append(.text(w, script: script)); continue
-            }
-
-            // Кандидат на флип. (1) целиком — ловит и «ёлка» (`krf), и «делю» (ltk.).
-            let whole = DynamicKeyMapping.convertBidirectional(w)
-            let wholeCore = letterCore(whole)
-            if wholeCore.count >= 2, wholeCore.allSatisfy({ $0.isLetter }),
-               Dict.isValidWord(wholeCore.lowercased(), lang: flipLang) {
-                decisions.append(.text(whole, script: flippedScript)); continue
-            }
-            // (2) со снятым хвостом реальной пунктуации: «ghtlkj;tybt,» → «продолжение» + «,».
-            let (body, suffix) = splitTrailingNonLetters(w)
-            if !suffix.isEmpty, !body.isEmpty {
-                let bflip = DynamicKeyMapping.convertBidirectional(body)
-                let bflipCore = letterCore(bflip)
-                if bflipCore.count >= 2, bflipCore.allSatisfy({ $0.isLetter }),
-                   Dict.isValidWord(bflipCore.lowercased(), lang: flipLang) {
-                    decisions.append(.text(bflip + suffix, script: flippedScript)); continue
-                }
-            }
-            // Не разрешилось. 1 буква → в пас 2 (по доминанте). Иначе — как есть (имя/бренд).
-            if core.count == 1 {
-                decisions.append(.ambiguousShort(orig: w))
-            } else {
-                decisions.append(.verbatim(w))
-            }
-        }
-
-        // --- Пас 2: доминирующая письменность результата → одиночные буквы ---
-        var cyrCount = 0, latCount = 0
-        for d in decisions {
-            if case let .text(_, script) = d {
-                if script == .cyr { cyrCount += 1 } else if script == .lat { latCount += 1 }
-            }
-        }
-        let dominant: Script? = cyrCount > latCount ? .cyr : (latCount > cyrCount ? .lat : nil)
-
         var out = ""
-        for d in decisions {
-            switch d {
-            case let .text(s, _): out += s
-            case let .verbatim(s): out += s
-            case let .ambiguousShort(orig):
-                out += resolveShort(orig, dominant: dominant, latLang: latLang, cyrLang: cyrLang)
-            }
+        for tok in tokenize(text) {
+            out += tok.isWord ? convertWord(tok.str, latLang: latLang, cyrLang: cyrLang) : tok.str
         }
         return out
     }
 
-    // MARK: - Одиночные буквы
+    /// Решение по одному слову (токен без пробелов, может нести пунктуацию).
+    @MainActor
+    private static func convertWord(_ w: String, latLang: String, cyrLang: String) -> String {
+        let core = letterCore(w)
+        let script = dominantScript(core)
+        guard core.count >= 1, script == .cyr || script == .lat else { return w }
+        // Акронимы и код — как в LayoutDetector.decide.
+        if LayoutDetector.isAllCaps(core) || LayoutDetector.looksLikeCodeIdentifier(core) { return w }
 
-    // Частотные однобуквенные слова — только позитивный сигнал для пасса доминанты.
-    private static let cyr1: Set<Character> = ["я", "в", "с", "к", "о", "у", "а", "и"]
-    private static let lat1: Set<Character> = ["a", "i"]
+        let wordLang = (script == .cyr) ? cyrLang : latLang
+        let flipLang = (script == .cyr) ? latLang : cyrLang
 
-    /// Флипаем одиночную букву к доминирующей письменности, только если её флип — частотное
-    /// однобуквенное слово этой стороны («z»→«я»). Иначе оставляем как есть (нет сигнала).
-    private static func resolveShort(_ orig: String, dominant: Script?,
-                                     latLang: String, cyrLang: String) -> String {
-        guard let dominant else { return orig }
-        let flipped = DynamicKeyMapping.convertBidirectional(orig)
-        guard let fch = letterCore(flipped).first else { return orig }
-        let common = (dominant == .cyr) ? cyr1 : lat1
-        let flippedScript = dominantScript(String(fch))
-        guard flippedScript == dominant, common.contains(Character(fch.lowercased())) else {
-            return orig
+        // 1 буква — не трогаем: флип валиден в обе стороны («z»→«я», но и «c»→«с», «e»→«у»),
+        // отличить намеренный научный символ от мусора нельзя (скептик #22).
+        if core.count == 1 { return w }
+
+        // 2 буквы — только частотный список (NSSpellChecker на длине 2 ненадёжен), как decide.
+        if core.count == 2 {
+            if let cur = ShortWords.common(wordLang), cur.contains(core.lowercased()) { return w }
+            let whole = DynamicKeyMapping.convertBidirectional(w)
+            let wc = letterCore(whole)
+            if wc.count == 2, let oth = ShortWords.common(flipLang), oth.contains(wc.lowercased()) {
+                return whole
+            }
+            return w
         }
-        return flipped
+
+        // 3+ — словарь. Уже валидное слово своего языка → не трогаем (iPhone, стоит).
+        if Dict.isValidWord(core.lowercased(), lang: wordLang) { return w }
+        // (1) флип целиком — ловит «ёлка» (`krf), «делю» (ltk.), «продолжение».
+        let whole = DynamicKeyMapping.convertBidirectional(w)
+        let wc = letterCore(whole)
+        if wc.count >= 2, wc.allSatisfy({ $0.isLetter }), Dict.isValidWord(wc.lowercased(), lang: flipLang) {
+            return whole
+        }
+        // (2) со снятым хвостом реальной пунктуации — «ghtlkj;tybt,» → «продолжение» + «,».
+        let (body, suffix) = splitTrailingNonLetters(w)
+        if !suffix.isEmpty, !body.isEmpty {
+            let bflip = DynamicKeyMapping.convertBidirectional(body)
+            let bc = letterCore(bflip)
+            if bc.count >= 2, bc.allSatisfy({ $0.isLetter }), Dict.isValidWord(bc.lowercased(), lang: flipLang) {
+                return bflip + suffix
+            }
+        }
+        return w   // не разрешилось — как есть (имя/бренд)
     }
 
     // MARK: - Helpers
@@ -140,7 +100,7 @@ enum SmartConvert {
     private static func isCyrillicLang(_ lang: String) -> Bool {
         cyrillicLangs.contains(String(lang.lowercased().prefix(2)))
     }
-    // Латинская письменность = не кириллица, не иврит, не греческий/армянский/грузинский/арабский.
+    // Латинская письменность = не кириллица и не иврит/греческий/армянский/грузинский/арабский.
     private static let nonLatinLangs: Set<String> = ["he", "iw", "el", "hy", "ka", "ar", "fa", "yi"]
     private static func isLatinLang(_ lang: String) -> Bool {
         let two = String(lang.lowercased().prefix(2))

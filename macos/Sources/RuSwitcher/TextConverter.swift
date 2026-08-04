@@ -290,6 +290,11 @@ final class TextConverter {
             // унифицированный путь через selectBack(lastConvertedCount).
             lastConvertedCount = converted.count
             lastBoundaryCount = 0
+            // issue #22: сохраняем пару до/после — реконверт восстанавливает ТОЧНО,
+            // а не пере-конвертирует (умный/тотальный флип односторонней convert не
+            // инвертируется, особенно смешанный результат).
+            lastOriginal = text
+            lastConverted = converted
             // RTL: реконверт этого результата шёл бы стрелочной селекцией, а стрелки
             // двигают каретку ВИЗУАЛЬНО — в RTL выделился бы не тот диапазон и
             // конверсия заменила бы чужой текст (ревью-находка). Помечаем, чтобы
@@ -350,6 +355,8 @@ final class TextConverter {
 
         lastConvertedCount = converted.count
         lastBoundaryCount = usedBoundary
+        lastOriginal = text          // issue #22: точное восстановление в reconvert
+        lastConverted = converted
         // Симметрично Попытке 1: актуализируем флаг, чтобы прошлое RTL-выделение
         // не блокировало реконверт свежей LTR-конверсии (залипший флаг).
         lastClipboardRTL = TextConverter.containsRTL(text) || TextConverter.containsRTL(converted)
@@ -392,8 +399,18 @@ final class TextConverter {
             return false
         }
 
-        rslog("reconvert: len=\(text.count) → converting")
-        let converted = TextConverter.normalizedForInsert(DynamicKeyMapping.convert(text))
+        // issue #22: если выделенное совпадает с прошлым результатом — ВОССТАНАВЛИВАЕМ
+        // исходник точно (умный/тотальный флип односторонней convert не инвертируется).
+        // Иначе (текст изменился) — безопасный фолбэк на обычную одностороннюю конверсию.
+        let converted: String
+        if text == lastConverted, !lastOriginal.isEmpty {
+            converted = lastOriginal
+            let tmp = lastOriginal; lastOriginal = lastConverted; lastConverted = tmp   // toggle
+            rslog("reconvert: restored original (len=\(converted.count))")
+        } else {
+            converted = TextConverter.normalizedForInsert(DynamicKeyMapping.convert(text))
+            rslog("reconvert: len=\(text.count) → converting (fallback)")
+        }
         pasteText(converted, pasteboard: pasteboard)
 
         moveRight(lastBoundaryCount)

@@ -123,8 +123,10 @@ enum LayoutDetector {
     /// оба случая ломают счёт/литеральность. «…»/«»/– недостижимы из буфера (Option-слой).
     /// ВАЖНО: '.', ',', ';', ':' в EN — клавиши букв ю/б/ж/Ж в ЙЦУКЕН, поэтому вызывающий
     /// ОБЯЗАН проверить полную конверсию по словарю (неоднозначность «думаю» vs «дума.»).
+    /// Также ` [ ] — клавиши ё/х/ъ: отщепляем их с хвоста, чтобы тот же walk неоднозначности
+    /// сработал симметрично (issue #22-скептик: иначе «ружьё»/«цех» шли бы мимо проверки).
     static func splitTrailingPunctuation(_ s: String) -> (coreLength: Int, suffix: String) {
-        let punct: Set<Character> = [",", ".", "!", "?", ";", ":", ")"]
+        let punct: Set<Character> = [",", ".", "!", "?", ";", ":", ")", "`", "[", "]"]
         var core = s[...]
         while let last = core.last, punct.contains(last) { core = core.dropLast() }
         return (core.count, String(s.dropFirst(core.count)))
@@ -136,13 +138,13 @@ enum LayoutDetector {
         return two == "he" || two == "iw"
     }
 
-    private static func isAllCaps(_ s: String) -> Bool {
+    static func isAllCaps(_ s: String) -> Bool {
         s == s.uppercased() && s != s.lowercased()
     }
 
     /// Похоже на программный идентификатор: внутренняя заглавная (camelCase/PascalCase)
     /// или смешение латиницы и кириллицы в одном токене → почти всегда код, не слово.
-    private static func looksLikeCodeIdentifier(_ s: String) -> Bool {
+    static func looksLikeCodeIdentifier(_ s: String) -> Bool {
         for (i, c) in s.enumerated() where i > 0 && c.isUppercase { return true }
         var hasLatin = false, hasCyrillic = false
         for u in s.unicodeScalars {
