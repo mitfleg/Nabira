@@ -26,6 +26,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let ranBefore = SettingsManager.shared.launchAtLoginAsked
         runPermissionWizard()
         showWhatsNewIfNeeded(hasRunBefore: ranBefore)
+        showBetaWhatsNewIfNeeded()   // отдельная витрина для бет (текст из бета-фида)
         UpdateChecker.checkOnLaunch()
         // Периодическая авто-проверка обновлений, пока приложение работает (не только на старте).
         // Тикает каждые 6ч; сам запрос к GitHub не чаще раза в сутки (троттл в UpdateChecker) и
@@ -913,6 +914,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func showWhatsNewIfNeeded(hasRunBefore: Bool) {
         let current = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
         guard !current.isEmpty else { return }
+        // Бета-версии (с буквой, напр. «3.2.0a») имеют ОТДЕЛЬНУЮ витрину
+        // (showBetaWhatsNewIfNeeded) с текстом из бета-фида; локализованный whatsnew.body
+        // под беты не обновляется (иначе тестер увидел бы устаревший текст).
+        guard current.last?.isLetter != true else { return }
         let settings = SettingsManager.shared
         // Показываем только на РЕАЛЬНОМ повышении версии: current строго новее сохранённой
         // (numeric-сравнение, не строковое) — иначе даунгрейд 3.2→3.1 снова показал бы окно.
@@ -936,6 +941,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if alert.runModal() == .alertSecondButtonReturn,
            let url = URL(string: "\(SettingsManager.githubURL)/releases/latest") {
             NSWorkspace.shared.open(url)
+        }
+    }
+
+    /// Отдельная витрина для БЕТ: текст изменений берётся из notes бета-фида
+    /// (version-beta.json), а не из локализованного whatsnew.body — так его можно менять под
+    /// каждую бету без пересборки и ×16-локализации. Только для подписчиков беты, один раз на
+    /// версию. Текст двуязычный (RU+EN) — аудитория беты небольшая и приглашённая.
+    private func showBetaWhatsNewIfNeeded() {
+        let current = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
+        guard current.last?.isLetter == true else { return }         // только беты
+        guard SettingsManager.shared.betaChannelEnabled else { return }  // только подписчики беты
+        guard SettingsManager.shared.lastBetaNotesShown != current else { return }
+        guard monitoringActive else { return }                        // не поверх запроса прав
+        Task { @MainActor in
+            guard let notes = await UpdateChecker.fetchBetaNotes(), !notes.isEmpty else { return }
+            // перепроверяем после await (мог показаться параллельно / версия изменилась)
+            guard SettingsManager.shared.lastBetaNotesShown != current else { return }
+            SettingsManager.shared.lastBetaNotesShown = current
+            let alert = NSAlert()
+            alert.alertStyle = .informational
+            alert.messageText = "\(L10n.whatsNewTitle) \(current) \(L10n.updateBeta)"
+            alert.informativeText = notes
+            alert.addButton(withTitle: "OK")
+            alert.addButton(withTitle: L10n.whatsNewMore)
+            if alert.runModal() == .alertSecondButtonReturn,
+               let url = URL(string: "\(SettingsManager.githubURL)/releases") {
+                NSWorkspace.shared.open(url)
+            }
         }
     }
 

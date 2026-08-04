@@ -33,6 +33,7 @@ final class SettingsManager: @unchecked Sendable {
         static let showRemoteDesktopBeta = "com.ruswitcher.showRemoteDesktopBeta"
         static let autoConvertOffered = "com.ruswitcher.autoConvertOffered"
         static let lastWhatsNewVersion = "com.ruswitcher.lastWhatsNewVersion"
+        static let lastBetaNotesShown = "com.ruswitcher.lastBetaNotesShown"
         static let keySound = "com.ruswitcher.keySound"
         static let caretFlag = "com.ruswitcher.caretFlag"
         static let monochromeIcon = "com.ruswitcher.monochromeIcon"
@@ -211,6 +212,13 @@ final class SettingsManager: @unchecked Sendable {
     var lastWhatsNewVersion: String {
         get { defaults.string(forKey: Keys.lastWhatsNewVersion) ?? "" }
         set { defaults.set(newValue, forKey: Keys.lastWhatsNewVersion) }
+    }
+
+    /// Последняя бета-версия, для которой показали окно «Что нового в бете» (отдельная
+    /// витрина беты — текст берётся из notes бета-фида, не из локализованного whatsnew.body).
+    var lastBetaNotesShown: String {
+        get { defaults.string(forKey: Keys.lastBetaNotesShown) ?? "" }
+        set { defaults.set(newValue, forKey: Keys.lastBetaNotesShown) }
     }
 
     /// Предлагали ли уже автозамену при первом запуске (онбординг показывается один раз).

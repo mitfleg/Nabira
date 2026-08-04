@@ -84,6 +84,12 @@ enum UpdateChecker {
         return compareVersions(beta.version, isNewerThan: stable.version) ? beta : stable
     }
 
+    /// Текст изменений текущей беты (поле notes бета-фида) — для отдельной «витрины беты».
+    /// nil, если бета-фид недоступен или без notes.
+    static func fetchBetaNotes() async -> String? {
+        await fetchInfo(from: betaVersionURL)?.notes
+    }
+
     /// Скачивает и декодирует VersionInfo из фида. nil при сетевой ошибке или не-200
     /// (напр. бета-фида ещё нет — тогда вызывающий остаётся на стабильном).
     private static func fetchInfo(from urlString: String) async -> VersionInfo? {
