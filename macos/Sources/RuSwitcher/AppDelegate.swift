@@ -76,6 +76,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// Анти-наг: за сессию про одно слово спрашиваем один раз.
     private var offeredExceptionWords: Set<String> = []
 
+    /// Анти-наг для уведомления о защищённом вводе (не чаще раза в N секунд).
+    private var lastSecureNoticeAt: Date?
+
+    /// Ручной триггер нажат, но активен защищённый ввод (фокус в поле пароля — часто во
+    /// вкладке браузера в фоне) → конверсия by design не трогает клавиши. Без подсказки это
+    /// выглядит как «приложение сломалось» (реальный кейс: пользователь мял триггер и лез в
+    /// ioreg). Показываем разовое (троттлённое) объяснение с лечением.
+    private func notifySecureInputPaused() {
+        if let last = lastSecureNoticeAt, Date().timeIntervalSince(last) < 180 { return }
+        lastSecureNoticeAt = Date()
+        let alert = NSAlert()
+        alert.alertStyle = .informational
+        alert.messageText = L10n.securePausedTitle
+        alert.informativeText = L10n.securePausedBody
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
+    }
+
     private func offerExceptionAfterUndo() {
         guard let last = lastAutoConverted, Date().timeIntervalSince(last.at) < 8 else { return }
         lastAutoConverted = nil
@@ -272,7 +290,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 guard SettingsManager.shared.autoSwitchEnabled else { return }
                 // Приватность: в защищённом поле (пароль) ничего не делаем — ставим ДО
                 // remote-defer, чтобы поведение точно совпадало с handleAutoConvert.
-                guard !AutoSwitchPolicy.secureInputActive else { rslog("trigger: bail secure-input"); return }
+                guard !AutoSwitchPolicy.secureInputActive else { rslog("trigger: bail secure-input"); self.notifySecureInputPaused(); return }
                 if AutoSwitchPolicy.shouldDeferToRemoteClient {
                     // Удалёнка: текст конвертит офисный инстанс по реальным проброшенным символам
                     // (Fix №6). А здесь меняем СВОЮ раскладку — чтобы дальнейший ввод пошёл уже
@@ -310,7 +328,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             onAltReconvert: { [weak self] in
                 guard let self else { return }
                 guard SettingsManager.shared.autoSwitchEnabled else { return }
-                guard !AutoSwitchPolicy.secureInputActive else { rslog("reconvert: bail secure-input"); return }
+                guard !AutoSwitchPolicy.secureInputActive else { rslog("reconvert: bail secure-input"); self.notifySecureInputPaused(); return }
                 if AutoSwitchPolicy.shouldDeferToRemoteClient {
                     // Удалёнка: текст конвертит офисный инстанс по реальным проброшенным символам
                     // (Fix №6). А здесь меняем СВОЮ раскладку — чтобы дальнейший ввод пошёл уже
