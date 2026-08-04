@@ -29,6 +29,7 @@ final class SettingsManager: @unchecked Sendable {
         static let switchDoubleTap = "com.ruswitcher.switchDoubleTap"
         static let switchRightOnly = "com.ruswitcher.switchRightOnly"
         static let autoConvert = "com.ruswitcher.autoConvert"
+        static let convertByText = "com.ruswitcher.convertByText"
         static let remoteDesktopMode = "com.ruswitcher.remoteDesktopMode"
         static let showRemoteDesktopBeta = "com.ruswitcher.showRemoteDesktopBeta"
         static let autoConvertOffered = "com.ruswitcher.autoConvertOffered"
@@ -181,6 +182,15 @@ final class SettingsManager: @unchecked Sendable {
     var autoConvert: Bool {
         get { defaults.bool(forKey: Keys.autoConvert) }
         set { defaults.set(newValue, forKey: Keys.autoConvert) }
+    }
+
+    /// issue #22 (вариант A): ручной триггер конвертирует ПО ТЕКСТУ — тотальный флип обеих
+    /// письменностей (латиница↔кириллица) вместо направления по активной раскладке. Полезно
+    /// для mixed-мусора, но переворачивает и намеренный второй язык. По умолчанию ВЫКЛ —
+    /// без тумблера работает умная по-словная конверсия выделения (SmartConvert, вариант B).
+    var convertByText: Bool {
+        get { defaults.bool(forKey: Keys.convertByText) }
+        set { defaults.set(newValue, forKey: Keys.convertByText) }
     }
 
     /// issue #10: показывать флаг раскладки у текстовой каретки (бета). По умолчанию ВЫКЛ.

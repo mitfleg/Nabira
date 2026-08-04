@@ -272,7 +272,12 @@ final class TextConverter {
         // --- Попытка 1: уже есть выделенный текст? ---
         if let text = tryCopy(pasteboard) {
             rslog("convert: selection len=\(text.count)")
-            let converted = TextConverter.normalizedForInsert(DynamicKeyMapping.convert(text))
+            // issue #22: выделение — умная по-словная конверсия (чинит mixed и застрявшие
+            // слова, сохраняет намеренный второй язык), либо тотальный флип «по тексту» (A).
+            let converted = TextConverter.normalizedForInsert(
+                SettingsManager.shared.convertByText
+                    ? DynamicKeyMapping.convertBidirectional(text)
+                    : SmartConvert.selection(text))
             // Конверсия не изменила текст (пара не разрешилась / комбинирующие знаки —
             // см. bail'ы в DynamicKeyMapping) — не гоняем вставку впустую.
             if converted == text {
@@ -333,7 +338,12 @@ final class TextConverter {
         }
 
         rslog("convert: word len=\(text.count)")
-        let converted = TextConverter.normalizedForInsert(DynamicKeyMapping.convert(text))
+        // Счётчиковый путь — одно последнее слово; направление по раскладке (как раньше),
+        // либо тотальный флип при тумблере «по тексту» (A). Умный путь — только для выделения.
+        let converted = TextConverter.normalizedForInsert(
+            SettingsManager.shared.convertByText
+                ? DynamicKeyMapping.convertBidirectional(text)
+                : DynamicKeyMapping.convert(text))
         pasteText(converted, pasteboard: pasteboard)
 
         moveRight(usedBoundary)

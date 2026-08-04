@@ -123,6 +123,65 @@ enum DynamicKeyMapping {
         return String(text.map { map[$0] ?? $0 })
     }
 
+    /// Source/target раскладки текущей пары (source = активная, target = противоположная).
+    /// nil — если пара не разрешилась (настроен, но удалён из системы источник и т.п.).
+    private static func currentPairSources() -> (source: TISInputSource, target: TISInputSource)? {
+        let settings = SettingsManager.shared
+        let layouts = LayoutSwitcher.installedLayouts()
+        let currentID = LayoutSwitcher.currentLayoutID()
+        let layout1ID = settings.layout1ID.isEmpty ? LayoutSwitcher.autoDetectID1(from: layouts) : settings.layout1ID
+        let layout2ID = settings.layout2ID.isEmpty ? LayoutSwitcher.autoDetectID2(from: layouts) : settings.layout2ID
+        guard let source = layouts.first(where: { LayoutSwitcher.sourceID($0) == currentID }),
+              let targetID = (currentID == layout1ID) ? layout2ID : layout1ID as String?,
+              let target = layouts.first(where: { LayoutSwitcher.sourceID($0) == targetID }) else {
+            return nil
+        }
+        return (source, target)
+    }
+
+    /// Двунаправленная карта пары: source→target И target→source слиты в одну. Латиница и
+    /// кириллица — непересекающиеся ключи; на ОБЩИХ клавишах-знаках (напр. «.» = «ю» в одну
+    /// сторону и «/» в другую) предпочитаем БУКВУ — флип в письменность важнее знака.
+    private static func bidirectionalMap() -> [Character: Character]? {
+        guard let (source, target) = currentPairSources() else { return nil }
+        let forward = buildMap(from: source, to: target)
+        let backward = buildMap(from: target, to: source)
+        if forward.isEmpty && backward.isEmpty { return nil }
+        var map = forward
+        for (k, v) in backward {
+            if let existing = map[k] {
+                if !existing.isLetter && v.isLetter { map[k] = v }   // коллизия → буква побеждает
+            } else {
+                map[k] = v
+            }
+        }
+        return map
+    }
+
+    /// issue #22 (A): «конвертировать по тексту» — переворачивает КАЖДЫЙ символ в его
+    /// эквивалент другой раскладки, независимо от активной раскладки. Латиница→кириллица И
+    /// кириллица→латиница за один проход (лечит mixed «ghtlkj d ьшчув»→«продолжение в …»).
+    /// Комбинирующие знаки не трогаем (как в convert). Фолбэк — статическая пара en/ru.
+    static func convertBidirectional(_ inputText: String) -> String {
+        let text = TextConverter.containsRTL(inputText)
+            ? inputText : inputText.precomposedStringWithCanonicalMapping
+        if text.unicodeScalars.contains(where: { $0.properties.generalCategory == .nonspacingMark }) {
+            return inputText
+        }
+        if let map = bidirectionalMap(), !map.isEmpty {
+            return String(text.map { map[$0] ?? $0 })
+        }
+        // Фолбэк: пара en/ru статической таблицей (обе стороны, буква уже побеждает — старт с enToRu).
+        let settings = SettingsManager.shared
+        let layouts = LayoutSwitcher.installedLayouts()
+        let l1 = settings.layout1ID.isEmpty ? LayoutSwitcher.autoDetectID1(from: layouts) : settings.layout1ID
+        let l2 = settings.layout2ID.isEmpty ? LayoutSwitcher.autoDetectID2(from: layouts) : settings.layout2ID
+        guard pairIsStaticSafe(layouts: layouts, id1: l1, id2: l2) else { return inputText }
+        var map = KeyMapping.enToRu
+        for (k, v) in KeyMapping.ruToEn where map[k] == nil { map[k] = v }
+        return String(text.map { map[$0] ?? $0 })
+    }
+
     /// Очистить кэш (при смене раскладок в настройках)
     static func clearCache() {
         mapCache.removeAll()

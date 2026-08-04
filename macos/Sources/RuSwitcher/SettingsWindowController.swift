@@ -401,7 +401,24 @@ final class SettingsWindowController {
         betaHint.font = .systemFont(ofSize: 11)
         betaHint.textColor = .secondaryLabelColor
         view.addSubview(betaHint)
-        y -= 47   // → 310, дальше debug/логи на прежних координатах
+        y -= 47   // → 310, дальше idём по бегущему y
+
+        // issue #22 (A): ручной триггер конвертирует ПО ТЕКСТУ (тотальный флип обеих
+        // письменностей). По умолчанию ВЫКЛ — без него работает умная по-словная конверсия.
+        let byTextCheckbox = NSButton(checkboxWithTitle: L10n.settingsConvertByText,
+                                      target: self, action: #selector(convertByTextChanged))
+        byTextCheckbox.frame = NSRect(x: 20, y: y, width: 420, height: 22)
+        byTextCheckbox.state = SettingsManager.shared.convertByText ? .on : .off
+        byTextCheckbox.toolTip = L10n.settingsConvertByTextHint
+        view.addSubview(byTextCheckbox)
+        y -= 18
+
+        let byTextHint = NSTextField(wrappingLabelWithString: L10n.settingsConvertByTextHint)
+        byTextHint.frame = NSRect(x: 40, y: y - 18, width: 400, height: 32)
+        byTextHint.font = .systemFont(ofSize: 11)
+        byTextHint.textColor = .secondaryLabelColor
+        view.addSubview(byTextHint)
+        y -= 47
 
         // Debug log
         let debugCheckbox = NSButton(checkboxWithTitle: L10n.settingsDebugLog, target: self, action: #selector(debugLogChanged))
@@ -661,6 +678,10 @@ final class SettingsWindowController {
 
     @objc private func betaChannelChanged(_ sender: NSButton) {
         SettingsManager.shared.betaChannelEnabled = sender.state == .on
+    }
+
+    @objc private func convertByTextChanged(_ sender: NSButton) {
+        SettingsManager.shared.convertByText = sender.state == .on
     }
 
     @objc private func debugLogChanged(_ sender: NSButton) {
