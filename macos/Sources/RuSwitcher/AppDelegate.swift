@@ -87,10 +87,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func notifySecureInputPaused() {
         if let last = lastSecureNoticeAt, Date().timeIntervalSince(last) < 180 { return }
         lastSecureNoticeAt = Date()
+        let holder = AutoSwitchPolicy.secureInputHolderName() ?? L10n.securePausedUnknownApp
         let alert = NSAlert()
         alert.alertStyle = .informational
         alert.messageText = L10n.securePausedTitle
-        alert.informativeText = L10n.securePausedBody
+        alert.informativeText = String(format: L10n.securePausedBody, holder)
         alert.addButton(withTitle: "OK")
         alert.runModal()
     }

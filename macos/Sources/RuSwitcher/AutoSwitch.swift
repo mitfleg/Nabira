@@ -1,5 +1,6 @@
 import AppKit
 import Carbon
+import IOKit
 
 /// Проверка слов по системному словарю (NSSpellChecker) — локально, без зависимостей,
 /// без сети и без бандла данных. ~0.1мс на проверку, 40+ языков.
@@ -152,6 +153,35 @@ enum AutoSwitchPolicy {
     /// Активен ли защищённый ввод (поле пароля, Secure Keyboard Entry в терминале) —
     /// тогда авто-конвертацию НЕ делаем (приватность; пароль не трогаем).
     static var secureInputActive: Bool { IsSecureEventInputEnabled() }
+
+    /// Имя приложения, удерживающего защищённый ввод (Word, Terminal, менеджер
+    /// паролей, loginwindow при системном запросе пароля и т.п.), или nil если
+    /// определить не удалось. Читаем PID из IORegistry (то же, что `ioreg`:
+    /// IOConsoleUsers → kCGSSessionSecureInputPID) и резолвим в человекочитаемое имя.
+    static func secureInputHolderName() -> String? {
+        let entry = IORegistryEntryFromPath(kIOMainPortDefault, "IOService:/IOResources")
+        guard entry != 0 else { return nil }
+        defer { IOObjectRelease(entry) }
+        guard let sessions = IORegistryEntryCreateCFProperty(
+            entry, "IOConsoleUsers" as CFString, kCFAllocatorDefault, 0
+        )?.takeRetainedValue() as? [[String: Any]] else { return nil }
+        for s in sessions {
+            guard let raw = s["kCGSSessionSecureInputPID"] as? Int, raw != 0 else { continue }
+            let pid = pid_t(raw)
+            if let app = NSRunningApplication(processIdentifier: pid)?.localizedName, !app.isEmpty {
+                return app
+            }
+            var buf = [CChar](repeating: 0, count: 4096)      // системные процессы (loginwindow) — не GUI-приложения
+            let len = proc_pidpath(pid, &buf, 4096)
+            if len > 0 {
+                let bytes = buf.prefix(Int(len)).map { UInt8(bitPattern: $0) }
+                let name = (String(decoding: bytes, as: UTF8.self) as NSString).lastPathComponent
+                if !name.isEmpty { return name }
+            }
+            return nil
+        }
+        return nil
+    }
 
     /// Дефолтный список приложений, где авто выключено: терминалы, IDE, менеджеры
     /// паролей. Возвращается, пока пользователь не отредактировал список
