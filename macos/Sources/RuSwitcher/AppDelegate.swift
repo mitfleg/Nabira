@@ -317,6 +317,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     }
                     return
                 }
+                // issue #24: режим «вся строка» — сами выделяем строку и конвертируем её
+                // (умная конверсия починит только слова не в той раскладке). Мимо буфера.
+                if SettingsManager.shared.convertWholeLine {
+                    if self.textConverter.convertLine() {
+                        self.keyboardMonitor.markConverted()
+                        LayoutSwitcher.switchToOpposite()
+                        self.updateStatusIcon()
+                        self.lastAutoConverted = nil
+                    }
+                    return
+                }
                 let keys = self.keyboardMonitor.currentWordKeys
                 let prevKeys = self.keyboardMonitor.prevWordKeys
                 let bc = self.keyboardMonitor.boundaryCount

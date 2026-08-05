@@ -31,6 +31,7 @@ final class SettingsManager: @unchecked Sendable {
         static let autoConvert = "com.ruswitcher.autoConvert"
         static let smartConversion = "com.ruswitcher.smartConversion"
         static let convertByText = "com.ruswitcher.convertByText"
+        static let convertWholeLine = "com.ruswitcher.convertWholeLine"
         static let remoteDesktopMode = "com.ruswitcher.remoteDesktopMode"
         static let showRemoteDesktopBeta = "com.ruswitcher.showRemoteDesktopBeta"
         static let autoConvertOffered = "com.ruswitcher.autoConvertOffered"
@@ -200,6 +201,14 @@ final class SettingsManager: @unchecked Sendable {
     var convertByText: Bool {
         get { defaults.bool(forKey: Keys.convertByText) }
         set { defaults.set(newValue, forKey: Keys.convertByText) }
+    }
+
+    /// issue #24: триггер конвертирует ВСЮ строку (от курсора до начала строки), а не только
+    /// последнее слово — сам выделяет строку (без мыши) и прогоняет через умную конверсию.
+    /// Удобно в терминале и когда набрал несколько слов не в той раскладке. По умолчанию ВЫКЛ.
+    var convertWholeLine: Bool {
+        get { defaults.bool(forKey: Keys.convertWholeLine) }
+        set { defaults.set(newValue, forKey: Keys.convertWholeLine) }
     }
 
     /// issue #10: показывать флаг раскладки у текстовой каретки (бета). По умолчанию ВЫКЛ.

@@ -384,8 +384,8 @@ final class SettingsWindowController {
         let item = NSTabViewItem()
         item.label = L10n.settingsTabAdvanced
 
-        let view = NSView(frame: NSRect(x: 0, y: 0, width: 460, height: 425))
-        var y: CGFloat = 375
+        let view = NSView(frame: NSRect(x: 0, y: 0, width: 460, height: 480))
+        var y: CGFloat = 430
 
         // Бета-версии (пред-релизы) — для тестировщиков; по умолчанию ВЫКЛ.
         let betaCheckbox = NSButton(checkboxWithTitle: L10n.settingsBetaChannel,
@@ -434,6 +434,22 @@ final class SettingsWindowController {
         byTextHint.font = .systemFont(ofSize: 11)
         byTextHint.textColor = .secondaryLabelColor
         view.addSubview(byTextHint)
+        y -= 47
+
+        // issue #24: триггер конвертирует всю строку (не только последнее слово). По умолч. ВЫКЛ.
+        let wholeLineCheckbox = NSButton(checkboxWithTitle: L10n.settingsConvertWholeLine,
+                                         target: self, action: #selector(convertWholeLineChanged))
+        wholeLineCheckbox.frame = NSRect(x: 20, y: y, width: 420, height: 22)
+        wholeLineCheckbox.state = SettingsManager.shared.convertWholeLine ? .on : .off
+        wholeLineCheckbox.toolTip = L10n.settingsConvertWholeLineHint
+        view.addSubview(wholeLineCheckbox)
+        y -= 18
+
+        let wholeLineHint = NSTextField(wrappingLabelWithString: L10n.settingsConvertWholeLineHint)
+        wholeLineHint.frame = NSRect(x: 40, y: y - 18, width: 400, height: 32)
+        wholeLineHint.font = .systemFont(ofSize: 11)
+        wholeLineHint.textColor = .secondaryLabelColor
+        view.addSubview(wholeLineHint)
         y -= 47
 
         // Debug log
@@ -702,6 +718,10 @@ final class SettingsWindowController {
 
     @objc private func convertByTextChanged(_ sender: NSButton) {
         SettingsManager.shared.convertByText = sender.state == .on
+    }
+
+    @objc private func convertWholeLineChanged(_ sender: NSButton) {
+        SettingsManager.shared.convertWholeLine = sender.state == .on
     }
 
     @objc private func debugLogChanged(_ sender: NSButton) {

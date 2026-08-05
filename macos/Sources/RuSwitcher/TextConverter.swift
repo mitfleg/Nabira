@@ -136,6 +136,20 @@ final class TextConverter {
         return true
     }
 
+    /// issue #24: конвертировать всю набранную строку (от курсора до начала строки) без
+    /// выделения мышью. Сами выделяем Shift+Cmd+← и прогоняем через путь выделения (умная
+    /// конверсия починит только слова не в той раскладке, верные — оставит). При no-op/сбое
+    /// снимаем выделение (иначе строка осталась бы подсвеченной). Реконверт восстановит через
+    /// сохранённый оригинал (см. convertViaClipboard/reconvertViaClipboard).
+    func convertLine() -> Bool {
+        guard !isConverting else { return false }
+        simKey(keyCode: KC.left, flags: [.maskShift, .maskCommand])   // выделить до начала строки
+        usleep(60_000)
+        let ok = convertViaClipboard(wordLength: 0, prevWordLength: 0, boundaryCount: 0)
+        if !ok { simKey(keyCode: KC.right, flags: []) }               // снять выделение при no-op
+        return ok
+    }
+
     /// issue #16: конверсия в Spotlight. Обычный путь оставляет лишнюю букву, потому что
     /// Spotlight «съедает» первый Backspace серого автодополнения — счётчик нажатий (и даже
     /// стирание по РЕАЛЬНОЙ длине) расходится с полем. AX-элемент Spotlight к тому же флейкует.
