@@ -29,6 +29,7 @@ final class SettingsManager: @unchecked Sendable {
         static let switchDoubleTap = "com.ruswitcher.switchDoubleTap"
         static let switchRightOnly = "com.ruswitcher.switchRightOnly"
         static let autoConvert = "com.ruswitcher.autoConvert"
+        static let smartConversion = "com.ruswitcher.smartConversion"
         static let convertByText = "com.ruswitcher.convertByText"
         static let remoteDesktopMode = "com.ruswitcher.remoteDesktopMode"
         static let showRemoteDesktopBeta = "com.ruswitcher.showRemoteDesktopBeta"
@@ -184,10 +185,18 @@ final class SettingsManager: @unchecked Sendable {
         set { defaults.set(newValue, forKey: Keys.autoConvert) }
     }
 
+    /// issue #22 (вариант B): умная по-словная конверсия выделения — флипаем только слова не в
+    /// той раскладке, а верный текст оставляем («iPhone стоит»). По умолчанию ВКЛ. Выключено —
+    /// старое одностороннее поведение (всё выделение в одну сторону по текущей раскладке).
+    var smartConversion: Bool {
+        get { defaults.object(forKey: Keys.smartConversion) == nil ? true : defaults.bool(forKey: Keys.smartConversion) }
+        set { defaults.set(newValue, forKey: Keys.smartConversion) }
+    }
+
     /// issue #22 (вариант A): ручной триггер конвертирует ПО ТЕКСТУ — тотальный флип обеих
     /// письменностей (латиница↔кириллица) вместо направления по активной раскладке. Полезно
-    /// для mixed-мусора, но переворачивает и намеренный второй язык. По умолчанию ВЫКЛ —
-    /// без тумблера работает умная по-словная конверсия выделения (SmartConvert, вариант B).
+    /// для mixed-мусора, но переворачивает и намеренный второй язык. По умолчанию ВЫКЛ.
+    /// Перебивает «Умную конверсию».
     var convertByText: Bool {
         get { defaults.bool(forKey: Keys.convertByText) }
         set { defaults.set(newValue, forKey: Keys.convertByText) }

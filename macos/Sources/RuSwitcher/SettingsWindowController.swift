@@ -403,8 +403,24 @@ final class SettingsWindowController {
         view.addSubview(betaHint)
         y -= 47   // → 310, дальше idём по бегущему y
 
+        // issue #22 (B): умная по-словная конверсия выделения. По умолчанию ВКЛ.
+        let smartCheckbox = NSButton(checkboxWithTitle: L10n.settingsSmartConversion,
+                                     target: self, action: #selector(smartConversionChanged))
+        smartCheckbox.frame = NSRect(x: 20, y: y, width: 420, height: 22)
+        smartCheckbox.state = SettingsManager.shared.smartConversion ? .on : .off
+        smartCheckbox.toolTip = L10n.settingsSmartConversionHint
+        view.addSubview(smartCheckbox)
+        y -= 18
+
+        let smartHint = NSTextField(wrappingLabelWithString: L10n.settingsSmartConversionHint)
+        smartHint.frame = NSRect(x: 40, y: y - 18, width: 400, height: 32)
+        smartHint.font = .systemFont(ofSize: 11)
+        smartHint.textColor = .secondaryLabelColor
+        view.addSubview(smartHint)
+        y -= 47
+
         // issue #22 (A): ручной триггер конвертирует ПО ТЕКСТУ (тотальный флип обеих
-        // письменностей). По умолчанию ВЫКЛ — без него работает умная по-словная конверсия.
+        // письменностей). По умолчанию ВЫКЛ; перебивает умную конверсию.
         let byTextCheckbox = NSButton(checkboxWithTitle: L10n.settingsConvertByText,
                                       target: self, action: #selector(convertByTextChanged))
         byTextCheckbox.frame = NSRect(x: 20, y: y, width: 420, height: 22)
@@ -678,6 +694,10 @@ final class SettingsWindowController {
 
     @objc private func betaChannelChanged(_ sender: NSButton) {
         SettingsManager.shared.betaChannelEnabled = sender.state == .on
+    }
+
+    @objc private func smartConversionChanged(_ sender: NSButton) {
+        SettingsManager.shared.smartConversion = sender.state == .on
     }
 
     @objc private func convertByTextChanged(_ sender: NSButton) {

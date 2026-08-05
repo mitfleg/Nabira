@@ -272,12 +272,13 @@ final class TextConverter {
         // --- Попытка 1: уже есть выделенный текст? ---
         if let text = tryCopy(pasteboard) {
             rslog("convert: selection len=\(text.count)")
-            // issue #22: выделение — умная по-словная конверсия (чинит mixed и застрявшие
-            // слова, сохраняет намеренный второй язык), либо тотальный флип «по тексту» (A).
+            // issue #22: A «по тексту» (тотальный флип) → B «умная» по-словная (по умолч.) →
+            // классика (одностороннее по раскладке, если умная выключена).
+            let s = SettingsManager.shared
             let converted = TextConverter.normalizedForInsert(
-                SettingsManager.shared.convertByText
-                    ? DynamicKeyMapping.convertBidirectional(text)
-                    : SmartConvert.selection(text))
+                s.convertByText ? DynamicKeyMapping.convertBidirectional(text)
+                : s.smartConversion ? SmartConvert.selection(text)
+                : DynamicKeyMapping.convert(text))
             // Конверсия не изменила текст (пара не разрешилась / комбинирующие знаки —
             // см. bail'ы в DynamicKeyMapping) — не гоняем вставку впустую.
             if converted == text {
