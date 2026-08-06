@@ -693,6 +693,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         shareItem.submenu = buildShareSubmenu()
         menu.addItem(shareItem)
 
+        let contactItem = NSMenuItem(title: L10n.menuContactDeveloper, action: #selector(openContactEmail), keyEquivalent: "")
+        contactItem.target = self
+        contactItem.image = NSImage(systemSymbolName: "envelope", accessibilityDescription: nil)
+        menu.addItem(contactItem)
+
         menu.addItem(NSMenuItem.separator())
 
         let quitItem = NSMenuItem(title: L10n.menuQuit, action: #selector(quit), keyEquivalent: "q")
@@ -1034,6 +1039,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // оставляет как есть — но многие сервисы трактуют '+' как пробел. Поэтому
         // однозначно кодируем именно '+' → %2B (пробелы уже %20, их не трогаем).
         return comps?.url?.absoluteString.replacingOccurrences(of: "+", with: "%2B")
+    }
+
+    /// «Связаться с разработчиком»: открывает почту с предзаполненными темой и телом
+    /// (версия + macOS + активные раскладки — для полезного баг-репорта). Пока адрес не задан
+    /// (SettingsManager.contactEmail пуст) — фолбэк на GitHub Issues, чтобы кнопка не была мёртвой.
+    @objc private func openContactEmail() {
+        let ver = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
+        guard !SettingsManager.contactEmail.isEmpty else {
+            if let url = URL(string: "\(SettingsManager.githubURL)/issues") { NSWorkspace.shared.open(url) }
+            return
+        }
+        let os = ProcessInfo.processInfo.operatingSystemVersionString
+        let layouts = LayoutSwitcher.currentAndOppositeLanguage().map { "\($0.current)/\($0.opposite)" } ?? "?"
+        let subject = "RuSwitcher \(ver) — \(L10n.contactSubject)"
+        let body = "\n\n\n———\nRuSwitcher \(ver)\nmacOS \(os)\nLayouts: \(layouts)"
+        if let s = Self.buildQueryURL("mailto:\(SettingsManager.contactEmail)",
+                                      [("subject", subject), ("body", body)]),
+           let url = URL(string: s) {
+            NSWorkspace.shared.open(url)
+        }
     }
 
     @objc private func openShareLink(_ sender: NSMenuItem) {

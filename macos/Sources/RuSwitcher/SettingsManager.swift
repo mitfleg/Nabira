@@ -311,6 +311,9 @@ final class SettingsManager: @unchecked Sendable {
     static let githubOwner = "rashn"
     static let githubRepo = "RuSwitcher"
     static var githubURL: String { "https://github.com/\(githubOwner)/\(githubRepo)" }
+    /// Email для «Связаться с разработчиком» (mailto с предзаполнением). Пусто → кнопка
+    /// открывает GitHub Issues как фолбэк. TODO: подставить новый ящик (НЕ личный).
+    static let contactEmail = ""
     /// Team ID (Apple Developer), которым подписаны релизы. Используется для
     /// пиннинга подписи при авто-обновлении.
     static let developerTeamID = "9GEWCZ59HK"
