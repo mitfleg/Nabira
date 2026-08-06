@@ -19,9 +19,9 @@ import Foundation
 /// (DynamicKeyMapping.convertBidirectional). Пары не «латиница+кириллица» — обычный путь.
 enum SmartConvert {
     private enum Script { case cyr, lat, other, mixed }
-    private enum WordDecision { case keep, flip(String, Script) }
+    private enum WordDecision { case keep, flip(String, Script), unresolved }
 
-    // Частотные однобуквенные слова — позитивный сигнал для одиночных букв.
+    // Частотные однобуквенные слова — доп. страховка для флипа ОДИНОЧНЫХ букв по сигналу.
     private static let cyr1: Set<Character> = ["я", "в", "с", "к", "о", "у", "а", "и"]
     private static let lat1: Set<Character> = ["a", "i"]
 
@@ -35,53 +35,52 @@ enum SmartConvert {
         }
         let toks = tokenize(text)
         var results = [String?](repeating: nil, count: toks.count)
-        var lonePending: [Int] = []              // индексы одиночных букв — решаем в пасе 2
+        var pending: [Int] = []                  // неразрешённые токены — решаем в пасе 2 по сигналу
         var flippedCyr = 0, flippedLat = 0
 
-        // Пас 1 — многобуквенные слова.
+        // Пас 1 — валидные оставляем, распознанный мусор флипаем и считаем направление.
         for (i, tok) in toks.enumerated() {
             guard tok.isWord else { results[i] = tok.str; continue }
-            if isSingleLetterCandidate(tok.str) { lonePending.append(i); continue }
             switch decideWord(tok.str, latLang: latLang, cyrLang: cyrLang) {
             case .keep:
                 results[i] = tok.str
             case let .flip(s, toScript):
                 results[i] = s
                 if toScript == .cyr { flippedCyr += 1 } else if toScript == .lat { flippedLat += 1 }
+            case .unresolved:
+                pending.append(i)
             }
         }
 
-        // Сигнал для одиночных букв — направление РЕАЛЬНО флипнутых соседей (не оставленных
-        // валидными): «z yt vjue»→«я не могу» (все флипнулись), но «витамин c» не трогаем
-        // (витамин валиден, остался). Разнобой (оба скрипта флипались) → сигнала нет.
+        // Сигнал — направление РЕАЛЬНО флипнутых соседей (не оставленных валидными): если всё
+        // выделение флипается в одну сторону, значит это не та раскладка целиком → дотягиваем
+        // и неразрешённые токены («до», имена, одиночные буквы) туда же. «z yt vjue»→«я не могу»,
+        // «иду до дома», «Вася пришёл». Но «iPhone стоит»/«витамин c» — 0 флипов → сигнала нет →
+        // не трогаем. Разнобой (оба скрипта флипались) → сигнала нет.
         let target: Script? = (flippedCyr > 0 && flippedLat == 0) ? .cyr
                             : (flippedLat > 0 && flippedCyr == 0) ? .lat : nil
 
-        // Пас 2 — одиночные буквы.
-        for i in lonePending { results[i] = resolveLone(toks[i].str, target: target) }
+        // Пас 2 — неразрешённые по сигналу.
+        for i in pending { results[i] = signalFlip(toks[i].str, target: target) }
         return results.map { $0 ?? "" }.joined()
     }
 
-    /// Токен, чьё буквенное ядро — ровно одна буква латиницы/кириллицы.
-    private static func isSingleLetterCandidate(_ w: String) -> Bool {
-        let core = letterCore(w)
-        guard core.count == 1 else { return false }
-        let sc = dominantScript(core)
-        return sc == .cyr || sc == .lat
-    }
-
-    /// Решение по слову (>=2 букв). .flip несёт письменность РЕЗУЛЬТАТА (сигнал для пасса 2).
+    /// Решение по слову. .flip несёт письменность РЕЗУЛЬТАТА (сигнал для пасса 2); .unresolved —
+    /// кандидат на флип по сигналу соседей (мусор в своём скрипте, но словарём не подтверждён).
     @MainActor
     private static func decideWord(_ w: String, latLang: String, cyrLang: String) -> WordDecision {
         let core = letterCore(w)
         let script = dominantScript(core)
-        guard core.count >= 2, script == .cyr || script == .lat else { return .keep }
+        guard core.count >= 1, script == .cyr || script == .lat else { return .keep }
         // Акронимы и код — как в LayoutDetector.decide.
         if LayoutDetector.isAllCaps(core) || LayoutDetector.looksLikeCodeIdentifier(core) { return .keep }
 
         let wordLang = (script == .cyr) ? cyrLang : latLang
         let flipLang = (script == .cyr) ? latLang : cyrLang
         let flippedScript: Script = (script == .cyr) ? .lat : .cyr
+
+        // 1 буква — по словарю не решаемо; только по сигналу соседей (пас 2).
+        if core.count == 1 { return .unresolved }
 
         // 2 буквы — только частотный список (NSSpellChecker на длине 2 ненадёжен), как decide.
         if core.count == 2 {
@@ -91,7 +90,7 @@ enum SmartConvert {
             if wc.count == 2, let oth = ShortWords.common(flipLang), oth.contains(wc.lowercased()) {
                 return .flip(whole, flippedScript)
             }
-            return .keep
+            return .unresolved   // «до», «уж» и т.п. — не в списке → по сигналу
         }
 
         // 3+ — словарь. Уже валидное слово своего языка → не трогаем (iPhone, стоит).
@@ -111,25 +110,27 @@ enum SmartConvert {
                 return .flip(bflip + suffix, flippedScript)
             }
         }
-        return .keep   // не разрешилось — как есть (имя/бренд)
+        return .unresolved   // имя/бренд/термин, словарём не подтверждён → по сигналу
     }
 
-    /// Одиночную букву флипаем ТОЛЬКО в сторону флипнутых соседей (target) и только если её
-    /// флип — частотное однобуквенное слово этой стороны. Пунктуацию вокруг сохраняем (флипаем
-    /// лишь саму букву): «z,»→«я,» при наличии сигнала, иначе «z,» как есть.
-    private static func resolveLone(_ orig: String, target: Script?) -> String {
+    /// Флипаем неразрешённый токен ТОЛЬКО при явном сигнале (соседи флипнулись в одну сторону)
+    /// и только если сам токен в ДРУГОМ скрипте (флип ведёт к target). Флипаем лишь буквенное
+    /// ядро, окружающую пунктуацию сохраняем: «lj,»→«до,», «z»→«я». Одиночную букву дополнительно
+    /// страхуем частотным списком (её флип должен быть частым 1-букв. словом), чтобы не портить
+    /// научные «c»/«e» и подобные при слабом контексте.
+    private static func signalFlip(_ orig: String, target: Script?) -> String {
         guard let target else { return orig }
         var lead = "", trail = ""
-        var letter: Character? = nil
-        for ch in orig {
-            if ch.isLetter, letter == nil { letter = ch }
-            else if letter == nil { lead.append(ch) } else { trail.append(ch) }
+        var chars = Array(orig)
+        while let f = chars.first, !f.isLetter { lead.append(f); chars.removeFirst() }
+        while let l = chars.last, !l.isLetter { trail = String(l) + trail; chars.removeLast() }
+        let core = String(chars)
+        guard !core.isEmpty, dominantScript(core) != target else { return orig }
+        let flipped = DynamicKeyMapping.convertBidirectional(core)
+        if core.count == 1 {                                    // одиночная — доп. страховка
+            guard let fch = letterCore(flipped).first,
+                  (target == .cyr ? cyr1 : lat1).contains(Character(fch.lowercased())) else { return orig }
         }
-        guard let l = letter else { return orig }
-        let flipped = DynamicKeyMapping.convertBidirectional(String(l))
-        guard let fch = flipped.first, dominantScript(String(fch)) == target else { return orig }
-        let common = (target == .cyr) ? cyr1 : lat1
-        guard common.contains(Character(fch.lowercased())) else { return orig }
         return lead + flipped + trail
     }
 
