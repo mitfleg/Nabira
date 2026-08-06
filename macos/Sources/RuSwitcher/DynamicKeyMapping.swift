@@ -237,6 +237,30 @@ enum DynamicKeyMapping {
         return (original, converted)
     }
 
+    /// issue #24: восстанавливает как-НАБРАННУЮ строку из буфера строки (буквы → символ ТЕКУЩЕЙ
+    /// раскладки, пробел-сентинел char==" " → пробел). Для перепечатки строки в терминале.
+    /// nil — если раскладка/ключ не разрешились (тогда whole-line не делаем).
+    static func lineString(from keys: [TypedKey]) -> String? {
+        guard !keys.isEmpty else { return nil }
+        // Удалёнка: все символы уже проброшены — берём их напрямую.
+        if keys.allSatisfy({ $0.char != nil }) {
+            return String(keys.compactMap { $0.char })
+        }
+        let layouts = LayoutSwitcher.installedLayouts()
+        let currentID = LayoutSwitcher.currentLayoutID()
+        guard let source = layouts.first(where: { LayoutSwitcher.sourceID($0) == currentID }),
+              let sourceData = layoutDataForSource(source) else { return nil }
+        var result = ""
+        for k in keys {
+            if let ch = k.char { result.append(ch); continue }   // пробел-сентинел / проброшенный
+            guard let sc = translateKeycode(k.keyCode, layoutData: sourceData, shift: k.shift, caps: k.caps) else {
+                return nil
+            }
+            result.append(sc)
+        }
+        return result
+    }
+
     // Авто-детект раскладок живёт в LayoutSwitcher (autoDetectID1/ID2).
 
     // MARK: - Private

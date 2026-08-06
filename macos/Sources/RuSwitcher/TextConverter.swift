@@ -150,6 +150,34 @@ final class TextConverter {
         return ok
     }
 
+    /// issue #24 (терминал): конвертирует всю набранную строку по БУФЕРУ нажатий — backspace на
+    /// длину строки + перепечатка сконвертированного. Без OS-выделения (работает в терминалах и
+    /// для иврита). Только для свежей непрерывной строки (буфер сбрасывается на пунктуации/Enter/
+    /// сдвиге курсора → вызывающий откатывается на последнее слово). Реконверт — через lastOriginal.
+    func convertLineBuffer(_ lineKeys: [TypedKey]) -> Bool {
+        guard !isConverting, !lineKeys.isEmpty else { return false }
+        guard let original = DynamicKeyMapping.lineString(from: lineKeys), !original.isEmpty else { return false }
+        let s = SettingsManager.shared
+        let converted = s.convertByText ? DynamicKeyMapping.convertBidirectional(original)
+                      : s.smartConversion ? SmartConvert.selection(original)
+                      : DynamicKeyMapping.convert(original)
+        guard converted != original else { return false }   // строка уже верная — no-op
+        isConverting = true
+        lastWasBuffer = true
+        lastOriginal = original
+        lastConverted = converted
+        let bsCount = original.count
+        rslog("line convert (terminal buffer): \(original.count)→\(converted.count) chars")
+        injectQueue.async { [weak self] in
+            guard let self else { return }
+            self.backspace(bsCount)
+            usleep(20_000)
+            self.insertText(converted)
+            Task { @MainActor in self.isConverting = false }
+        }
+        return true
+    }
+
     /// issue #16: конверсия в Spotlight. Обычный путь оставляет лишнюю букву, потому что
     /// Spotlight «съедает» первый Backspace серого автодополнения — счётчик нажатий (и даже
     /// стирание по РЕАЛЬНОЙ длине) расходится с полем. AX-элемент Spotlight к тому же флейкует.

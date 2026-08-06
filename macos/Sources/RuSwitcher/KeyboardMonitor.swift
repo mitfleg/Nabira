@@ -120,6 +120,10 @@ final class KeyboardMonitor: @unchecked Sendable {
     private(set) var currentWordKeys: [TypedKey] = []
     /// Нажатия слова перед последней границей-пробелом
     private(set) var prevWordKeys: [TypedKey] = []
+    /// issue #24: буфер ВСЕЙ строки (буквы + пробелы-сентинелы char==" ") для перепечатки строки
+    /// в терминале, где нет OS-выделения. Любая пунктуация/структурная клавиша/сдвиг курсора
+    /// (fullReset) очищает буфер → тогда «вся строка» откатывается на последнее слово.
+    private(set) var lineKeys: [TypedKey] = []
     /// Фронтмост-приложение на момент границы слова — чтобы авто-путь не перепечатал
     /// в другое поле, если фокус уехал (Cmd-Tab/Spotlight) без клика/Tab.
     private(set) var prevWordBundleID: String?
@@ -240,6 +244,7 @@ final class KeyboardMonitor: @unchecked Sendable {
         boundaryCount = 0
         currentWordKeys = []
         prevWordKeys = []
+        lineKeys = []
         keysTypedSinceConversion = false
     }
 
@@ -249,6 +254,7 @@ final class KeyboardMonitor: @unchecked Sendable {
         boundaryCount = 0
         currentWordKeys = []
         prevWordKeys = []
+        lineKeys = []
     }
 
     /// Завершилось слово на пробеле — если включён autoConvert, дёргаем авто-путь
@@ -313,6 +319,7 @@ final class KeyboardMonitor: @unchecked Sendable {
             }
             currentWordLength = 0
             currentWordKeys = []
+            if !lineKeys.isEmpty { lineKeys.append(TypedKey(keyCode: KC.space, shift: false, caps: false, char: " ")) }  // #24: пробел в буфер строки (не ведущий)
             return
         }
 
@@ -333,8 +340,9 @@ final class KeyboardMonitor: @unchecked Sendable {
             if currentWordLength > 0 {
                 currentWordLength -= 1
                 if !currentWordKeys.isEmpty { currentWordKeys.removeLast() }
+                if !lineKeys.isEmpty { lineKeys.removeLast() }   // #24: синхронно с буфером строки
             } else {
-                fullReset()
+                fullReset()   // стирание через границу слова — буфер строки ненадёжен, сброс
             }
             return
         }
@@ -347,7 +355,9 @@ final class KeyboardMonitor: @unchecked Sendable {
         }
 
         if KeyMapping.keycodeToEN[keyCode] != nil {
-            currentWordKeys.append(TypedKey(keyCode: keyCode, shift: flags.contains(.maskShift), caps: flags.contains(.maskAlphaShift)))
+            let tk = TypedKey(keyCode: keyCode, shift: flags.contains(.maskShift), caps: flags.contains(.maskAlphaShift))
+            currentWordKeys.append(tk)
+            lineKeys.append(tk)   // #24: буква в буфер строки
             currentWordLength += 1
             wordBeforeBoundaryLength = 0
             boundaryCount = 0
@@ -376,6 +386,7 @@ final class KeyboardMonitor: @unchecked Sendable {
             }
             currentWordLength = 0
             currentWordKeys = []
+            if !lineKeys.isEmpty { lineKeys.append(TypedKey(keyCode: KC.space, shift: false, caps: false, char: " ")) }  // #24
             return
         }
         // Перенос строки / таб — полный сброс
@@ -388,6 +399,7 @@ final class KeyboardMonitor: @unchecked Sendable {
             if currentWordLength > 0 {
                 currentWordLength -= 1
                 if !currentWordKeys.isEmpty { currentWordKeys.removeLast() }
+                if !lineKeys.isEmpty { lineKeys.removeLast() }   // #24
             } else {
                 fullReset()
             }
@@ -395,7 +407,9 @@ final class KeyboardMonitor: @unchecked Sendable {
         }
         // Буква — кладём реальный символ (keyCode 0 = «проброшено»). shift несём из регистра.
         if ch.isLetter {
-            currentWordKeys.append(TypedKey(keyCode: 0, shift: ch.isUppercase, caps: false, char: ch))
+            let tk = TypedKey(keyCode: 0, shift: ch.isUppercase, caps: false, char: ch)
+            currentWordKeys.append(tk)
+            lineKeys.append(tk)   // #24
             currentWordLength += 1
             wordBeforeBoundaryLength = 0
             boundaryCount = 0

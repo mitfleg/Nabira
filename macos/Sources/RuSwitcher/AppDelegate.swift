@@ -317,19 +317,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     }
                     return
                 }
-                // issue #24: режим «вся строка» — сами выделяем строку и конвертируем её
-                // (умная конверсия починит только слова не в той раскладке). Мимо буфера.
-                // В терминалах нет OS-выделения → там режим игнорируем и падаем на буферный
-                // путь (последнее слово), иначе Shift+Cmd+← мусорит (фидбек kobygold, #24).
-                if SettingsManager.shared.convertWholeLine,
-                   !AutoSwitchPolicy.isTerminalApp(NSWorkspace.shared.frontmostApplication?.bundleIdentifier) {
-                    if self.textConverter.convertLine() {
-                        self.keyboardMonitor.markConverted()
-                        LayoutSwitcher.switchToOpposite()
-                        self.updateStatusIcon()
-                        self.lastAutoConverted = nil
+                // issue #24: режим «вся строка».
+                if SettingsManager.shared.convertWholeLine {
+                    let frontID = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+                    if AutoSwitchPolicy.isTerminalApp(frontID) {
+                        // Терминал: нет OS-выделения → перепечатываем строку по буферу нажатий.
+                        // Пусто/сброшен (пунктуация/Enter/сдвиг курсора) → падаем на слово ниже.
+                        if self.textConverter.convertLineBuffer(self.keyboardMonitor.lineKeys) {
+                            self.keyboardMonitor.markConverted()
+                            LayoutSwitcher.switchToOpposite()
+                            self.updateStatusIcon()
+                            self.lastAutoConverted = nil
+                            return
+                        }
+                    } else {
+                        // Обычные приложения: сами выделяем строку (Shift+Cmd+←) и конвертируем.
+                        if self.textConverter.convertLine() {
+                            self.keyboardMonitor.markConverted()
+                            LayoutSwitcher.switchToOpposite()
+                            self.updateStatusIcon()
+                            self.lastAutoConverted = nil
+                        }
+                        return   // whole-line в обычной проге — всегда завершаем (не last-word)
                     }
-                    return
                 }
                 let keys = self.keyboardMonitor.currentWordKeys
                 let prevKeys = self.keyboardMonitor.prevWordKeys
