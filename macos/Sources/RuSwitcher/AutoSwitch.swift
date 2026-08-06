@@ -212,6 +212,19 @@ enum AutoSwitchPolicy {
         "com.bitwarden.desktop", "org.keepassxc.keepassxc",
     ]
 
+    /// Терминалы: в них нет OS-выделения текста, поэтому «конвертация строки» (#24) через
+    /// Shift+Cmd+← не выделяет строку, а в Terminal.app клавиши протекают мусором. Для них
+    /// режим «вся строка» деградирует на буферный путь (последнее слово — он в терминалах
+    /// работает, backspace+перепечатка). Список — терминалы из defaultDeniedApps.
+    static let terminalApps: Set<String> = [
+        "com.apple.Terminal", "com.googlecode.iterm2", "net.kovidgoyal.kitty",
+        "io.alacritty", "com.github.wez.wezterm", "dev.warp.Warp-Stable", "co.zeit.hyper",
+    ]
+    static func isTerminalApp(_ bundleID: String?) -> Bool {
+        guard let id = bundleID else { return false }
+        return terminalApps.contains(id)
+    }
+
     static func isDeniedApp(_ bundleID: String?) -> Bool {
         guard let id = bundleID else { return false }
         // Менеджеры паролей — жёсткий, не зависящий от пользовательского списка гейт:

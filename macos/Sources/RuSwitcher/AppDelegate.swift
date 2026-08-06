@@ -319,7 +319,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 }
                 // issue #24: режим «вся строка» — сами выделяем строку и конвертируем её
                 // (умная конверсия починит только слова не в той раскладке). Мимо буфера.
-                if SettingsManager.shared.convertWholeLine {
+                // В терминалах нет OS-выделения → там режим игнорируем и падаем на буферный
+                // путь (последнее слово), иначе Shift+Cmd+← мусорит (фидбек kobygold, #24).
+                if SettingsManager.shared.convertWholeLine,
+                   !AutoSwitchPolicy.isTerminalApp(NSWorkspace.shared.frontmostApplication?.bundleIdentifier) {
                     if self.textConverter.convertLine() {
                         self.keyboardMonitor.markConverted()
                         LayoutSwitcher.switchToOpposite()
