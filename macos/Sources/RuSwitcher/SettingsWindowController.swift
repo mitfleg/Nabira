@@ -48,9 +48,9 @@ final class SettingsWindowController {
         tabView.autoresizingMask = [.width, .height]
 
         tabView.addTabViewItem(createGeneralTab())
+        tabView.addTabViewItem(createAdvancedTab())     // «Расширенные» — сразу после «Основных»
         tabView.addTabViewItem(createExceptionsTab())
         tabView.addTabViewItem(createAboutTab())
-        tabView.addTabViewItem(createAdvancedTab())
 
         win.contentView = tabView
         win.makeKeyAndOrderFront(nil)
@@ -78,6 +78,19 @@ final class SettingsWindowController {
     }
 
     // MARK: - General Tab
+
+    /// Прижимает контент вкладки к ВЕРХУ. NSTabView растягивает вид вкладки на всю высоту окна,
+    /// а под-вью с абсолютными координатами (y от низа) иначе провисают к низу/центру короткой
+    /// вкладки. Оборачиваем фиксированный контент в растягивающийся контейнер и пиним контент к
+    /// верхнему краю (гибкий нижний отступ — .minYMargin).
+    private func topAligned(_ content: NSView) -> NSView {
+        let outer = NSView(frame: content.frame)
+        outer.autoresizingMask = [.width, .height]
+        outer.autoresizesSubviews = true
+        content.autoresizingMask = [.minYMargin]
+        outer.addSubview(content)
+        return outer
+    }
 
     private func createGeneralTab() -> NSTabViewItem {
         let item = NSTabViewItem()
@@ -231,7 +244,7 @@ final class SettingsWindowController {
         hotkeyLabel.textColor = .secondaryLabelColor
         view.addSubview(hotkeyLabel)
 
-        item.view = view
+        item.view = topAligned(view)
         return item
     }
 
@@ -319,7 +332,7 @@ final class SettingsWindowController {
             set: { SettingsManager.shared.alwaysConvertWords = $0 },
             addWordPrompt: L10n.settingsAddWordPrompt))
 
-        item.view = view
+        item.view = topAligned(view)
         return item
     }
 
@@ -374,7 +387,7 @@ final class SettingsWindowController {
         updateBtn.bezelStyle = .rounded
         view.addSubview(updateBtn)
 
-        item.view = view
+        item.view = topAligned(view)
         return item
     }
 
@@ -482,7 +495,7 @@ final class SettingsWindowController {
         pathLabel.isSelectable = true
         view.addSubview(pathLabel)
 
-        item.view = view
+        item.view = topAligned(view)
         return item
     }
 
