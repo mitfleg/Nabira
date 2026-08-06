@@ -143,6 +143,9 @@ final class TextConverter {
     /// сохранённый оригинал (см. convertViaClipboard/reconvertViaClipboard).
     func convertLine() -> Bool {
         guard !isConverting else { return false }
+        // Скептик 3.2.0: не шлём Shift+Cmd+← вне текстового поля — иначе аккорд сработает как
+        // ярлык приложения (напр. выделит не то). В поле — работаем.
+        guard isFocusedElementEditable() else { rslog("convertLine: non-editable focus — bail"); return false }
         simKey(keyCode: KC.left, flags: [.maskShift, .maskCommand])   // выделить до начала строки
         usleep(60_000)
         let ok = convertViaClipboard(wordLength: 0, prevWordLength: 0, boundaryCount: 0)
@@ -302,7 +305,9 @@ final class TextConverter {
         }
         let pasteboard = NSPasteboard.general
         cancelClipboardRestore()
-        savedClipboardItems = snapshotPasteboard(pasteboard)
+        // Скептик 3.2.0: не перезаписываем сохранённый буфер при повторной конверсии в окне
+        // восстановления (2с) — иначе «оригиналом» стал бы промежуточный конвертированный текст.
+        if savedClipboardItems == nil { savedClipboardItems = snapshotPasteboard(pasteboard) }
 
         var conversionSucceeded = false
         defer {
@@ -428,6 +433,9 @@ final class TextConverter {
         let pasteboard = NSPasteboard.general
         // Отменяем отложенное восстановление clipboard — мы ещё работаем
         cancelClipboardRestore()
+        // Скептик 3.2.0: если восстановление уже отработало (snapshot пуст), снимаем свежий —
+        // иначе финальный scheduleClipboardRestore очистил бы буфер пользователя.
+        if savedClipboardItems == nil { savedClipboardItems = snapshotPasteboard(pasteboard) }
 
         moveLeft(lastBoundaryCount)
 

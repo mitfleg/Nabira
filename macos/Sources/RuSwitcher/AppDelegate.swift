@@ -322,12 +322,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     let frontID = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
                     if AutoSwitchPolicy.isTerminalApp(frontID) {
                         // Терминал: нет OS-выделения → перепечатываем строку по буферу нажатий.
-                        // Пусто/сброшен (пунктуация/Enter/сдвиг курсора) → падаем на слово ниже.
-                        if self.textConverter.convertLineBuffer(self.keyboardMonitor.lineKeys) {
-                            self.keyboardMonitor.markConverted()
-                            LayoutSwitcher.switchToOpposite()
-                            self.updateStatusIcon()
-                            self.lastAutoConverted = nil
+                        // НЕПУСТОЙ буфер (в т.ч. no-op на уже верной строке) завершаем ЗДЕСЬ и НЕ
+                        // проваливаемся на последнее слово — иначе безусловный флип испортил бы
+                        // верное слово, напр. «git log»→«git дщп» (скептик 3.2.0). На слово падаем
+                        // только при ПУСТОМ/сброшенном буфере (пунктуация/Enter/сдвиг курсора).
+                        if !self.keyboardMonitor.lineKeys.isEmpty {
+                            if self.textConverter.convertLineBuffer(self.keyboardMonitor.lineKeys) {
+                                self.keyboardMonitor.markConverted()
+                                LayoutSwitcher.switchToOpposite()
+                                self.updateStatusIcon()
+                                self.lastAutoConverted = nil
+                            }
                             return
                         }
                     } else {
@@ -621,6 +626,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func systemInputSourceChanged() {
         updateStatusIcon()
         keyboardMonitor.soundArmed = true  // issue #7: следующая буква даст звук раскладки
+        keyboardMonitor.resetLineBuffer()  // скептик 3.2.0: не декодировать строку старой раскладкой
     }
 
     /// Собирает меню статус-бара. Вызывается заново при смене языка интерфейса,

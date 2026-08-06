@@ -248,6 +248,13 @@ final class KeyboardMonitor: @unchecked Sendable {
         keysTypedSinceConversion = false
     }
 
+    /// issue #24 / скептик 3.2.0: системная смена раскладки (globe / Ctrl-Space) не проходит через
+    /// наш обработчик клавиш, поэтому буфер строки декодировался бы старой раскладкой. Сбрасываем
+    /// его (только строку — словный буфер трогаем как раньше).
+    func resetLineBuffer() {
+        lineKeys = []
+    }
+
     private func fullReset() {
         currentWordLength = 0
         wordBeforeBoundaryLength = 0

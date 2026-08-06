@@ -253,12 +253,33 @@ enum DynamicKeyMapping {
         var result = ""
         for k in keys {
             if let ch = k.char { result.append(ch); continue }   // пробел-сентинел / проброшенный
+            // Скептик 3.2.0: dead-key раскладки (U.S. International): dead-key + база = 2 записи
+            // буфера, но 1 символ на экране → backspace по числу символов переберёт. Такой буфер
+            // ненадёжен для перепечатки — отказываемся (вызывающий падает на последнее слово).
+            if isDeadKey(k.keyCode, layoutData: sourceData, shift: k.shift, caps: k.caps) { return nil }
             guard let sc = translateKeycode(k.keyCode, layoutData: sourceData, shift: k.shift, caps: k.caps) else {
                 return nil
             }
             result.append(sc)
         }
         return result
+    }
+
+    /// true — клавиша является dead key в этой раскладке (композиция «мёртвая клавиша + база»),
+    /// т.е. сама по себе символа не даёт, а копит состояние. UCKeyTranslate БЕЗ NoDeadKeys-маски:
+    /// dead key возвращает length 0 и ненулевой deadKeyState.
+    private static func isDeadKey(_ keycode: UInt16, layoutData: Data, shift: Bool, caps: Bool) -> Bool {
+        var deadKeyState: UInt32 = 0
+        var chars = [UniChar](repeating: 0, count: 4)
+        var length = 0
+        var mods: UInt32 = shift ? (UInt32(shiftKey >> 8) & 0xFF) : 0
+        if caps { mods |= UInt32(alphaLock >> 8) & 0xFF }
+        let r = layoutData.withUnsafeBytes { raw -> OSStatus in
+            guard let ptr = raw.baseAddress?.assumingMemoryBound(to: UCKeyboardLayout.self) else { return -1 }
+            return UCKeyTranslate(ptr, keycode, UInt16(kUCKeyActionDown), mods, UInt32(LMGetKbdType()),
+                                  0 /* dead keys ВКЛючены */, &deadKeyState, chars.count, &length, &chars)
+        }
+        return r == noErr && length == 0 && deadKeyState != 0
     }
 
     // Авто-детект раскладок живёт в LayoutSwitcher (autoDetectID1/ID2).
