@@ -714,6 +714,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         contactItem.image = NSImage(systemSymbolName: "envelope", accessibilityDescription: nil)
         menu.addItem(contactItem)
 
+        if !SettingsManager.telegramChatURL.isEmpty {
+            let tgItem = NSMenuItem(title: L10n.menuTelegramSupport, action: #selector(openTelegramSupport), keyEquivalent: "")
+            tgItem.target = self
+            tgItem.image = NSImage(systemSymbolName: "paperplane", accessibilityDescription: nil)
+            menu.addItem(tgItem)
+        }
+
         menu.addItem(NSMenuItem.separator())
 
         let quitItem = NSMenuItem(title: L10n.menuQuit, action: #selector(quit), keyEquivalent: "q")
@@ -1075,6 +1082,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
            let url = URL(string: s) {
             NSWorkspace.shared.open(url)
         }
+    }
+
+    @objc private func openTelegramSupport() {
+        if let url = URL(string: SettingsManager.telegramChatURL) { NSWorkspace.shared.open(url) }
     }
 
     @objc private func openShareLink(_ sender: NSMenuItem) {
