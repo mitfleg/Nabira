@@ -314,8 +314,9 @@ final class SettingsManager: @unchecked Sendable {
     /// Email для «Связаться с разработчиком» (mailto с предзаполнением). Пусто → кнопка
     /// открывает GitHub Issues как фолбэк.
     static let contactEmail = "r@nasibulin.ru"
-    /// Telegram-чат поддержки (t.me/…). Пусто → пункт меню скрыт. TODO: подставить ссылку чата.
-    static let telegramChatURL = ""
+    /// Telegram-чат поддержки (t.me/…). Пусто → пункт меню скрыт. Инвайт-ссылка группы
+    /// обсуждения канала @RuSwitcher (её можно отозвать в настройках группы — тогда обновить).
+    static let telegramChatURL = "https://t.me/+rmD9Dc8USZlkYjEy"
     /// Team ID (Apple Developer), которым подписаны релизы. Используется для
     /// пиннинга подписи при авто-обновлении.
     static let developerTeamID = "9GEWCZ59HK"
