@@ -60,10 +60,13 @@ enum DynamicKeyMapping {
                sourceChar != targetChar {
                 map[sourceChar] = targetChar
             }
-            // С shift
+            // С shift — но НЕ перезаписываем уже добавленный (без-shift) маппинг: у иврита нет
+            // регистра, shift-символ той же клавиши == без-shift-символу, и без гварда заглавная
+            // английская затирала строчную (фидбек kobygold: иврит→англ. давал «A/K/U»). Для
+            // языков с регистром (ru/en) коллизии нет: без-shift и shift — РАЗНЫЕ исходные символы.
             if let sourceChar = translateKeycode(keycode, layoutData: sourceData, shift: true),
                let targetChar = translateKeycode(keycode, layoutData: targetData, shift: true),
-               sourceChar != targetChar {
+               sourceChar != targetChar, map[sourceChar] == nil {
                 map[sourceChar] = targetChar
             }
         }
