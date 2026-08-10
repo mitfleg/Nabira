@@ -48,6 +48,10 @@ final class TextConverter {
     private func isFocusedElementEditable() -> Bool {
         guard let app = NSWorkspace.shared.frontmostApplication else { return false }
         let axApp = AXUIElementCreateApplication(app.processIdentifier)
+        // Занятое приложение (Electron в GC, IDE в индексации) без таймаута держит main
+        // до 6с (дефолт AX) — это и есть «фризы». 0.2с хватает живому ответу; SpotlightAX
+        // такой же таймаут уже ставит.
+        AXUIElementSetMessagingTimeout(axApp, 0.2)
 
         var focusedRaw: AnyObject?
         let err = AXUIElementCopyAttributeValue(axApp, kAXFocusedUIElementAttribute as CFString, &focusedRaw)
