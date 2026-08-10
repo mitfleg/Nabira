@@ -24,6 +24,14 @@
   <a href="#english">English</a> · <a href="#русский">Русский</a>
 </p>
 
+<p align="center">
+  <a href="https://github.com/rashn/RuSwitcher/releases/latest"><b>⬇️ Download for macOS</b></a>
+  &nbsp;·&nbsp;
+  <a href="https://github.com/rashn/RuSwitcher/releases/latest">Скачать для macOS</a>
+  &nbsp;·&nbsp;
+  Homebrew: <code>brew install --cask rashn/ruswitcher/ruswitcher</code>
+</p>
+
 ---
 
 ## English

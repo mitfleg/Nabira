@@ -1,6 +1,6 @@
 cask "ruswitcher" do
-  version "3.1.0"
-  sha256 "ebf0576c741b741e28790151213f4769567d262fd8b8b06b34c1eeb932e9de21"
+  version "3.2.0"
+  sha256 "009da93d523c0e85c9c6005d568fc6558a2ce4204bb703ea99a621ae6720d011"
 
   url "https://github.com/rashn/RuSwitcher/releases/download/v#{version}/RuSwitcher-#{version}.dmg"
   name "RuSwitcher"
