@@ -30,16 +30,28 @@ internal static class TextInjector
         SendInput((uint)arr.Length, arr, Marshal.SizeOf<INPUT>());
     }
 
-    /// <summary>Send Ctrl+<paramref name="vk"/> (e.g. Ctrl+C / Ctrl+V). Carries the injected
-    /// marker so our own hook ignores it (won't be mistaken for a trigger).</summary>
-    public static void SendCtrl(ushort vk)
+    /// <summary>Send Ctrl+<paramref name="vk"/> (e.g. Ctrl+C / Ctrl+V).</summary>
+    public static void SendCtrl(ushort vk) => SendChord(VK_CONTROL, vk);
+
+    /// <summary>Send Shift+<paramref name="vk"/> (e.g. Shift+Home to select to line start).</summary>
+    public static void SendShift(ushort vk) => SendChord((ushort)VK_SHIFT, vk);
+
+    /// <summary>Send a single plain key press (e.g. End to collapse a selection).</summary>
+    public static void SendKey(ushort vk)
+    {
+        var inputs = new[] { Key(vk, '\0', dwFlags: 0), Key(vk, '\0', dwFlags: KEYEVENTF_KEYUP) };
+        SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<INPUT>());
+    }
+
+    // modVk + vk as one chord. Carries the injected marker so our own hook ignores it.
+    private static void SendChord(ushort modVk, ushort vk)
     {
         var inputs = new[]
         {
-            Key(VK_CONTROL, '\0', dwFlags: 0),
+            Key(modVk, '\0', dwFlags: 0),
             Key(vk, '\0', dwFlags: 0),
             Key(vk, '\0', dwFlags: KEYEVENTF_KEYUP),
-            Key(VK_CONTROL, '\0', dwFlags: KEYEVENTF_KEYUP),
+            Key(modVk, '\0', dwFlags: KEYEVENTF_KEYUP),
         };
         SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<INPUT>());
     }

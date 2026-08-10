@@ -24,6 +24,11 @@ internal static class Converter
     /// <summary>Any real typing invalidates a pending reconvert (the word on screen changed).</summary>
     public static void ClearReconvert() { _aText = ""; _bText = ""; }
 
+    // Trailing keys whose char in the CURRENT layout is sentence punctuation are kept literally,
+    // not converted — otherwise «ghbdtn,» would become «приветб» (the comma key is «б» in ЙЦУКЕН).
+    // issue #15. The ambiguous ю/б/ж tails (e.g. «зуб» = "pe,") are left to the user, as on macOS.
+    private static readonly HashSet<char> TrailingPunct = new() { ',', '.', '!', '?', ';', ':', ')' };
+
     /// <summary>Convert the buffered word into the opposite layout. Returns true if it acted.</summary>
     public static bool ConvertLastWord(KeystrokeBuffer buffer)
     {
@@ -32,11 +37,30 @@ internal static class Converter
         IntPtr sourceHkl = LayoutSwitcher.Current();
         if (LayoutSwitcher.Opposite() is not { } targetHkl) return false;
 
-        string converted = KeyMapper.ConvertWord(buffer.CurrentWord, targetHkl);
-        if (converted.Length == 0) return false;
-        string original = KeyMapper.ConvertWord(buffer.CurrentWord, sourceHkl);  // as it was typed
+        // Split off trailing real punctuation (kept as typed).
+        var keys = buffer.CurrentWord;
+        int coreCount = keys.Count;
+        var suffix = new System.Text.StringBuilder();
+        while (coreCount > 0 &&
+               KeyMapper.TranslateIn(keys[coreCount - 1], sourceHkl) is { } pc && TrailingPunct.Contains(pc))
+        {
+            suffix.Insert(0, pc);
+            coreCount--;
+        }
+        if (coreCount == 0) return false;   // nothing but punctuation
 
-        TextInjector.Replace(backspaces: buffer.CurrentWord.Count, text: converted);
+        var core = new List<TypedKey>(coreCount);
+        for (int i = 0; i < coreCount; i++) core.Add(keys[i]);
+        string suf = suffix.ToString();
+
+        string convertedCore = KeyMapper.ConvertWord(core, targetHkl);
+        if (convertedCore.Length == 0) return false;
+        string originalCore = KeyMapper.ConvertWord(core, sourceHkl);  // as it was typed
+
+        string converted = convertedCore + suf;
+        string original = originalCore + suf;
+
+        TextInjector.Replace(backspaces: coreCount + suf.Length, text: converted);
         LayoutSwitcher.SwitchTo(targetHkl);
 
         _aText = converted; _aHkl = targetHkl;   // now on screen
@@ -83,6 +107,18 @@ internal static class Converter
         Thread.Sleep(60);                       // let the paste happen before we restore the clipboard
         RestoreClipboard(saved);
         return true;
+    }
+
+    /// <summary>issue #24: convert the whole current line — select it with Shift+Home, then run
+    /// the selection conversion. Works in normal apps and terminals that support Shift+Home
+    /// selection. On a no-op, collapse the selection (End) so the line isn't left highlighted.</summary>
+    public static bool ConvertLine()
+    {
+        TextInjector.SendShift(VK_HOME);   // select from cursor to line start
+        Thread.Sleep(40);
+        bool ok = ConvertSelection();
+        if (!ok) TextInjector.SendKey(VK_END);   // drop the selection (go to line end)
+        return ok;
     }
 
     // Clipboard is shared + can be briefly locked by other apps — retry, never throw.

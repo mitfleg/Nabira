@@ -15,15 +15,18 @@ internal sealed class TrayIcon : IDisposable
     private const uint ID_TRIG_CTRL = 10;
     private const uint ID_TRIG_SHIFT = 11;
     private const uint ID_TRIG_PAUSE = 12;
+    private const uint ID_WHOLELINE = 13;
 
     private readonly WndProc _wndProc;
     private IntPtr _hwnd;
     private NOTIFYICONDATA _nid;
     private bool _enabled = true;
     private TriggerKind _trigger;
+    private bool _wholeLine;
 
     public event Action<bool>? EnabledChanged;
     public event Action<TriggerKind>? TriggerChanged;
+    public event Action<bool>? WholeLineChanged;
     public event Action? QuitRequested;
     /// <summary>Fired on the message-loop thread when a trigger was posted from the hook.</summary>
     public event Action? TriggerActivated;
@@ -36,9 +39,10 @@ internal sealed class TrayIcon : IDisposable
         if (_hwnd != IntPtr.Zero) PostMessageW(_hwnd, WM_APP, IntPtr.Zero, IntPtr.Zero);
     }
 
-    public TrayIcon(TriggerKind trigger)
+    public TrayIcon(TriggerKind trigger, bool wholeLine)
     {
         _trigger = trigger;
+        _wholeLine = wholeLine;
         _wndProc = WindowProc;
     }
 
@@ -98,6 +102,7 @@ internal sealed class TrayIcon : IDisposable
                     case ID_TRIG_CTRL: SetTrigger(TriggerKind.CtrlDoubleTap); break;
                     case ID_TRIG_SHIFT: SetTrigger(TriggerKind.ShiftDoubleTap); break;
                     case ID_TRIG_PAUSE: SetTrigger(TriggerKind.PauseBreak); break;
+                    case ID_WHOLELINE: _wholeLine = !_wholeLine; WholeLineChanged?.Invoke(_wholeLine); break;
                 }
                 return IntPtr.Zero;
 
@@ -125,6 +130,8 @@ internal sealed class TrayIcon : IDisposable
         AppendMenuW(sub, MF_STRING | Check(TriggerKind.ShiftDoubleTap), ID_TRIG_SHIFT, TriggerName(TriggerKind.ShiftDoubleTap));
         AppendMenuW(sub, MF_STRING | Check(TriggerKind.PauseBreak), ID_TRIG_PAUSE, TriggerName(TriggerKind.PauseBreak));
         AppendSubMenuW(menu, MF_STRING | MF_POPUP, sub, $"Trigger: {TriggerName(_trigger)}");
+
+        AppendMenuW(menu, MF_STRING | (_wholeLine ? MF_CHECKED : MF_UNCHECKED), ID_WHOLELINE, "Convert whole line");
 
         AppendMenuW(menu, MF_SEPARATOR, 0, null);
         AppendMenuW(menu, MF_STRING, ID_QUIT, "Quit");

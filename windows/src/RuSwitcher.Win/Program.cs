@@ -25,7 +25,7 @@ internal static class Program
         var buffer = new KeystrokeBuffer();
         bool enabled = true;
 
-        using var tray = new TrayIcon(settings.Trigger);
+        using var tray = new TrayIcon(settings.Trigger, settings.ConvertWholeLine);
         var detector = new TriggerDetector(settings.Trigger);
 
         // Hook thread: only post a message — the real (possibly slow, clipboard-touching)
@@ -36,14 +36,16 @@ internal static class Program
         {
             if (!enabled) return;
             // Trigger again with nothing typed since = reverse the last conversion (toggle);
-            // else convert the typed word; else (no typed word) convert the current selection.
+            // else whole-line mode → convert the line; else convert the typed word; else the selection.
             bool acted;
             if (Converter.CanReconvert && buffer.IsEmpty) acted = Converter.Reconvert();
+            else if (settings.ConvertWholeLine) { acted = Converter.ConvertLine(); if (acted) buffer.Reset(); }
             else if (!buffer.IsEmpty) acted = Converter.ConvertLastWord(buffer);
             else acted = Converter.ConvertSelection();
             Log($"trigger: acted={acted}");
         };
         tray.EnabledChanged += on => { enabled = on; Log($"enabled = {on}"); };
+        tray.WholeLineChanged += on => { settings.ConvertWholeLine = on; settings.Save(); Log($"whole-line = {on}"); };
         tray.TriggerChanged += kind =>
         {
             settings.Trigger = kind;

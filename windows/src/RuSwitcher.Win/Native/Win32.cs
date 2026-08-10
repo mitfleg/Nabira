@@ -99,6 +99,8 @@ internal static class Win32
     public const ushort VK_CONTROL = 0x11;
     public const ushort VK_C = 0x43;
     public const ushort VK_V = 0x56;
+    public const ushort VK_HOME = 0x24;
+    public const ushort VK_END = 0x23;
     public const uint MAPVK_VK_TO_VSC = 0;
 
     [DllImport("user32.dll")]

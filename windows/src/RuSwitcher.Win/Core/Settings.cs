@@ -17,6 +17,9 @@ public sealed class Settings
 {
     public TriggerKind Trigger { get; set; } = TriggerKind.CtrlDoubleTap;
 
+    /// <summary>issue #24: convert the whole line (Shift+Home selection) instead of the last word.</summary>
+    public bool ConvertWholeLine { get; set; } = false;
+
     private static readonly JsonSerializerOptions Json = new()
     {
         WriteIndented = true,
