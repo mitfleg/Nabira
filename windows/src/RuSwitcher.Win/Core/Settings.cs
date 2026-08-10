@@ -32,6 +32,24 @@ public sealed class Settings
     public bool SwitchTriggerEnabled { get; set; } = false;
     public TriggerKind SwitchTrigger { get; set; } = TriggerKind.ShiftDoubleTap;
 
+    /// <summary>As-you-type auto conversion (beta) — flips a word into the opposite layout right after
+    /// a space when the dictionary says it was typed in the wrong layout. Default OFF and conservative
+    /// (precision over recall), mirroring the macOS auto-switch. Undoing an auto-conversion with the
+    /// trigger teaches an exception (learn-from-undo).</summary>
+    public bool AutoConvert { get; set; } = false;
+
+    /// <summary>Words never auto-converted (typed form, lowercase). Grown by learn-from-undo.</summary>
+    public List<string> NeverConvert { get; set; } = new();
+
+    /// <summary>Words always auto-converted — matched on the CONVERTED (target) form, lowercase, so a
+    /// correctly typed word doesn't ping-pong. Mirrors the macOS always-convert list.</summary>
+    public List<string> AlwaysConvert { get; set; } = new();
+
+    /// <summary>issue: per-app layout memory. Maps a process name (e.g. "devenv") to the last layout
+    /// LANGID used there; restored when the app regains focus. Off unless <see cref="PerAppLayout"/>.</summary>
+    public bool PerAppLayout { get; set; } = false;
+    public Dictionary<string, int> AppLayouts { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
     /// <summary>Process-wide settings instance (loaded once). Core classes read this directly,
     /// mirroring the macOS SettingsManager.shared singleton.</summary>
     public static Settings Current { get; } = Load();

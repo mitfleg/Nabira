@@ -19,4 +19,9 @@
     <Platforms>x64;ARM64</Platforms>
   </PropertyGroup>
 
+  <ItemGroup>
+    <!-- Let the test project reach internal engine types (AutoConverter verdict, etc.). -->
+    <InternalsVisibleTo Include="RuSwitcher.Win.Tests" />
+  </ItemGroup>
+
 </Project>

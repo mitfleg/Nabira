@@ -15,8 +15,9 @@ internal sealed class KeyboardHook : IDisposable
     private readonly LowLevelKeyboardProc _proc;
     private IntPtr _hook;
 
-    /// <summary>(vkCode, scanCode) of a real key press.</summary>
-    public event Action<uint, uint>? KeyDown;
+    /// <summary>(vkCode, scanCode) of a real key press. Return true to SUPPRESS the key (swallow it,
+    /// e.g. when auto-conversion has already re-emitted the boundary character itself).</summary>
+    public Func<uint, uint, bool>? KeyDown;
 
     /// <summary>(vkCode, scanCode) of a real key release — needed for modifier double-tap.</summary>
     public event Action<uint, uint>? KeyUp;
@@ -40,7 +41,10 @@ internal sealed class KeyboardHook : IDisposable
                 var data = Marshal.PtrToStructure<KBDLLHOOKSTRUCT>(lParam);
                 // Ignore our own injected retype events (self-event marker).
                 if (data.dwExtraInfo != InjectedMarker)
-                    KeyDown?.Invoke(data.vkCode, data.scanCode);
+                {
+                    bool suppress = KeyDown?.Invoke(data.vkCode, data.scanCode) ?? false;
+                    if (suppress) return (IntPtr)1;   // swallow the key (return non-zero, don't chain)
+                }
             }
             else if (msg == WM_KEYUP || msg == WM_SYSKEYUP)
             {

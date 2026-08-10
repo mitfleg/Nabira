@@ -17,12 +17,23 @@ internal static class Converter
     private static string _bText = "";
     private static IntPtr _aHkl;
     private static IntPtr _bHkl;
+    private static bool _lastWasAuto;   // last conversion came from as-you-type auto (learn-from-undo)
 
     /// <summary>True if the last conversion can be reversed (nothing typed since).</summary>
     public static bool CanReconvert => _aText.Length > 0;
 
     /// <summary>Any real typing invalidates a pending reconvert (the word on screen changed).</summary>
-    public static void ClearReconvert() { _aText = ""; _bText = ""; }
+    public static void ClearReconvert() { _aText = ""; _bText = ""; _lastWasAuto = false; }
+
+    /// <summary>Record an auto-conversion so the trigger can reverse it — and so reversing it teaches
+    /// an exception (learn-from-undo). <paramref name="onScreen"/> is what's now shown; the
+    /// <paramref name="alternative"/> is the original typed word restored on undo.</summary>
+    public static void NoteAutoConversion(string onScreen, string alternative, IntPtr onScreenHkl, IntPtr altHkl)
+    {
+        _aText = onScreen; _aHkl = onScreenHkl;
+        _bText = alternative; _bHkl = altHkl;
+        _lastWasAuto = true;
+    }
 
     // Trailing keys whose char in the CURRENT layout is sentence punctuation are kept literally,
     // not converted — otherwise «ghbdtn,» would become «приветб» (the comma key is «б» in ЙЦУКЕН).
@@ -65,6 +76,7 @@ internal static class Converter
 
         _aText = converted; _aHkl = targetHkl;   // now on screen
         _bText = original;  _bHkl = sourceHkl;    // the alternative (undo target)
+        _lastWasAuto = false;                     // a manual convert isn't subject to learn-from-undo
         buffer.Reset();
         return true;
     }
@@ -73,6 +85,20 @@ internal static class Converter
     public static bool Reconvert()
     {
         if (_aText.Length == 0) return false;
+
+        // Learn-from-undo: reversing an auto-conversion means the user rejected it — remember never to
+        // auto-convert that typed word again (mirrors the macOS learn-from-undo).
+        if (_lastWasAuto)
+        {
+            string word = LetterCoreLower(_bText);   // _bText is the original typed word being restored
+            var never = Settings.Current.NeverConvert;
+            if (word.Length >= 2 && !never.Contains(word))
+            {
+                never.Add(word);
+                Settings.Current.Save();
+            }
+            _lastWasAuto = false;   // only teach once
+        }
 
         TextInjector.Replace(backspaces: _aText.Length, text: _bText);
         LayoutSwitcher.SwitchTo(_bHkl);
@@ -121,6 +147,15 @@ internal static class Converter
         bool ok = ConvertSelection(smart);
         if (!ok) TextInjector.SendKey(VK_END);   // drop the selection (go to line end)
         return ok;
+    }
+
+    // Trim non-letters off both ends and lowercase — the key used for the never-convert exception list.
+    private static string LetterCoreLower(string s)
+    {
+        int a = 0, b = s.Length;
+        while (a < b && !char.IsLetter(s[a])) a++;
+        while (b > a && !char.IsLetter(s[b - 1])) b--;
+        return s.Substring(a, b - a).ToLowerInvariant();
     }
 
     // Clipboard is shared + can be briefly locked by other apps — retry, never throw.

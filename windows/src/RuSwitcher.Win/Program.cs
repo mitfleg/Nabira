@@ -25,6 +25,13 @@ internal static class Program
         var buffer = new KeystrokeBuffer();
         bool enabled = true;
 
+        // Auto-conversion checks the dictionary inside the hook callback; warm the COM spell-checker
+        // now (on this thread — LL-hook callbacks are dispatched here) so the first word isn't slow.
+        if (settings.AutoConvert && Dict.Available)
+        {
+            try { Dict.IsValidWord("test", "en"); Dict.IsValidWord("тест", "ru"); } catch { /* ignore */ }
+        }
+
         using var tray = new TrayIcon();
         var detector = new TriggerDetector(settings.Trigger);
 
@@ -67,15 +74,21 @@ internal static class Program
         using var hook = new KeyboardHook();
         hook.KeyDown += (vk, sc) =>
         {
-            if (!enabled) return;
+            if (!enabled) return false;
 
             detector.OnKeyDown(vk);
             switchDetector.OnKeyDown(vk);
 
             if (KeystrokeBuffer.IsWordBoundary(vk))
             {
+                // As-you-type auto conversion (beta): on Space, flip the just-typed word if the
+                // dictionary says it was typed in the wrong layout. When it converts it re-emits the
+                // space itself, so we swallow the real one (guarantees word→space ordering).
+                bool swallow = false;
+                if (vk == KeystrokeBuffer.VK_SPACE && settings.AutoConvert && !buffer.IsEmpty)
+                    swallow = AutoConverter.TryConvertWord(buffer);
                 buffer.Reset();
-                return;
+                return swallow;
             }
 
             if (KeystrokeBuffer.IsTypingKey(vk))
@@ -86,6 +99,7 @@ internal static class Program
                 buffer.Append(new TypedKey(vk, sc, shift, caps));
             }
             // Modifiers and other keys: leave the buffer as-is.
+            return false;
         };
         hook.KeyUp += (vk, sc) =>
         {
@@ -94,6 +108,11 @@ internal static class Program
             switchDetector.OnKeyUp(vk);
         };
         hook.Install();
+
+        // Per-app layout memory (issue): restores each app's last-used layout on focus. Off by default.
+        using var appTracker = new AppLayoutTracker();
+        appTracker.Install();
+
         Log($"RuSwitcher.Win started — hook + tray up, trigger={settings.Trigger}");
 
         // Message loop: required for both the LL hook callbacks and the tray window.

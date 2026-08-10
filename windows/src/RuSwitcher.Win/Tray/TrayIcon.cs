@@ -18,6 +18,7 @@ internal sealed class TrayIcon : IDisposable
     private const uint ID_TRIG_PAUSE = 12;
     private const uint ID_WHOLELINE = 13;
     private const uint ID_SETTINGS = 14;
+    private const uint ID_AUTO = 15;
 
     private readonly WndProc _wndProc;
     private IntPtr _hwnd;
@@ -117,6 +118,10 @@ internal sealed class TrayIcon : IDisposable
                         Settings.Current.ConvertWholeLine = !Settings.Current.ConvertWholeLine;
                         Settings.Current.Save();
                         break;
+                    case ID_AUTO:
+                        Settings.Current.AutoConvert = !Settings.Current.AutoConvert;
+                        Settings.Current.Save();
+                        break;
                 }
                 return IntPtr.Zero;
 
@@ -153,6 +158,7 @@ internal sealed class TrayIcon : IDisposable
         AppendSubMenuW(menu, MF_STRING | MF_POPUP, sub, $"Trigger: {TriggerName(s.Trigger)}");
 
         AppendMenuW(menu, MF_STRING | Chk(s.ConvertWholeLine), ID_WHOLELINE, "Convert whole line");
+        AppendMenuW(menu, MF_STRING | Chk(s.AutoConvert), ID_AUTO, "Auto-convert as you type (beta)");
         AppendMenuW(menu, MF_STRING, ID_SETTINGS, "Settings…");
 
         AppendMenuW(menu, MF_SEPARATOR, 0, null);
