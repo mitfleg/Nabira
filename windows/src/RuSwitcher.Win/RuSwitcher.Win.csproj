@@ -17,6 +17,8 @@
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <LangVersion>latest</LangVersion>
     <Platforms>x64;ARM64</Platforms>
+    <!-- Windows track starts pre-1.0 (beta). Keep in sync with windows/version.json. -->
+    <Version>0.9.0</Version>
   </PropertyGroup>
 
   <ItemGroup>

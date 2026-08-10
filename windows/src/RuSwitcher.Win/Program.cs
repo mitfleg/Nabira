@@ -71,6 +71,13 @@ internal static class Program
         tray.QuitRequested += () => Log("quit requested");
         tray.Show("RuSwitcher");
 
+        // A hidden WinForms control forces a WindowsFormsSynchronizationContext onto this thread, so
+        // the background update check can marshal its message box back here (dispatched by our loop).
+        using var uiAnchor = new System.Windows.Forms.Control();
+        _ = uiAnchor.Handle;   // force handle creation → installs the sync context
+        var ui = SynchronizationContext.Current ?? new SynchronizationContext();
+        tray.UpdateRequested += () => Updater.CheckNow(ui);
+
         using var hook = new KeyboardHook();
         hook.KeyDown += (vk, sc) =>
         {
@@ -112,6 +119,8 @@ internal static class Program
         // Per-app layout memory (issue): restores each app's last-used layout on focus. Off by default.
         using var appTracker = new AppLayoutTracker();
         appTracker.Install();
+
+        Updater.CheckOnLaunch(ui);   // silent, throttled once-a-day, off the startup path
 
         Log($"RuSwitcher.Win started — hook + tray up, trigger={settings.Trigger}");
 

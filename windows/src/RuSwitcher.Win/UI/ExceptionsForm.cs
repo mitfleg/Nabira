@@ -17,21 +17,21 @@ internal sealed class ExceptionsForm : Form
     {
         var s = Settings.Current;
 
-        Text = "RuSwitcher — Exceptions";
+        Text = L10n.T("exc.title");
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
         MinimizeBox = false;
         StartPosition = FormStartPosition.CenterParent;
         ClientSize = new Size(460, 320);
 
-        var lblNever = new Label { Text = "Never convert (as typed):", Left = 16, Top = 12, AutoSize = true };
+        var lblNever = new Label { Text = L10n.T("exc.never"), Left = 16, Top = 12, AutoSize = true };
         _never = MakeList(16, s.NeverConvert);
 
-        var lblAlways = new Label { Text = "Always convert (target form):", Left = 236, Top = 12, AutoSize = true };
+        var lblAlways = new Label { Text = L10n.T("exc.always"), Left = 236, Top = 12, AutoSize = true };
         _always = MakeList(236, s.AlwaysConvert);
 
-        var btnOk = new Button { Text = "Save", Left = 270, Top = 280, Width = 84, DialogResult = DialogResult.OK };
-        var btnCancel = new Button { Text = "Cancel", Left = 364, Top = 280, Width = 84, DialogResult = DialogResult.Cancel };
+        var btnOk = new Button { Text = L10n.T("exc.save"), Left = 270, Top = 280, Width = 84, DialogResult = DialogResult.OK };
+        var btnCancel = new Button { Text = L10n.T("exc.cancel"), Left = 364, Top = 280, Width = 84, DialogResult = DialogResult.Cancel };
         AcceptButton = btnOk;
         CancelButton = btnCancel;
         btnOk.Click += (_, _) =>

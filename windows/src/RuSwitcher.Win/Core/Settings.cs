@@ -50,6 +50,13 @@ public sealed class Settings
     public bool PerAppLayout { get; set; } = false;
     public Dictionary<string, int> AppLayouts { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>Auto-check for updates on launch (once per 24h). Manual check always works.</summary>
+    public bool CheckUpdatesEnabled { get; set; } = true;
+    /// <summary>Last auto-check time (UTC ticks) — throttles to once a day, like the macOS updater.</summary>
+    public long LastUpdateCheckTicks { get; set; } = 0;
+    /// <summary>A version the user chose to skip (not re-notified while it's the latest).</summary>
+    public string SkippedVersion { get; set; } = "";
+
     /// <summary>Process-wide settings instance (loaded once). Core classes read this directly,
     /// mirroring the macOS SettingsManager.shared singleton.</summary>
     public static Settings Current { get; } = Load();

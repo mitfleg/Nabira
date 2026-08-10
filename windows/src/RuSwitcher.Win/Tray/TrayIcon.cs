@@ -19,6 +19,7 @@ internal sealed class TrayIcon : IDisposable
     private const uint ID_WHOLELINE = 13;
     private const uint ID_SETTINGS = 14;
     private const uint ID_AUTO = 15;
+    private const uint ID_UPDATE = 16;
 
     private readonly WndProc _wndProc;
     private IntPtr _hwnd;
@@ -28,6 +29,7 @@ internal sealed class TrayIcon : IDisposable
     public event Action<bool>? EnabledChanged;
     public event Action<TriggerKind>? TriggerChanged;
     public event Action? SettingsRequested;
+    public event Action? UpdateRequested;
     public event Action? QuitRequested;
     /// <summary>Fired on the message-loop thread when a trigger was posted from the hook.</summary>
     public event Action? TriggerActivated;
@@ -69,11 +71,11 @@ internal sealed class TrayIcon : IDisposable
         Shell_NotifyIconW(NIM_ADD, ref _nid);
     }
 
-    private static string TriggerName(TriggerKind t) => t switch
+    internal static string TriggerName(TriggerKind t) => t switch
     {
-        TriggerKind.CtrlDoubleTap => "Double-tap Ctrl",
-        TriggerKind.ShiftDoubleTap => "Double-tap Shift",
-        TriggerKind.PauseBreak => "Pause/Break key",
+        TriggerKind.CtrlDoubleTap => L10n.T("trigger.ctrl"),
+        TriggerKind.ShiftDoubleTap => L10n.T("trigger.shift"),
+        TriggerKind.PauseBreak => L10n.T("trigger.pause"),
         _ => "?",
     };
 
@@ -111,6 +113,7 @@ internal sealed class TrayIcon : IDisposable
                     case ID_ENABLE: _enabled = !_enabled; EnabledChanged?.Invoke(_enabled); break;
                     case ID_QUIT: QuitRequested?.Invoke(); PostQuitMessage(0); break;
                     case ID_SETTINGS: SettingsRequested?.Invoke(); break;
+                    case ID_UPDATE: UpdateRequested?.Invoke(); break;
                     case ID_TRIG_CTRL: SetTrigger(TriggerKind.CtrlDoubleTap); break;
                     case ID_TRIG_SHIFT: SetTrigger(TriggerKind.ShiftDoubleTap); break;
                     case ID_TRIG_PAUSE: SetTrigger(TriggerKind.PauseBreak); break;
@@ -149,20 +152,21 @@ internal sealed class TrayIcon : IDisposable
         AppendMenuW(menu, MF_STRING | MF_DISABLED | MF_GRAYED, 0, $"⌨  {LayoutName(LayoutSwitcher.Current())}");
         AppendMenuW(menu, MF_SEPARATOR, 0, null);
 
-        AppendMenuW(menu, MF_STRING | (_enabled ? MF_CHECKED : MF_UNCHECKED), ID_ENABLE, "Enable RuSwitcher");
+        AppendMenuW(menu, MF_STRING | (_enabled ? MF_CHECKED : MF_UNCHECKED), ID_ENABLE, L10n.T("tray.enable"));
 
         IntPtr sub = CreatePopupMenu();
         AppendMenuW(sub, MF_STRING | Chk(s.Trigger == TriggerKind.CtrlDoubleTap), ID_TRIG_CTRL, TriggerName(TriggerKind.CtrlDoubleTap));
         AppendMenuW(sub, MF_STRING | Chk(s.Trigger == TriggerKind.ShiftDoubleTap), ID_TRIG_SHIFT, TriggerName(TriggerKind.ShiftDoubleTap));
         AppendMenuW(sub, MF_STRING | Chk(s.Trigger == TriggerKind.PauseBreak), ID_TRIG_PAUSE, TriggerName(TriggerKind.PauseBreak));
-        AppendSubMenuW(menu, MF_STRING | MF_POPUP, sub, $"Trigger: {TriggerName(s.Trigger)}");
+        AppendSubMenuW(menu, MF_STRING | MF_POPUP, sub, L10n.T("tray.trigger", TriggerName(s.Trigger)));
 
-        AppendMenuW(menu, MF_STRING | Chk(s.ConvertWholeLine), ID_WHOLELINE, "Convert whole line");
-        AppendMenuW(menu, MF_STRING | Chk(s.AutoConvert), ID_AUTO, "Auto-convert as you type (beta)");
-        AppendMenuW(menu, MF_STRING, ID_SETTINGS, "Settings…");
+        AppendMenuW(menu, MF_STRING | Chk(s.ConvertWholeLine), ID_WHOLELINE, L10n.T("tray.wholeline"));
+        AppendMenuW(menu, MF_STRING | Chk(s.AutoConvert), ID_AUTO, L10n.T("tray.auto"));
+        AppendMenuW(menu, MF_STRING, ID_SETTINGS, L10n.T("tray.settings"));
+        AppendMenuW(menu, MF_STRING, ID_UPDATE, L10n.T("tray.update"));
 
         AppendMenuW(menu, MF_SEPARATOR, 0, null);
-        AppendMenuW(menu, MF_STRING, ID_QUIT, "Quit");
+        AppendMenuW(menu, MF_STRING, ID_QUIT, L10n.T("tray.quit"));
 
         GetCursorPos(out POINT pt);
         SetForegroundWindow(_hwnd); // so the menu dismisses correctly on outside click
