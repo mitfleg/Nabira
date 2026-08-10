@@ -10,6 +10,8 @@ internal static class Win32
     public const int HC_ACTION = 0;
     public const int WM_KEYDOWN = 0x0100;
     public const int WM_SYSKEYDOWN = 0x0104;
+    public const int WM_KEYUP = 0x0101;
+    public const int WM_SYSKEYUP = 0x0105;
     public const uint LLKHF_INJECTED = 0x10;
 
     // Marker written into the dwExtraInfo of our own injected events, so the hook can
@@ -87,6 +89,13 @@ internal static class Win32
 
     public const int VK_SHIFT = 0x10;
     public const int VK_CAPITAL = 0x14;
+    // Триггер-клавиши (issue #24 Windows): выделенные клавиши + модификаторы для double-tap.
+    public const uint VK_PAUSE = 0x13;
+    public const uint VK_SCROLL = 0x91;
+    public const uint VK_LCONTROL = 0xA2;
+    public const uint VK_RCONTROL = 0xA3;
+    public const uint VK_LSHIFT = 0xA0;
+    public const uint VK_RSHIFT = 0xA1;
 
     // --- Layout switching ---
     public const uint WM_INPUTLANGCHANGEREQUEST = 0x0050;
@@ -149,6 +158,7 @@ internal static class Win32
     public const uint MF_STRING = 0x00000000;
     public const uint MF_SEPARATOR = 0x00000800;
     public const uint MF_CHECKED = 0x00000008;
+    public const uint MF_POPUP = 0x00000010;
     public const uint MF_UNCHECKED = 0x00000000;
     public const int IDI_APPLICATION = 32512;
 
@@ -209,6 +219,11 @@ internal static class Win32
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool AppendMenuW(IntPtr hMenu, uint uFlags, uint uIDNewItem, string? lpNewItem);
+
+    // Перегрузка для подменю: uIDNewItem — это ХЕНДЛ подменю (UINT_PTR), не влезает в uint на 64-бит.
+    [DllImport("user32.dll", EntryPoint = "AppendMenuW", CharSet = CharSet.Unicode)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool AppendSubMenuW(IntPtr hMenu, uint uFlags, IntPtr hSubMenu, string? lpNewItem);
 
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]

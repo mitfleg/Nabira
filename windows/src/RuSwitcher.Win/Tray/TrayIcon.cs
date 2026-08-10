@@ -1,26 +1,36 @@
+using RuSwitcher.Win.Core;
 using static RuSwitcher.Win.Native.Win32;
 
 namespace RuSwitcher.Win.Tray;
 
 /// <summary>
 /// Menu-bar presence — the Windows counterpart of the macOS NSStatusItem. A hidden message
-/// window receives tray callbacks; right-click shows a menu (Enable toggle, Quit).
+/// window receives tray callbacks; right-click shows a menu: Enable toggle, a Trigger submenu
+/// (so the shortcut is discoverable and selectable), and Quit.
 /// </summary>
 internal sealed class TrayIcon : IDisposable
 {
     private const uint ID_ENABLE = 1;
     private const uint ID_QUIT = 2;
+    private const uint ID_TRIG_CTRL = 10;
+    private const uint ID_TRIG_SHIFT = 11;
+    private const uint ID_TRIG_PAUSE = 12;
 
-    // WndProc must be kept alive in a field (same GC pitfall as the hook delegate).
     private readonly WndProc _wndProc;
     private IntPtr _hwnd;
     private NOTIFYICONDATA _nid;
     private bool _enabled = true;
+    private TriggerKind _trigger;
 
     public event Action<bool>? EnabledChanged;
+    public event Action<TriggerKind>? TriggerChanged;
     public event Action? QuitRequested;
 
-    public TrayIcon() => _wndProc = WindowProc;
+    public TrayIcon(TriggerKind trigger)
+    {
+        _trigger = trigger;
+        _wndProc = WindowProc;
+    }
 
     public void Show(string tooltip)
     {
@@ -49,6 +59,14 @@ internal sealed class TrayIcon : IDisposable
         Shell_NotifyIconW(NIM_ADD, ref _nid);
     }
 
+    private static string TriggerName(TriggerKind t) => t switch
+    {
+        TriggerKind.CtrlDoubleTap => "Double-tap Ctrl",
+        TriggerKind.ShiftDoubleTap => "Double-tap Shift",
+        TriggerKind.PauseBreak => "Pause/Break key",
+        _ => "?",
+    };
+
     private IntPtr WindowProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam)
     {
         switch (msg)
@@ -59,8 +77,14 @@ internal sealed class TrayIcon : IDisposable
 
             case WM_COMMAND:
                 uint cmd = (uint)(wParam.ToInt64() & 0xFFFF);
-                if (cmd == ID_ENABLE) { _enabled = !_enabled; EnabledChanged?.Invoke(_enabled); }
-                else if (cmd == ID_QUIT) { QuitRequested?.Invoke(); PostQuitMessage(0); }
+                switch (cmd)
+                {
+                    case ID_ENABLE: _enabled = !_enabled; EnabledChanged?.Invoke(_enabled); break;
+                    case ID_QUIT: QuitRequested?.Invoke(); PostQuitMessage(0); break;
+                    case ID_TRIG_CTRL: SetTrigger(TriggerKind.CtrlDoubleTap); break;
+                    case ID_TRIG_SHIFT: SetTrigger(TriggerKind.ShiftDoubleTap); break;
+                    case ID_TRIG_PAUSE: SetTrigger(TriggerKind.PauseBreak); break;
+                }
                 return IntPtr.Zero;
 
             case WM_DESTROY:
@@ -70,10 +94,24 @@ internal sealed class TrayIcon : IDisposable
         return DefWindowProcW(hWnd, msg, wParam, lParam);
     }
 
+    private void SetTrigger(TriggerKind t)
+    {
+        if (t == _trigger) return;
+        _trigger = t;
+        TriggerChanged?.Invoke(t);
+    }
+
     private void ShowMenu()
     {
         IntPtr menu = CreatePopupMenu();
         AppendMenuW(menu, MF_STRING | (_enabled ? MF_CHECKED : MF_UNCHECKED), ID_ENABLE, "Enable RuSwitcher");
+
+        IntPtr sub = CreatePopupMenu();
+        AppendMenuW(sub, MF_STRING | Check(TriggerKind.CtrlDoubleTap), ID_TRIG_CTRL, TriggerName(TriggerKind.CtrlDoubleTap));
+        AppendMenuW(sub, MF_STRING | Check(TriggerKind.ShiftDoubleTap), ID_TRIG_SHIFT, TriggerName(TriggerKind.ShiftDoubleTap));
+        AppendMenuW(sub, MF_STRING | Check(TriggerKind.PauseBreak), ID_TRIG_PAUSE, TriggerName(TriggerKind.PauseBreak));
+        AppendSubMenuW(menu, MF_STRING | MF_POPUP, sub, $"Trigger: {TriggerName(_trigger)}");
+
         AppendMenuW(menu, MF_SEPARATOR, 0, null);
         AppendMenuW(menu, MF_STRING, ID_QUIT, "Quit");
 
@@ -82,6 +120,8 @@ internal sealed class TrayIcon : IDisposable
         TrackPopupMenu(menu, TPM_RIGHTBUTTON, pt.X, pt.Y, 0, _hwnd, IntPtr.Zero);
         DestroyMenu(menu);
     }
+
+    private uint Check(TriggerKind t) => t == _trigger ? MF_CHECKED : MF_UNCHECKED;
 
     public void Dispose()
     {

@@ -3,14 +3,13 @@ using RuSwitcher.Win.Native;
 using RuSwitcher.Win.Tray;
 using static RuSwitcher.Win.Native.Win32;
 
-// RuSwitcher for Windows — stage 1 MVP (manual trigger).
-// Type a word in the wrong layout, press the trigger (Pause/Break), and the last word is
-// converted in place (delete + retype in the opposite layout) and the layout is switched.
-// Mirrors the macOS engine: LL hook (CGEventTap) → keystroke buffer (KeyboardMonitor) →
-// ToUnicodeEx map (UCKeyTranslate) → SendInput retype (TextConverter) → layout switch (TIS).
-// Clipboard-free, zero dependencies.
-
-const uint VK_PAUSE = 0x13; // trigger (Pause/Break) — a dedicated key that doesn't disturb typing
+// RuSwitcher for Windows — stage 1 (manual trigger, configurable).
+// Type a word in the wrong layout, fire the trigger, and the last word is converted in place
+// (delete + retype in the opposite layout) and the layout is switched. The trigger defaults to
+// a double-tap of Ctrl (works on all keyboards incl. laptops, doesn't disturb typing — the
+// Windows counterpart of the macOS Option double-tap) and is selectable from the tray menu.
+// Mirrors the macOS engine: LL hook → keystroke buffer → ToUnicodeEx map → SendInput retype →
+// layout switch. Clipboard-free, zero external dependencies.
 
 string logDir = Path.Combine(
     Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "RuSwitcher");
@@ -18,11 +17,27 @@ Directory.CreateDirectory(logDir);
 string logPath = Path.Combine(logDir, "debug.log");
 void Log(string line) => File.AppendAllText(logPath, $"{DateTime.Now:HH:mm:ss.fff} {line}{Environment.NewLine}");
 
+var settings = Settings.Load();
 var buffer = new KeystrokeBuffer();
 bool enabled = true;
 
-using var tray = new TrayIcon();
+var detector = new TriggerDetector(settings.Trigger);
+detector.Triggered += () =>
+{
+    if (!enabled) return;
+    bool acted = Converter.ConvertLastWord(buffer);
+    Log($"trigger: converted={acted}");
+};
+
+using var tray = new TrayIcon(settings.Trigger);
 tray.EnabledChanged += on => { enabled = on; Log($"enabled = {on}"); };
+tray.TriggerChanged += kind =>
+{
+    settings.Trigger = kind;
+    settings.Save();
+    detector.Kind = kind;
+    Log($"trigger set: {kind}");
+};
 tray.QuitRequested += () => Log("quit requested");
 tray.Show("RuSwitcher");
 
@@ -31,12 +46,7 @@ hook.KeyDown += (vk, sc) =>
 {
     if (!enabled) return;
 
-    if (vk == VK_PAUSE)
-    {
-        bool acted = Converter.ConvertLastWord(buffer);
-        Log($"trigger: converted={acted}");
-        return;
-    }
+    detector.OnKeyDown(vk);
 
     if (KeystrokeBuffer.IsWordBoundary(vk))
     {
@@ -52,8 +62,12 @@ hook.KeyDown += (vk, sc) =>
     }
     // Modifiers and other keys: leave the buffer as-is.
 };
+hook.KeyUp += (vk, sc) =>
+{
+    if (enabled) detector.OnKeyUp(vk);
+};
 hook.Install();
-Log("RuSwitcher.Win MVP started — hook + tray up");
+Log($"RuSwitcher.Win started — hook + tray up, trigger={settings.Trigger}");
 
 // Message loop: required for both the LL hook callbacks and the tray window.
 while (GetMessageW(out MSG msg, IntPtr.Zero, 0, 0) > 0)

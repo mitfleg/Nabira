@@ -18,6 +18,9 @@ internal sealed class KeyboardHook : IDisposable
     /// <summary>(vkCode, scanCode) of a real key press.</summary>
     public event Action<uint, uint>? KeyDown;
 
+    /// <summary>(vkCode, scanCode) of a real key release — needed for modifier double-tap.</summary>
+    public event Action<uint, uint>? KeyUp;
+
     public KeyboardHook() => _proc = HookCallback;
 
     public void Install()
@@ -38,6 +41,12 @@ internal sealed class KeyboardHook : IDisposable
                 // Ignore our own injected retype events (self-event marker).
                 if (data.dwExtraInfo != InjectedMarker)
                     KeyDown?.Invoke(data.vkCode, data.scanCode);
+            }
+            else if (msg == WM_KEYUP || msg == WM_SYSKEYUP)
+            {
+                var data = Marshal.PtrToStructure<KBDLLHOOKSTRUCT>(lParam);
+                if (data.dwExtraInfo != InjectedMarker)
+                    KeyUp?.Invoke(data.vkCode, data.scanCode);
             }
         }
         return CallNextHookEx(_hook, nCode, wParam, lParam);
