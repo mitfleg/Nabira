@@ -77,7 +77,11 @@ internal static class KeyMapper
     {
         char? s = TranslateIn(new TypedKey(vk, sc, shift, Caps: false), src);
         char? t = TranslateIn(new TypedKey(vk, sc, shift, Caps: false), tgt);
-        if (s is { } sch && t is { } tch && sch != tch && !map.ContainsKey(sch))
+        // Only map when the SOURCE char is a letter. Punctuation keys (EN ','→RU 'б', '.'→'ю', ';'→'ж')
+        // must stay LITERAL in text/selection conversion — otherwise «ghbdtn.» → «приветю» and a
+        // mistyped word ending in a period silently fails to convert (issue #15, the same rule the
+        // manual last-word path applies by keeping trailing punctuation literal).
+        if (s is { } sch && t is { } tch && sch != tch && char.IsLetter(sch) && !map.ContainsKey(sch))
             map[sch] = tch;
     }
 

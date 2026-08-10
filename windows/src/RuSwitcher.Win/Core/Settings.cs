@@ -45,10 +45,11 @@ public sealed class Settings
     /// correctly typed word doesn't ping-pong. Mirrors the macOS always-convert list.</summary>
     public List<string> AlwaysConvert { get; set; } = new();
 
-    /// <summary>issue: per-app layout memory. Maps a process name (e.g. "devenv") to the last layout
-    /// LANGID used there; restored when the app regains focus. Off unless <see cref="PerAppLayout"/>.</summary>
+    /// <summary>issue: per-app layout memory. Maps a process name (e.g. "devenv") to the last layout's
+    /// full HKL (low 32 bits, so specific variants like UK vs US English are preserved); restored when
+    /// the app regains focus. Off unless <see cref="PerAppLayout"/>.</summary>
     public bool PerAppLayout { get; set; } = false;
-    public Dictionary<string, int> AppLayouts { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+    public Dictionary<string, long> AppLayouts { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Auto-check for updates on launch (once per 24h). Manual check always works.</summary>
     public bool CheckUpdatesEnabled { get; set; } = true;
@@ -87,7 +88,13 @@ public sealed class Settings
         try
         {
             Directory.CreateDirectory(Dir);
-            File.WriteAllText(FilePath, JsonSerializer.Serialize(this, Json));
+            // Atomic write: serialize to a temp file, then replace — so a crash/power-loss mid-write
+            // can never leave a truncated settings.json that Load() would silently reset to defaults.
+            string json = JsonSerializer.Serialize(this, Json);
+            string tmp = FilePath + ".tmp";
+            File.WriteAllText(tmp, json);
+            if (File.Exists(FilePath)) File.Replace(tmp, FilePath, null);
+            else File.Move(tmp, FilePath);
         }
         catch { /* не критично */ }
     }

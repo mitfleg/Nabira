@@ -23,6 +23,10 @@ permissions:
 jobs:
   release:
     runs-on: windows-latest
+    # `secrets` is NOT available in a step-level `if:` (it errors the whole run at parse time), but a
+    # job-level `env` MAY read secrets — so we hoist the "is a cert configured?" test here.
+    env:
+      HAS_CERT: ${{ secrets.WINDOWS_CERT_PFX_BASE64 != '' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -66,7 +70,7 @@ jobs:
       # --- optional code signing (only if a cert secret is configured) ---
       - name: Import signing certificate
         id: cert
-        if: ${{ secrets.WINDOWS_CERT_PFX_BASE64 != '' }}
+        if: env.HAS_CERT == 'true'
         shell: pwsh
         run: |
           $pfx = "$env:RUNNER_TEMP\cert.pfx"
@@ -79,8 +83,11 @@ jobs:
         if: ${{ steps.cert.outputs.pfx != '' }}
         shell: pwsh
         run: |
+          # The SDK bin dir holds both versioned dirs (10.0.22621.0) AND legacy arch dirs (x64/x86/arm);
+          # a plain name-descending sort picks a letter dir → bogus path. Filter to versioned dirs.
           $sdk = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin" -Directory |
-                 Sort-Object Name -Descending | Select-Object -First 1
+                 Where-Object { $_.Name -match '^\d+\.\d+\.\d+' } |
+                 Sort-Object { [version]$_.Name } -Descending | Select-Object -First 1
           $signtool = Join-Path $sdk.FullName "x64\signtool.exe"
           foreach ($exe in @("publish\x64\RuSwitcher.exe","publish\arm64\RuSwitcher.exe")) {
             & $signtool sign /f "${{ steps.cert.outputs.pfx }}" /p "$env:CERT_PW" `
@@ -92,7 +99,8 @@ jobs:
       - name: Build installer (Inno Setup)
         shell: pwsh
         run: |
-          choco install innosetup --no-progress -y
+          # Pin: the .iss uses ArchitecturesAllowed=x64compatible, which needs Inno Setup 6.3+.
+          choco install innosetup --version=6.3.3 --no-progress -y
           $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
           & $iscc "/DMyAppVersion=${{ steps.ver.outputs.version }}" `
                   "/DSourceExe=publish\x64\RuSwitcher.exe" `
@@ -105,7 +113,8 @@ jobs:
         shell: pwsh
         run: |
           $sdk = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin" -Directory |
-                 Sort-Object Name -Descending | Select-Object -First 1
+                 Where-Object { $_.Name -match '^\d+\.\d+\.\d+' } |
+                 Sort-Object { [version]$_.Name } -Descending | Select-Object -First 1
           $signtool = Join-Path $sdk.FullName "x64\signtool.exe"
           Get-ChildItem windows\installer\dist\*.exe | ForEach-Object {
             & $signtool sign /f "${{ steps.cert.outputs.pfx }}" /p "$env:CERT_PW" `
@@ -122,7 +131,8 @@ jobs:
           New-Item -ItemType Directory -Force -Path assets | Out-Null
           Copy-Item publish\x64\RuSwitcher.exe   "assets\RuSwitcher-$v-win-x64.exe"
           Copy-Item publish\arm64\RuSwitcher.exe "assets\RuSwitcher-$v-win-arm64.exe"
-          Copy-Item windows\installer\dist\*.exe assets\ -ErrorAction SilentlyContinue
+          if (-not (Test-Path windows\installer\dist\*.exe)) { throw 'installer was not built' }
+          Copy-Item windows\installer\dist\*.exe assets\
           $lines = @()
           Get-ChildItem assets | ForEach-Object {
             $h = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower()
@@ -137,8 +147,13 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $v = '${{ steps.ver.outputs.version }}'
-          $pre = if ('${{ steps.ver.outputs.prerelease }}' -eq 'true') { '--prerelease' } else { '' }
           $notes = "RuSwitcher for Windows $v`n`nAssets: portable single-file exe (x64/arm64) and an installer.`n`nSHA256:`n" + (Get-Content assets\SHA256SUMS.txt -Raw)
           $notes | Out-File -Encoding utf8 notes.md
-          gh release create "win-v$v" (Get-ChildItem assets\* | ForEach-Object { $_.FullName }) `
-            --title "RuSwitcher for Windows $v" --notes-file notes.md $pre
+          # Build the arg list explicitly: an empty '$pre' would otherwise reach gh as an empty
+          # positional (a bogus asset path) and fail the first stable release. --target pins the tag to
+          # the built commit (matters on the workflow_dispatch path, which creates the tag).
+          $ghArgs = @("win-v$v") + (Get-ChildItem assets\* | ForEach-Object { $_.FullName }) +
+                    @('--title', "RuSwitcher for Windows $v", '--notes-file', 'notes.md',
+                      '--target', '${{ github.sha }}')
+          if ('${{ steps.ver.outputs.prerelease }}' -eq 'true') { $ghArgs += '--prerelease' }
+          gh release create @ghArgs

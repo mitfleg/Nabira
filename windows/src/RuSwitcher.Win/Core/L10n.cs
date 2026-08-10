@@ -27,7 +27,9 @@ internal static class L10n
     public static string T(string key, params object[] args)
     {
         string s = Lookup(Lang, key) ?? Lookup("en", key) ?? key;
-        return args.Length == 0 ? s : string.Format(s, args);
+        if (args.Length == 0) return s;
+        try { return string.Format(s, args); }
+        catch (FormatException) { return s; }   // a malformed translation must never crash the UI
     }
 
     private static string? Lookup(string lang, string key) =>

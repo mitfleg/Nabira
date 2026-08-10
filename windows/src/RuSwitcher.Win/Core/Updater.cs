@@ -17,6 +17,10 @@ internal static class Updater
 {
     private const string FeedUrl = "https://raw.githubusercontent.com/rashn/RuSwitcher/main/windows/version.json";
 
+    // Single-flight: repeated tray clicks / an overlapping launch check must not spawn concurrent
+    // HTTP checks that each write Settings and stack message boxes.
+    private static int _busy;
+
     private sealed class Feed
     {
         public string version { get; set; } = "";
@@ -58,40 +62,46 @@ internal static class Updater
 
     private static async Task CheckAsync(bool silent, SynchronizationContext ui)
     {
-        Feed? feed = null;
+        if (Interlocked.Exchange(ref _busy, 1) == 1) return;   // a check is already in flight
         try
         {
-            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
-            http.DefaultRequestHeaders.UserAgent.ParseAdd("RuSwitcher-Win-Updater");
-            string json = await http.GetStringAsync(FeedUrl);
-            feed = JsonSerializer.Deserialize<Feed>(json);
-        }
-        catch
-        {
-            if (!silent) ui.Post(_ => MessageBox.Show(
-                L10n.T("upd.error"), L10n.T("app.name"),
-                MessageBoxButtons.OK, MessageBoxIcon.Warning), null);
-            return;
-        }
+            Feed? feed = null;
+            try
+            {
+                using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+                http.DefaultRequestHeaders.UserAgent.ParseAdd("RuSwitcher-Win-Updater");
+                string json = await http.GetStringAsync(FeedUrl);
+                feed = JsonSerializer.Deserialize<Feed>(json);
+            }
+            catch
+            {
+                if (!silent) ui.Post(_ => MessageBox.Show(
+                    L10n.T("upd.error"), L10n.T("app.name"),
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning), null);
+                return;
+            }
 
-        if (feed == null || string.IsNullOrWhiteSpace(feed.version)) return;
+            if (feed == null || string.IsNullOrWhiteSpace(feed.version)) return;
 
-        Settings.Current.LastUpdateCheckTicks = DateTime.UtcNow.Ticks;
-        Settings.Current.Save();
+            // All Settings mutation happens on the UI (message-loop) thread — never race the
+            // hook/tray/winevent writers from this background task.
+            ui.Post(_ => { Settings.Current.LastUpdateCheckTicks = DateTime.UtcNow.Ticks; Settings.Current.Save(); }, null);
 
-        if (!Version.TryParse(feed.version, out var latest)) return;
+            if (!Version.TryParse(feed.version, out var latest)) return;
 
-        if (latest > Current)
-        {
-            if (silent && Settings.Current.SkippedVersion == feed.version) return;   // user skipped this one
-            ui.Post(_ => PromptUpdate(feed), null);
+            if (latest > Current)
+            {
+                if (silent && Settings.Current.SkippedVersion == feed.version) return;   // user skipped this one
+                ui.Post(_ => PromptUpdate(feed), null);
+            }
+            else if (!silent)
+            {
+                ui.Post(_ => MessageBox.Show(
+                    L10n.T("upd.uptodate", Current.ToString(3)),
+                    L10n.T("app.name"), MessageBoxButtons.OK, MessageBoxIcon.Information), null);
+            }
         }
-        else if (!silent)
-        {
-            ui.Post(_ => MessageBox.Show(
-                L10n.T("upd.uptodate", Current.ToString(3)),
-                L10n.T("app.name"), MessageBoxButtons.OK, MessageBoxIcon.Information), null);
-        }
+        finally { Interlocked.Exchange(ref _busy, 0); }
     }
 
     private static void PromptUpdate(Feed feed)

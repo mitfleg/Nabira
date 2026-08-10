@@ -39,11 +39,17 @@ internal static class SmartConvert
     private static string ConvertWord(string word, Dictionary<char, char> fwd, string srcTag, string tgtTag)
     {
         string core = LetterCore(word);
+        if (core.Length == 0) return word;
+
+        // Honor the user's exception lists, same precedence/keys as AutoConverter (learn-from-undo).
+        string flipped = Flip(word, fwd);
+        string flippedCore = LetterCore(flipped);
+        if (Settings.Current.AlwaysConvert.Contains(flippedCore.ToLowerInvariant())) return flipped;
+        if (Settings.Current.NeverConvert.Contains(core.ToLowerInvariant())) return word;
+
         if (core.Length < 2) return word;                       // too short to judge — keep
         if (Dict.IsValidWord(core, srcTag)) return word;        // already a real word — keep (iPhone, стоит)
 
-        string flipped = Flip(word, fwd);
-        string flippedCore = LetterCore(flipped);
         if (flippedCore.Length >= 2 && Dict.IsValidWord(flippedCore, tgtTag))
             return flipped;                                     // gibberish that becomes a real word — flip
 

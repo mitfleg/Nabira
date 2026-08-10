@@ -24,12 +24,18 @@ internal static class Program
         var settings = Settings.Current;
         var buffer = new KeystrokeBuffer();
         bool enabled = true;
+        List<TypedKey>? pendingAuto = null;   // word snapshot handed to the message loop for auto-convert
 
-        // Auto-conversion checks the dictionary inside the hook callback; warm the COM spell-checker
-        // now (on this thread — LL-hook callbacks are dispatched here) so the first word isn't slow.
+        // Auto-conversion checks the dictionary on the message loop; warm the COM spell-checker for the
+        // actually-installed layout languages now, so the first auto-convert of the session isn't slow.
         if (settings.AutoConvert && Dict.Available)
         {
-            try { Dict.IsValidWord("test", "en"); Dict.IsValidWord("тест", "ru"); } catch { /* ignore */ }
+            try
+            {
+                foreach (var hkl in LayoutSwitcher.Installed())
+                    Dict.IsValidWord("test", SmartConvert.LangTag(hkl));
+            }
+            catch { /* ignore */ }
         }
 
         using var tray = new TrayIcon();
@@ -59,6 +65,12 @@ internal static class Program
             else acted = Converter.ConvertSelection(settings.SmartConversion);
             Log($"trigger: acted={acted}");
         };
+        tray.AutoConvertActivated += () =>
+        {
+            // Deferred off the hook callback: the real Space has already landed, so TryConvertWord
+            // deletes the word + that space and re-types the converted word + space (or keeps it).
+            if (pendingAuto is { } w) { AutoConverter.TryConvertWord(w); pendingAuto = null; }
+        };
         tray.EnabledChanged += on => { enabled = on; Log($"enabled = {on}"); };
         tray.TriggerChanged += kind => { detector.Kind = kind; Log($"trigger set: {kind}"); };  // Settings written by the tray
         tray.SettingsRequested += () =>
@@ -81,32 +93,35 @@ internal static class Program
         using var hook = new KeyboardHook();
         hook.KeyDown += (vk, sc) =>
         {
-            if (!enabled) return false;
+            if (!enabled) return;
 
             detector.OnKeyDown(vk);
             switchDetector.OnKeyDown(vk);
 
             if (KeystrokeBuffer.IsWordBoundary(vk))
             {
-                // As-you-type auto conversion (beta): on Space, flip the just-typed word if the
-                // dictionary says it was typed in the wrong layout. When it converts it re-emits the
-                // space itself, so we swallow the real one (guarantees word→space ordering).
-                bool swallow = false;
+                // As-you-type auto conversion (beta): on Space, arm a deferred check. We snapshot the
+                // word and post to the message loop — the dictionary check + retype must NOT run inside
+                // this LL-hook callback (COM/SendInput there risks the LowLevelHooksTimeout → unhook).
+                // We do NOT swallow the space; the deferred handler deletes the word + delivered space.
                 if (vk == KeystrokeBuffer.VK_SPACE && settings.AutoConvert && !buffer.IsEmpty)
-                    swallow = AutoConverter.TryConvertWord(buffer);
+                {
+                    pendingAuto = new List<TypedKey>(buffer.CurrentWord);
+                    tray.PostAutoConvert();
+                }
                 buffer.Reset();
-                return swallow;
+                return;
             }
 
             if (KeystrokeBuffer.IsTypingKey(vk))
             {
                 Converter.ClearReconvert();  // typing changed the word — the pending undo no longer applies
-                bool shift = (GetKeyState(VK_SHIFT) & 0x8000) != 0;
+                // GetAsyncKeyState = real hardware state; GetKeyState would be stale on the hook thread.
+                bool shift = (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0;
                 bool caps = (GetKeyState(VK_CAPITAL) & 0x0001) != 0;
                 buffer.Append(new TypedKey(vk, sc, shift, caps));
             }
             // Modifiers and other keys: leave the buffer as-is.
-            return false;
         };
         hook.KeyUp += (vk, sc) =>
         {

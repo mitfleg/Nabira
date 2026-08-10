@@ -15,6 +15,7 @@ internal sealed class AppLayoutTracker : IDisposable
     private readonly WinEventProc _proc;
     private IntPtr _hook;
     private string? _lastApp;   // process name of the app we last saw focused
+    private uint _lastTid;      // its GUI thread id — sampled so we can read ITS layout when it loses focus
 
     public AppLayoutTracker() => _proc = OnForeground;
 
@@ -31,27 +32,31 @@ internal sealed class AppLayoutTracker : IDisposable
         {
             if (!Settings.Current.PerAppLayout || hwnd == IntPtr.Zero) return;
 
-            // Remember the layout the *previous* app was using (it just lost focus).
-            if (_lastApp is { } prev)
+            // The event fires AFTER the foreground already switched, so GetForegroundWindow() is the
+            // NEW app. To remember the OUTGOING app correctly, read the layout of ITS gui thread — a
+            // thread keeps its active layout after losing focus, incl. any change made while focused.
+            if (_lastApp is { } prev && _lastTid != 0)
             {
-                string prevTag = SmartConvert.LangTag(LayoutSwitcher.Current());
-                int prevLangId = LangIdFromTag(prevTag);
-                if (prevLangId != 0)
+                long hkl = GetKeyboardLayout(_lastTid).ToInt64() & 0xFFFFFFFF;
+                if (hkl != 0 &&
+                    (!Settings.Current.AppLayouts.TryGetValue(prev, out long old) || old != hkl))
                 {
-                    Settings.Current.AppLayouts[prev] = prevLangId;
+                    Settings.Current.AppLayouts[prev] = hkl;   // dirty-check: only write on real change
                     Settings.Current.Save();
                 }
             }
 
+            uint tid = GetWindowThreadProcessId(hwnd, out _);
             string? app = ProcessName(hwnd);
             _lastApp = app;
+            _lastTid = tid;
             if (app == null) return;
 
             // Restore the layout remembered for the app that just gained focus.
-            if (Settings.Current.AppLayouts.TryGetValue(app, out int langId) &&
-                InstalledHklForLangId(langId) is { } hkl && hkl != LayoutSwitcher.Current())
+            if (Settings.Current.AppLayouts.TryGetValue(app, out long want) &&
+                InstalledHkl(want) is { } target && target != GetKeyboardLayout(tid))
             {
-                if (hwnd != IntPtr.Zero) PostMessageW(hwnd, WM_INPUTLANGCHANGEREQUEST, IntPtr.Zero, hkl);
+                PostMessageW(hwnd, WM_INPUTLANGCHANGEREQUEST, IntPtr.Zero, target);
             }
         }
         catch { /* never let a shell event crash us */ }
@@ -69,25 +74,24 @@ internal sealed class AppLayoutTracker : IDisposable
             var sb = new StringBuilder(1024);
             uint cap = (uint)sb.Capacity;
             if (!QueryFullProcessImageNameW(h, 0, sb, ref cap)) return null;
-            string path = sb.ToString();
-            string name = System.IO.Path.GetFileNameWithoutExtension(path);
+            string name = System.IO.Path.GetFileNameWithoutExtension(sb.ToString());
             return string.IsNullOrEmpty(name) ? null : name.ToLowerInvariant();
         }
         finally { CloseHandle(h); }
     }
 
-    private static IntPtr? InstalledHklForLangId(int langId)
+    /// <summary>Find an installed HKL matching a stored value: exact (variant-preserving) first, then
+    /// fall back to the same primary language if that exact layout is no longer installed.</summary>
+    private static IntPtr? InstalledHkl(long stored)
     {
-        foreach (var hkl in LayoutSwitcher.Installed())
-            if (((int)hkl.ToInt64() & 0x3FF) == langId) return hkl;
+        var installed = LayoutSwitcher.Installed();
+        foreach (var hkl in installed)
+            if ((hkl.ToInt64() & 0xFFFFFFFF) == stored) return hkl;
+        long primary = stored & 0x3FF;
+        foreach (var hkl in installed)
+            if ((hkl.ToInt64() & 0x3FF) == primary) return hkl;
         return null;
     }
-
-    private static int LangIdFromTag(string tag) => tag switch
-    {
-        "ru" => 0x19, "en" => 0x09, "uk" => 0x22, "be" => 0x23, "bg" => 0x02,
-        "he" => 0x0D, "el" => 0x08, "hy" => 0x2B, "ka" => 0x37, _ => 0,
-    };
 
     public void Dispose()
     {

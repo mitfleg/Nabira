@@ -11,29 +11,30 @@ namespace RuSwitcher.Win.Core;
 /// </summary>
 internal static class AutoConverter
 {
-    /// <summary>Try to auto-convert the buffered word. When it converts, it also re-emits the trailing
-    /// space itself and returns true so the caller swallows the real space (guaranteeing the order
-    /// backspaces → converted word → space, with no race against the pending keystroke). Returns
-    /// false when it decides to keep the word (the space is then delivered normally).</summary>
-    public static bool TryConvertWord(KeystrokeBuffer buffer)
+    /// <summary>Try to auto-convert a completed word. Runs on the message loop (NOT inside the LL-hook
+    /// callback) AFTER the real Space has already been delivered to the app — so it deletes the word
+    /// PLUS that trailing space (<paramref name="keys"/>.Count + 1 backspaces) and re-types the
+    /// converted word followed by a space. Deferring off the hook thread keeps the callback O(1) and
+    /// avoids the LowLevelHooksTimeout / silent-unhook trap (COM + SendInput must not run in-callback).
+    /// Returns true if it converted; on "keep" it does nothing (the word + space stay as typed).</summary>
+    public static bool TryConvertWord(IReadOnlyList<TypedKey> keys)
     {
-        if (buffer.IsEmpty) return false;
+        if (keys.Count == 0) return false;
 
         IntPtr sourceHkl = LayoutSwitcher.Current();
         if (LayoutSwitcher.Opposite() is not { } targetHkl) return false;
 
-        var keys = buffer.CurrentWord;
         string typed = KeyMapper.ConvertWord(keys, sourceHkl);
         string converted = KeyMapper.ConvertWord(keys, targetHkl);
         if (converted.Length == 0 || converted == typed) return false;
 
         string srcTag = SmartConvert.LangTag(sourceHkl);
         string tgtTag = SmartConvert.LangTag(targetHkl);
-        bool caps = keys.Count > 0 && keys.All(k => k.Caps);
+        bool caps = keys.All(k => k.Caps);
 
         if (!ShouldConvert(typed, converted, srcTag, tgtTag, caps)) return false;
 
-        TextInjector.Replace(backspaces: keys.Count, text: converted + " ");
+        TextInjector.Replace(backspaces: keys.Count + 1, text: converted + " ");
         LayoutSwitcher.SwitchTo(targetHkl);
         Converter.NoteAutoConversion(converted, typed, targetHkl, sourceHkl);
         return true;

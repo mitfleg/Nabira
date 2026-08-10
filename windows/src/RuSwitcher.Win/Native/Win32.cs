@@ -87,6 +87,12 @@ internal static class Win32
     [DllImport("user32.dll")]
     public static extern short GetKeyState(int nVirtKey);
 
+    // GetKeyState reads the CALLING thread's queue-synchronized state; inside a WH_KEYBOARD_LL
+    // callback (which runs on our message-loop thread, not the focused app's) it is stale. Use
+    // GetAsyncKeyState for the real hardware Shift state when capturing keystrokes.
+    [DllImport("user32.dll")]
+    public static extern short GetAsyncKeyState(int nVirtKey);
+
     public const int VK_SHIFT = 0x10;
     public const int VK_CAPITAL = 0x14;
     // Триггер-клавиши (issue #24 Windows): выделенные клавиши + модификаторы для double-tap.
@@ -184,6 +190,7 @@ internal static class Win32
     public const uint NIF_TIP = 0x00000004;
     public const uint WM_APP = 0x8000;
     public const uint WM_TRAYICON = WM_APP + 1;
+    public const uint WM_AUTOCONVERT = WM_APP + 2;   // auto-convert deferred off the LL-hook callback
     public const uint WM_LBUTTONUP = 0x0202;
     public const uint WM_RBUTTONUP = 0x0205;
     public const uint WM_COMMAND = 0x0111;
