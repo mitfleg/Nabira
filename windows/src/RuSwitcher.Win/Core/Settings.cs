@@ -20,6 +20,10 @@ public sealed class Settings
     /// <summary>issue #24: convert the whole line (Shift+Home selection) instead of the last word.</summary>
     public bool ConvertWholeLine { get; set; } = false;
 
+    /// <summary>issue #22: smart per-word selection conversion (keep valid words). Default on;
+    /// off = plain one-way flip.</summary>
+    public bool SmartConversion { get; set; } = true;
+
     private static readonly JsonSerializerOptions Json = new()
     {
         WriteIndented = true,

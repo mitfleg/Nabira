@@ -39,9 +39,9 @@ internal static class Program
             // else whole-line mode → convert the line; else convert the typed word; else the selection.
             bool acted;
             if (Converter.CanReconvert && buffer.IsEmpty) acted = Converter.Reconvert();
-            else if (settings.ConvertWholeLine) { acted = Converter.ConvertLine(); if (acted) buffer.Reset(); }
+            else if (settings.ConvertWholeLine) { acted = Converter.ConvertLine(settings.SmartConversion); if (acted) buffer.Reset(); }
             else if (!buffer.IsEmpty) acted = Converter.ConvertLastWord(buffer);
-            else acted = Converter.ConvertSelection();
+            else acted = Converter.ConvertSelection(settings.SmartConversion);
             Log($"trigger: acted={acted}");
         };
         tray.EnabledChanged += on => { enabled = on; Log($"enabled = {on}"); };

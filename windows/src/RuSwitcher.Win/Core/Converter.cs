@@ -87,7 +87,7 @@ internal static class Converter
     /// layout → Ctrl+V, restoring the user's clipboard afterwards. One-way flip by the current
     /// layout (smart per-word conversion is a later parity step). No selection / no-op → false.
     /// MUST run on the message loop (STA), never inside the hook callback.</summary>
-    public static bool ConvertSelection()
+    public static bool ConvertSelection(bool smart)
     {
         IntPtr sourceHkl = LayoutSwitcher.Current();
         if (LayoutSwitcher.Opposite() is not { } targetHkl) return false;
@@ -99,7 +99,9 @@ internal static class Converter
         string sel = SafeGetText() ?? "";
         if (sel.Length == 0) { RestoreClipboard(saved); return false; }   // nothing selected
 
-        string converted = KeyMapper.ConvertText(sel, sourceHkl, targetHkl);
+        string converted = smart
+            ? SmartConvert.Selection(sel, sourceHkl, targetHkl)
+            : KeyMapper.ConvertText(sel, sourceHkl, targetHkl);
         if (converted == sel) { RestoreClipboard(saved); return false; }  // no-op
 
         SafeSetText(converted);
@@ -112,11 +114,11 @@ internal static class Converter
     /// <summary>issue #24: convert the whole current line — select it with Shift+Home, then run
     /// the selection conversion. Works in normal apps and terminals that support Shift+Home
     /// selection. On a no-op, collapse the selection (End) so the line isn't left highlighted.</summary>
-    public static bool ConvertLine()
+    public static bool ConvertLine(bool smart)
     {
         TextInjector.SendShift(VK_HOME);   // select from cursor to line start
         Thread.Sleep(40);
-        bool ok = ConvertSelection();
+        bool ok = ConvertSelection(smart);
         if (!ok) TextInjector.SendKey(VK_END);   // drop the selection (go to line end)
         return ok;
     }
