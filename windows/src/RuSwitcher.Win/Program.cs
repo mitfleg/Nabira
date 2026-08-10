@@ -25,8 +25,12 @@ var detector = new TriggerDetector(settings.Trigger);
 detector.Triggered += () =>
 {
     if (!enabled) return;
-    bool acted = Converter.ConvertLastWord(buffer);
-    Log($"trigger: converted={acted}");
+    // Trigger again with nothing typed since = reverse the last conversion (toggle); otherwise
+    // convert the word just typed.
+    bool acted = (Converter.CanReconvert && buffer.IsEmpty)
+        ? Converter.Reconvert()
+        : Converter.ConvertLastWord(buffer);
+    Log($"trigger: acted={acted}");
 };
 
 using var tray = new TrayIcon(settings.Trigger);
@@ -56,6 +60,7 @@ hook.KeyDown += (vk, sc) =>
 
     if (KeystrokeBuffer.IsTypingKey(vk))
     {
+        Converter.ClearReconvert();   // typing changed the word — the pending undo no longer applies
         bool shift = (GetKeyState(VK_SHIFT) & 0x8000) != 0;
         bool caps = (GetKeyState(VK_CAPITAL) & 0x0001) != 0;
         buffer.Append(new TypedKey(vk, sc, shift, caps));
