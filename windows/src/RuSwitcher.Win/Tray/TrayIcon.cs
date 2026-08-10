@@ -25,6 +25,16 @@ internal sealed class TrayIcon : IDisposable
     public event Action<bool>? EnabledChanged;
     public event Action<TriggerKind>? TriggerChanged;
     public event Action? QuitRequested;
+    /// <summary>Fired on the message-loop thread when a trigger was posted from the hook.</summary>
+    public event Action? TriggerActivated;
+
+    /// <summary>Called from the LL hook callback: posts a message so the actual (possibly slow,
+    /// clipboard-touching) conversion runs on the message loop, NOT inside the hook callback —
+    /// keeping the callback fast so Windows never drops the low-level hook (300ms timeout).</summary>
+    public void PostTrigger()
+    {
+        if (_hwnd != IntPtr.Zero) PostMessageW(_hwnd, WM_APP, IntPtr.Zero, IntPtr.Zero);
+    }
 
     public TrayIcon(TriggerKind trigger)
     {
@@ -73,6 +83,10 @@ internal sealed class TrayIcon : IDisposable
         {
             case WM_TRAYICON when ((uint)(lParam.ToInt64() & 0xFFFF)) is WM_RBUTTONUP or WM_LBUTTONUP:
                 ShowMenu();
+                return IntPtr.Zero;
+
+            case WM_APP:
+                TriggerActivated?.Invoke();
                 return IntPtr.Zero;
 
             case WM_COMMAND:

@@ -1,3 +1,6 @@
+using System.Windows.Forms;
+using static RuSwitcher.Win.Native.Win32;
+
 namespace RuSwitcher.Win.Core;
 
 /// <summary>
@@ -53,5 +56,50 @@ internal static class Converter
         (_aText, _bText) = (_bText, _aText);   // toggle: a third trigger redoes the conversion
         (_aHkl, _bHkl) = (_bHkl, _aHkl);
         return true;
+    }
+
+    /// <summary>Convert the current selection via a clipboard round-trip (the counterpart of the
+    /// macOS <c>convertViaClipboard</c>): Ctrl+C → convert the text char-by-char in the opposite
+    /// layout → Ctrl+V, restoring the user's clipboard afterwards. One-way flip by the current
+    /// layout (smart per-word conversion is a later parity step). No selection / no-op → false.
+    /// MUST run on the message loop (STA), never inside the hook callback.</summary>
+    public static bool ConvertSelection()
+    {
+        IntPtr sourceHkl = LayoutSwitcher.Current();
+        if (LayoutSwitcher.Opposite() is not { } targetHkl) return false;
+
+        string? saved = SafeGetText();
+        SafeClear();
+        TextInjector.SendCtrl(VK_C);
+        Thread.Sleep(60);                       // let the focused app place the selection on the clipboard
+        string sel = SafeGetText() ?? "";
+        if (sel.Length == 0) { RestoreClipboard(saved); return false; }   // nothing selected
+
+        string converted = KeyMapper.ConvertText(sel, sourceHkl, targetHkl);
+        if (converted == sel) { RestoreClipboard(saved); return false; }  // no-op
+
+        SafeSetText(converted);
+        TextInjector.SendCtrl(VK_V);
+        Thread.Sleep(60);                       // let the paste happen before we restore the clipboard
+        RestoreClipboard(saved);
+        return true;
+    }
+
+    // Clipboard is shared + can be briefly locked by other apps — retry, never throw.
+    private static string? SafeGetText()
+    {
+        try { return Clipboard.ContainsText() ? Clipboard.GetText() : null; } catch { return null; }
+    }
+    private static void SafeSetText(string s)
+    {
+        for (int i = 0; i < 6; i++) { try { Clipboard.SetText(s); return; } catch { Thread.Sleep(15); } }
+    }
+    private static void SafeClear()
+    {
+        for (int i = 0; i < 6; i++) { try { Clipboard.Clear(); return; } catch { Thread.Sleep(15); } }
+    }
+    private static void RestoreClipboard(string? saved)
+    {
+        if (string.IsNullOrEmpty(saved)) SafeClear(); else SafeSetText(saved);
     }
 }

@@ -30,6 +30,20 @@ internal static class TextInjector
         SendInput((uint)arr.Length, arr, Marshal.SizeOf<INPUT>());
     }
 
+    /// <summary>Send Ctrl+<paramref name="vk"/> (e.g. Ctrl+C / Ctrl+V). Carries the injected
+    /// marker so our own hook ignores it (won't be mistaken for a trigger).</summary>
+    public static void SendCtrl(ushort vk)
+    {
+        var inputs = new[]
+        {
+            Key(VK_CONTROL, '\0', dwFlags: 0),
+            Key(vk, '\0', dwFlags: 0),
+            Key(vk, '\0', dwFlags: KEYEVENTF_KEYUP),
+            Key(VK_CONTROL, '\0', dwFlags: KEYEVENTF_KEYUP),
+        };
+        SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<INPUT>());
+    }
+
     private static INPUT Key(ushort vk, char scanChar, uint dwFlags) => new()
     {
         type = INPUT_KEYBOARD,

@@ -96,6 +96,13 @@ internal static class Win32
     public const uint VK_RCONTROL = 0xA3;
     public const uint VK_LSHIFT = 0xA0;
     public const uint VK_RSHIFT = 0xA1;
+    public const ushort VK_CONTROL = 0x11;
+    public const ushort VK_C = 0x43;
+    public const ushort VK_V = 0x56;
+    public const uint MAPVK_VK_TO_VSC = 0;
+
+    [DllImport("user32.dll")]
+    public static extern uint MapVirtualKeyExW(uint uCode, uint uMapType, IntPtr dwhkl);
 
     // --- Layout switching ---
     public const uint WM_INPUTLANGCHANGEREQUEST = 0x0050;

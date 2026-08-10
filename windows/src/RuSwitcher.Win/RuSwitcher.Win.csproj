@@ -1,8 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <!-- RuSwitcher for Windows. Zero external dependencies (Win32 P/Invoke only),
-       mirroring the macOS app's philosophy. NativeAOT single-exe comes at the
-       distribution stage; for now a plain Release build. -->
+  <!-- RuSwitcher for Windows. No external (NuGet) dependencies. Low-level engine (LL hook,
+       SendInput injection, tray) is raw Win32 P/Invoke; WinForms (first-party .NET) is used
+       only for the clipboard and the settings window. EnableWindowsTargeting lets it also
+       compile on macOS (P/Invoke compiles, can't run) for a fast local compile-check; the real
+       build/test/exe come from the windows-latest CI. -->
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net8.0-windows</TargetFramework>
@@ -11,6 +13,8 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <UseWindowsForms>true</UseWindowsForms>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <LangVersion>latest</LangVersion>
     <Platforms>x64;ARM64</Platforms>
   </PropertyGroup>
