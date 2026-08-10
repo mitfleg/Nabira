@@ -21,16 +21,24 @@ internal static class Program
         string logPath = Path.Combine(logDir, "debug.log");
         void Log(string line) => File.AppendAllText(logPath, $"{DateTime.Now:HH:mm:ss.fff} {line}{Environment.NewLine}");
 
-        var settings = Settings.Load();
+        var settings = Settings.Current;
         var buffer = new KeystrokeBuffer();
         bool enabled = true;
 
-        using var tray = new TrayIcon(settings.Trigger, settings.ConvertWholeLine);
+        using var tray = new TrayIcon();
         var detector = new TriggerDetector(settings.Trigger);
 
         // Hook thread: only post a message — the real (possibly slow, clipboard-touching)
         // conversion runs on the message loop so the LL hook callback stays fast.
         detector.Triggered += () => { if (enabled) tray.PostTrigger(); };
+
+        // issue #14: a separate hotkey that only switches the layout (fast → safe in-callback).
+        var switchDetector = new TriggerDetector(settings.SwitchTrigger);
+        switchDetector.Triggered += () =>
+        {
+            if (enabled && settings.SwitchTriggerEnabled && LayoutSwitcher.Opposite() is { } opp)
+                LayoutSwitcher.SwitchTo(opp);
+        };
 
         tray.TriggerActivated += () =>
         {
@@ -45,13 +53,13 @@ internal static class Program
             Log($"trigger: acted={acted}");
         };
         tray.EnabledChanged += on => { enabled = on; Log($"enabled = {on}"); };
-        tray.WholeLineChanged += on => { settings.ConvertWholeLine = on; settings.Save(); Log($"whole-line = {on}"); };
-        tray.TriggerChanged += kind =>
+        tray.TriggerChanged += kind => { detector.Kind = kind; Log($"trigger set: {kind}"); };  // Settings written by the tray
+        tray.SettingsRequested += () =>
         {
-            settings.Trigger = kind;
-            settings.Save();
-            detector.Kind = kind;
-            Log($"trigger set: {kind}");
+            using var form = new UI.SettingsForm();
+            form.TriggerChanged += kind => detector.Kind = kind;
+            form.SwitchChanged += () => switchDetector.Kind = settings.SwitchTrigger;
+            form.ShowDialog();   // modal; the message loop keeps pumping the hook + tray
         };
         tray.QuitRequested += () => Log("quit requested");
         tray.Show("RuSwitcher");
@@ -62,6 +70,7 @@ internal static class Program
             if (!enabled) return;
 
             detector.OnKeyDown(vk);
+            switchDetector.OnKeyDown(vk);
 
             if (KeystrokeBuffer.IsWordBoundary(vk))
             {
@@ -80,7 +89,9 @@ internal static class Program
         };
         hook.KeyUp += (vk, sc) =>
         {
-            if (enabled) detector.OnKeyUp(vk);
+            if (!enabled) return;
+            detector.OnKeyUp(vk);
+            switchDetector.OnKeyUp(vk);
         };
         hook.Install();
         Log($"RuSwitcher.Win started — hook + tray up, trigger={settings.Trigger}");

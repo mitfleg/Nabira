@@ -24,6 +24,18 @@ public sealed class Settings
     /// off = plain one-way flip.</summary>
     public bool SmartConversion { get; set; } = true;
 
+    /// <summary>issue #7: play a sound when the layout switches. Default off.</summary>
+    public bool SoundOnSwitch { get; set; } = false;
+
+    /// <summary>issue #14: a separate hotkey that only switches the layout (no conversion).
+    /// Off by default; when on, uses <see cref="SwitchTrigger"/> (kept distinct from Trigger).</summary>
+    public bool SwitchTriggerEnabled { get; set; } = false;
+    public TriggerKind SwitchTrigger { get; set; } = TriggerKind.ShiftDoubleTap;
+
+    /// <summary>Process-wide settings instance (loaded once). Core classes read this directly,
+    /// mirroring the macOS SettingsManager.shared singleton.</summary>
+    public static Settings Current { get; } = Load();
+
     private static readonly JsonSerializerOptions Json = new()
     {
         WriteIndented = true,
