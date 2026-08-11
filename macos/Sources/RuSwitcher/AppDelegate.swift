@@ -34,6 +34,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         updateCheckTimer = Timer.scheduledTimer(withTimeInterval: 6 * 3600, repeats: true) { _ in
             Task { @MainActor in UpdateChecker.checkPeriodic() }
         }
+        // Прогрев NSSpellChecker: первый чек поднимает XPC AppleSpell (сотни мс на main) —
+        // прогреваем в тихую паузу после старта, а не на первом пробеле пользователя.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+            Task { @MainActor in Dict.warmUp() }
+        }
     }
 
     private func setupSettingsCallbacks() {

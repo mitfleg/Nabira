@@ -48,6 +48,10 @@ final class TextConverter {
     private func isFocusedElementEditable() -> Bool {
         guard let app = NSWorkspace.shared.frontmostApplication else { return false }
         let axApp = AXUIElementCreateApplication(app.processIdentifier)
+        // Занятое приложение (Electron в GC, IDE в индексации) без таймаута держит main
+        // до 6с (дефолт AX) — это и есть «фризы». 0.2с хватает живому ответу; SpotlightAX
+        // такой же таймаут уже ставит.
+        AXUIElementSetMessagingTimeout(axApp, 0.2)
 
         var focusedRaw: AnyObject?
         let err = AXUIElementCopyAttributeValue(axApp, kAXFocusedUIElementAttribute as CFString, &focusedRaw)
@@ -129,7 +133,7 @@ final class TextConverter {
         injectQueue.async { [weak self] in
             guard let self else { return }
             self.backspace(bsCount)
-            usleep(20_000)
+            usleep(8_000)   // короткий зазор стирание→вставка: порядок и так гарантирован очередью HID
             self.insertText(insert)
             Task { @MainActor in self.isConverting = false }
         }
@@ -174,7 +178,7 @@ final class TextConverter {
         injectQueue.async { [weak self] in
             guard let self else { return }
             self.backspace(bsCount)
-            usleep(20_000)
+            usleep(8_000)   // короткий зазор стирание→вставка: порядок и так гарантирован очередью HID
             self.insertText(converted)
             Task { @MainActor in self.isConverting = false }
         }
@@ -483,10 +487,13 @@ final class TextConverter {
     // MARK: - Private
 
     /// Стирает n символов (Backspace × n) — для движка перепечатки.
+    /// Пауза минимальная: порядок доставки гарантирует системная очередь HID, а при
+    /// прежних 3мс/клавишу стирание длинного слова растягивалось на кадры отрисовки —
+    /// пользователь видел «стёрли-и-перепечатали» вместо мгновенной замены.
     nonisolated private func backspace(_ n: Int) {
         for _ in 0..<n {
             simKey(keyCode: KC.backspace, flags: [])
-            usleep(3_000)
+            usleep(500)
         }
     }
 
@@ -594,7 +601,7 @@ final class TextConverter {
     nonisolated private func selectBack(_ count: Int) {
         for _ in 0..<count {
             simKey(keyCode: KC.left, flags: .maskShift)
-            usleep(3_000)
+            usleep(1_000)
         }
     }
 
@@ -602,7 +609,7 @@ final class TextConverter {
     nonisolated private func moveLeft(_ count: Int) {
         for _ in 0..<count {
             simKey(keyCode: KC.left, flags: [])
-            usleep(3_000)
+            usleep(1_000)
         }
     }
 
@@ -610,7 +617,7 @@ final class TextConverter {
     nonisolated private func moveRight(_ count: Int) {
         for _ in 0..<count {
             simKey(keyCode: KC.right, flags: [])
-            usleep(3_000)
+            usleep(1_000)
         }
     }
 
