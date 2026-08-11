@@ -10,6 +10,8 @@ GH_TOKEN = os.environ.get("GITHUB_TOKEN", "")
 TG_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 TG_CHAT = os.environ.get("TELEGRAM_CHAT_ID", "")
 HIST = "stats/history.jsonl"
+# Считаем и macOS (.dmg), и Windows (.exe) — с win-v0.9.0 у нас два трека релизов.
+COUNTED_EXT = (".dmg", ".exe")
 
 
 def gh(path):
@@ -31,7 +33,7 @@ def main():
 
     per, total = {}, 0
     for rel in releases:
-        dl = sum(a["download_count"] for a in rel.get("assets", []) if a["name"].endswith(".dmg"))
+        dl = sum(a["download_count"] for a in rel.get("assets", []) if a["name"].endswith(COUNTED_EXT))
         per[rel["tag_name"]] = dl
         total += dl
     stars = repo["stargazers_count"]
@@ -45,31 +47,56 @@ def main():
         lines = [l for l in open(HIST, encoding="utf-8") if l.strip()]
         if lines:
             prev = json.loads(lines[-1])
+    prev_per = prev.get("per", {}) if prev else {}
 
-    def d(cur, key, sub=None):
-        if prev is None:
+    def d(cur, key):
+        if prev is None or prev.get(key) is None:
             return ""
-        p = prev.get("per", {}).get(sub) if sub else prev.get(key)
-        if p is None:
-            return ""
-        diff = cur - p
+        diff = cur - prev[key]
         return f" (+{diff})" if diff > 0 else (f" ({diff})" if diff < 0 else "")
 
-    # свежий релиз = первый в списке (API отдаёт новыми вперёд)
-    latest = releases[0]["tag_name"] if releases else None
-    changed = [t for t, v in per.items() if prev and (v - prev.get("per", {}).get(t, v)) != 0]
+    def dtag(t):
+        """Дельта по релизу; релиз, которого вчера не было, честно показываем как новый —
+        иначе весь его прирост выпадает из «Изменений за сутки» (баг дайджеста 2026-08-11)."""
+        if prev is None:
+            return ""
+        p = prev_per.get(t)
+        if p is None:
+            return f" (+{per[t]}, новый)" if per[t] else " (новый)"
+        diff = per[t] - p
+        return f" (+{diff})" if diff > 0 else (f" ({diff})" if diff < 0 else "")
+
+    # Головные строки: стабильный macOS (не prerelease, не win-), актуальная бета
+    # (prerelease НОВЕЕ стабильного, не win-), свежайший Windows-релиз.
+    tags = [r["tag_name"] for r in releases]
+    stable = next((r["tag_name"] for r in releases
+                   if not r.get("prerelease") and not r["tag_name"].startswith("win-")), None)
+    beta = next((r["tag_name"] for r in releases
+                 if r.get("prerelease") and not r["tag_name"].startswith("win-")), None)
+    if beta and stable and tags.index(beta) > tags.index(stable):
+        beta = None  # бета старее стабильного = закрытый бета-цикл, не показываем
+    win = next((t for t in tags if t.startswith("win-")), None)
 
     lines = [f"📊 RuSwitcher — {today}", ""]
     lines.append(f"Всего скачано: {total}{d(total, 'total')}")
     lines.append(f"⭐ Stars: {stars}{d(stars, 'stars')}")
-    if latest:
-        lines.append(f"Свежий {latest}: {per.get(latest, 0)}{d(per.get(latest, 0), None, latest)}")
+    if stable:
+        lines.append(f"Стабильный {stable}: {per[stable]}{dtag(stable)}")
+    if beta:
+        lines.append(f"Бета {beta}: {per[beta]}{dtag(beta)}")
+    if win:
+        lines.append(f"🪟 Windows {win}: {per[win]}{dtag(win)}")
+
+    shown = {stable, beta, win} - {None}
+    changed = [t for t in per
+               if prev and t not in shown and (per[t] - prev_per.get(t, 0)) != 0]
+    changed.sort(key=lambda t: per[t] - prev_per.get(t, 0), reverse=True)
     if changed:
         lines.append("")
         lines.append("Изменения за сутки:")
         for t in changed:
-            lines.append(f"• {t}: {per[t]}{d(per[t], None, t)}")
-    elif prev is not None:
+            lines.append(f"• {t}: {per[t]}{dtag(t)}")
+    elif prev is not None and not shown:
         lines.append("")
         lines.append("За сутки без изменений по релизам.")
     report = "\n".join(lines)
