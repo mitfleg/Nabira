@@ -99,12 +99,16 @@ jobs:
       - name: Build installer (Inno Setup)
         shell: pwsh
         run: |
-          # Pin: the .iss uses ArchitecturesAllowed=x64compatible, which needs Inno Setup 6.3+.
-          choco install innosetup --version=6.3.3 --no-progress -y
+          # The .iss uses ArchitecturesAllowed=x64compatible (Inno Setup 6.3+). windows-latest ships a
+          # newer Inno; upgrade is idempotent (no-ops when current) and installs it if ever missing.
+          choco upgrade innosetup --no-progress -y
           $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          # SourceExe MUST be absolute: ISCC resolves relative [Files] Source paths against the .iss
+          # file's own directory (windows\installer), not the workflow working directory.
           & $iscc "/DMyAppVersion=${{ steps.ver.outputs.version }}" `
-                  "/DSourceExe=publish\x64\RuSwitcher.exe" `
+                  "/DSourceExe=${{ github.workspace }}\publish\x64\RuSwitcher.exe" `
                   windows\installer\RuSwitcher.iss
+          if ($LASTEXITCODE -ne 0) { throw "ISCC failed with exit $LASTEXITCODE" }
           # ISCC writes to windows\installer\dist\
           Get-ChildItem windows\installer\dist
 
