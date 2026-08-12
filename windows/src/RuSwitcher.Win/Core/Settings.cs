@@ -88,13 +88,13 @@ public sealed class Settings
         try
         {
             Directory.CreateDirectory(Dir);
-            // Atomic write: serialize to a temp file, then replace — so a crash/power-loss mid-write
-            // can never leave a truncated settings.json that Load() would silently reset to defaults.
+            // Atomic write: serialize to a temp file, then rename over the target. File.Move with
+            // overwrite is an atomic MoveFileEx(REPLACE_EXISTING) on the same volume — and avoids the
+            // File.Replace backup-file/attribute/AV quirks that were silently failing every save.
             string json = JsonSerializer.Serialize(this, Json);
             string tmp = FilePath + ".tmp";
             File.WriteAllText(tmp, json);
-            if (File.Exists(FilePath)) File.Replace(tmp, FilePath, null);
-            else File.Move(tmp, FilePath);
+            File.Move(tmp, FilePath, overwrite: true);
         }
         catch { /* не критично */ }
     }

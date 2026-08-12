@@ -21,6 +21,12 @@ internal static class Program
         string logPath = Path.Combine(logDir, "debug.log");
         void Log(string line) => File.AppendAllText(logPath, $"{DateTime.Now:HH:mm:ss.fff} {line}{Environment.NewLine}");
 
+        // Capture crashes to the log instead of dying silently (a tester can then send debug.log).
+        AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+        { try { Log("FATAL: " + (e.ExceptionObject as Exception)?.ToString()); } catch { /* ignore */ } };
+        System.Windows.Forms.Application.ThreadException += (_, e) =>
+        { try { Log("THREAD-EX: " + e.Exception); } catch { /* ignore */ } };
+
         var settings = Settings.Current;
         var buffer = new KeystrokeBuffer();
         bool enabled = true;

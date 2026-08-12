@@ -163,10 +163,15 @@ internal static class Win32
         public InputUnion U;
     }
 
+    // The INPUT union MUST be sized to its LARGEST member (MOUSEINPUT), not just KEYBDINPUT — else
+    // Marshal.SizeOf<INPUT>() is 32 instead of 40 (x64) and SendInput rejects every call (cbSize
+    // mismatch) and injects NOTHING. Declaring all three union members gives the correct 40-byte size.
     [StructLayout(LayoutKind.Explicit)]
     public struct InputUnion
     {
+        [FieldOffset(0)] public MOUSEINPUT mi;
         [FieldOffset(0)] public KEYBDINPUT ki;
+        [FieldOffset(0)] public HARDWAREINPUT hi;
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -177,6 +182,25 @@ internal static class Win32
         public uint dwFlags;
         public uint time;
         public IntPtr dwExtraInfo;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct MOUSEINPUT
+    {
+        public int dx;
+        public int dy;
+        public uint mouseData;
+        public uint dwFlags;
+        public uint time;
+        public IntPtr dwExtraInfo;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct HARDWAREINPUT
+    {
+        public uint uMsg;
+        public ushort wParamL;
+        public ushort wParamH;
     }
 
     [DllImport("user32.dll", SetLastError = true)]
