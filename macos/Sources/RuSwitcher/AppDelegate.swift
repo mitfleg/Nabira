@@ -13,6 +13,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var updateCheckTimer: Timer?   // периодическая авто-проверка обновлений, пока приложение работает
     private var monitoringActive = false
     private var caretIndicator: CaretIndicator?   // issue #10: флаг у каретки (бета, по умолчанию OFF)
+    private let secureNotice = SecureInputNotice()  // issue #27: подсказка о защ. вводе без кражи фокуса
     private var lastFlagShown: String?            // идентичность раскладки для детекта смены (не title!)
     private var badgeCache: [String: NSImage] = [:]  // монохромные плашки, чтобы не перерисовывать 2с-опросом
 
@@ -90,15 +91,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// выглядит как «приложение сломалось» (реальный кейс: пользователь мял триггер и лез в
     /// ioreg). Показываем разовое (троттлённое) объяснение с лечением.
     private func notifySecureInputPaused() {
+        guard SettingsManager.shared.secureInputNoticeEnabled else { return }
         if let last = lastSecureNoticeAt, Date().timeIntervalSince(last) < 180 { return }
         lastSecureNoticeAt = Date()
         let holder = AutoSwitchPolicy.secureInputHolderName() ?? L10n.securePausedUnknownApp
-        let alert = NSAlert()
-        alert.alertStyle = .informational
-        alert.messageText = L10n.securePausedTitle
-        alert.informativeText = String(format: L10n.securePausedBody, holder)
-        alert.addButton(withTitle: "OK")
-        alert.runModal()
+        // issue #27: неактивирующая плашка вместо NSAlert.runModal() — модалка активировала
+        // приложение и уводила фокус из поля пароля (пользователь терял место в терминале).
+        secureNotice.show(title: L10n.securePausedTitle,
+                          body: String(format: L10n.securePausedBody, holder))
     }
 
     private func offerExceptionAfterUndo() {
@@ -424,6 +424,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             self.keyboardMonitor.markConverted()
             self.textConverter.clearState()
             self.updateStatusIcon()
+        }
+        // issue #29: хоткей смены регистра последнего слова / выделения. Раскладку не трогает,
+        // в защищённом поле — пас (приватность), как у триггера.
+        keyboardMonitor.onCaseHotkey = { [weak self] in
+            guard let self else { return }
+            guard !AutoSwitchPolicy.secureInputActive else { rslog("case: bail secure-input"); self.notifySecureInputPaused(); return }
+            let keys = self.keyboardMonitor.currentWordKeys
+            if self.textConverter.changeCase(wordKeys: keys) {
+                // Скептик #29: НЕ markConverted() — буфер слова нужен, чтобы повторный тап
+                // циклил регистр. Но чистим reconvert-состояние, иначе следующий реконверт
+                // сработал бы по устаревшим lastOriginal/lastConverted и испортил текст.
+                self.textConverter.clearState()
+            }
         }
         updateStatusIcon()        // сначала выставляем флаг меню-бара, пока индикатора ещё нет
         syncCaretIndicator()      // затем создаём индикатор — без стартового ложного «попа»

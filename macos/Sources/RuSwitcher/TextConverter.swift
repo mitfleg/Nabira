@@ -150,11 +150,46 @@ final class TextConverter {
         // Скептик 3.2.0: не шлём Shift+Cmd+← вне текстового поля — иначе аккорд сработает как
         // ярлык приложения (напр. выделит не то). В поле — работаем.
         guard isFocusedElementEditable() else { rslog("convertLine: non-editable focus — bail"); return false }
-        simKey(keyCode: KC.left, flags: [.maskShift, .maskCommand])   // выделить до начала строки
+
+        // Выделяем до начала строки влево (обычный LTR). Проверяем через AX, реально ли что-то
+        // выделилось: только тогда конвертим и (при no-op) безопасно снимаем стрелкой.
+        simKey(keyCode: KC.left, flags: [.maskShift, .maskCommand])
         usleep(60_000)
-        let ok = convertViaClipboard(wordLength: 0, prevWordLength: 0, boundaryCount: 0)
-        if !ok { simKey(keyCode: KC.right, flags: []) }               // снять выделение при no-op
-        return ok
+        if !focusedSelectionIsEmpty() {
+            let ok = convertViaClipboard(wordLength: 0, prevWordLength: 0, boundaryCount: 0)
+            if !ok { simKey(keyCode: KC.right, flags: []) }   // снять выделение (оно есть — стрелка не двигает каретку лишнего)
+            return ok
+        }
+
+        // issue #26: влево выделилось ПУСТО → RTL-веб-поле (адресная строка Chrome, WhatsApp Web),
+        // где начало строки справа. Пробуем вправо. Стрелку-collapse влево НЕ жали — каретка на месте,
+        // так что первый символ не теряется. Пробуем другую сторону ТОЛЬКО при пустом влево — значит
+        // LTR-строку «вперёд» мы не трогаем (нет переписывания верного текста, скептик #26).
+        simKey(keyCode: KC.right, flags: [.maskShift, .maskCommand])
+        usleep(60_000)
+        if !focusedSelectionIsEmpty() {
+            let ok = convertViaClipboard(wordLength: 0, prevWordLength: 0, boundaryCount: 0)
+            if !ok { simKey(keyCode: KC.left, flags: []) }
+            return ok
+        }
+        return false   // пусто в обе стороны — пустая строка; каретка не двигалась
+    }
+
+    /// true — текущее выделение фокус-элемента ПУСТО (по AX). На любой неопределённости (нет фокуса,
+    /// атрибут недоступен) возвращаем false = «выделение есть» — безопасно для LTR: не пробуем вторую
+    /// сторону и не переписываем текст «вперёд». RTL-фикс сработает лишь там, где AX надёжно отдаёт пусто.
+    private func focusedSelectionIsEmpty() -> Bool {
+        guard let app = NSWorkspace.shared.frontmostApplication else { return false }
+        let axApp = AXUIElementCreateApplication(app.processIdentifier)
+        AXUIElementSetMessagingTimeout(axApp, 0.25)
+        var focusedRaw: AnyObject?
+        guard AXUIElementCopyAttributeValue(axApp, kAXFocusedUIElementAttribute as CFString, &focusedRaw) == .success,
+              let focused = focusedRaw else { return false }
+        let element = focused as! AXUIElement
+        var selRaw: AnyObject?
+        guard AXUIElementCopyAttributeValue(element, kAXSelectedTextAttribute as CFString, &selRaw) == .success,
+              let sel = selRaw as? String else { return false }
+        return sel.isEmpty
     }
 
     /// issue #24 (терминал): конвертирует всю набранную строку по БУФЕРУ нажатий — backspace на
@@ -183,6 +218,83 @@ final class TextConverter {
             Task { @MainActor in self.isConverting = false }
         }
         return true
+    }
+
+    // MARK: - issue #29: смена регистра (как Alt+Break в Punto)
+
+    private var caseWord: String?   // слово, по которому сейчас циклим регистр (буферный путь)
+    private var caseIndex = 0
+
+    /// Вариант регистра по индексу цикла: 0 — ВЕРХНИЙ, 1 — нижний, 2 — Заглавный (Title).
+    private static func caseVariant(_ s: String, _ i: Int) -> String {
+        switch ((i % 3) + 3) % 3 {
+        case 0:  return s.uppercased()
+        case 1:  return s.lowercased()
+        default: return s.capitalized
+        }
+    }
+
+    /// Сменить регистр последнего набранного слова (буфер) или выделения (clipboard). Раскладку
+    /// НЕ трогает. По повторным нажатиям на то же слово циклит ВЕРХНИЙ → нижний → Заглавный.
+    func changeCase(wordKeys: [TypedKey]) -> Bool {
+        guard !isConverting else { return false }
+        if !wordKeys.isEmpty { return changeCaseWord(wordKeys) }
+        return changeCaseSelection()
+    }
+
+    private func changeCaseWord(_ keys: [TypedKey]) -> Bool {
+        guard let pair = DynamicKeyMapping.convertKeys(keys),
+              !pair.original.isEmpty, pair.original.contains(where: { $0.isLetter }) else { return false }
+        let original = pair.original
+        if original == caseWord {
+            caseIndex = (caseIndex + 1) % 3                 // то же слово → следующий вариант цикла
+        } else {
+            caseWord = original                             // новое слово → стартовый индекс так, чтобы
+            caseIndex = TextConverter.caseVariant(original, 0) == original ? 1 : 0  // первый тап всегда менял
+        }
+        // Экранный текст = предыдущий вариант (той же длины), поэтому backspace по original.count
+        // корректен, а соседние варианты цикла всегда различаются визуально.
+        let changed = TextConverter.caseVariant(original, caseIndex)
+        isConverting = true
+        let bs = original.count
+        rslog("case: word \(bs) chars → variant \(caseIndex)")
+        injectQueue.async { [weak self] in
+            guard let self else { return }
+            self.backspace(bs)
+            usleep(20_000)
+            self.insertText(changed)
+            Task { @MainActor in self.isConverting = false }
+        }
+        return true
+    }
+
+    private func changeCaseSelection() -> Bool {
+        caseWord = nil   // выделение сбрасывает буферный цикл
+        let pasteboard = NSPasteboard.general
+        cancelClipboardRestore()
+        if savedClipboardItems == nil { savedClipboardItems = snapshotPasteboard(pasteboard) }
+        isConverting = true
+        var ok = false
+        defer { if !ok { restoreClipboardNow() }; isConverting = false }
+
+        guard let text = tryCopy(pasteboard), !text.isEmpty,
+              text.contains(where: { $0.isLetter }) else { return false }
+        let changed = TextConverter.nextCaseFromCurrent(text)
+        guard changed != text else { return false }
+        pasteText(changed, pasteboard: pasteboard)
+        // Скептик #29: НЕ выставляем reconvert-состояние (lastConverted/lastConvertedCount) — смена
+        // регистра не должна попадать в путь реконверта (см. clearState() в onCaseHotkey).
+        ok = true
+        scheduleClipboardRestore()
+        return true
+    }
+
+    /// Для выделения (без состояния): следующий регистр из текущего — нижний→ВЕРХНИЙ→Заглавный→нижний.
+    private static func nextCaseFromCurrent(_ s: String) -> String {
+        let letters = s.filter { $0.isLetter }
+        if letters.allSatisfy({ $0.isLowercase }) { return s.uppercased() }
+        if letters.allSatisfy({ $0.isUppercase }) { return s.capitalized }
+        return s.lowercased()
     }
 
     /// issue #16: конверсия в Spotlight. Обычный путь оставляет лишнюю букву, потому что
