@@ -430,11 +430,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         keyboardMonitor.onCaseHotkey = { [weak self] in
             guard let self else { return }
             guard !AutoSwitchPolicy.secureInputActive else { rslog("case: bail secure-input"); self.notifySecureInputPaused(); return }
+            // Скептик #29: те же гейты, что у onAltTap/onSwitchHotkey. Удалёнка — текст правит
+            // контролируемый инстанс (у нас нет своей раскладки для флипа, регистр просто пропускаем).
+            if AutoSwitchPolicy.shouldDeferToRemoteClient { rslog("case: bail remote-defer"); return }
+            // Spotlight: count-путь оставил бы лишнюю букву (issue #16), а AX там флейкует — не трогаем.
+            if SpotlightAX.isActive() { rslog("case: bail spotlight"); return }
+            // issue #29: смена регистра зеркалит триггер конверсии — уважает «Convert whole line»
+            // (запрос kobygold). Терминал → по буферу строки; обычное приложение → AX-выделение строки.
+            if SettingsManager.shared.convertWholeLine {
+                let frontID = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+                if AutoSwitchPolicy.isTerminalApp(frontID) {
+                    if !self.keyboardMonitor.lineKeys.isEmpty {
+                        if self.textConverter.changeCaseLineBuffer(self.keyboardMonitor.lineKeys) { self.textConverter.clearState() }
+                        return   // непустой буфер строки — завершаем здесь (как onAltTap)
+                    }
+                    // пустой буфер → падаем на последнее слово ниже
+                } else {
+                    if self.textConverter.changeCaseLine() { self.textConverter.clearState() }
+                    return   // обычное приложение, whole-line — всегда завершаем здесь
+                }
+            }
+            // Скептик #29: НЕ markConverted() — буфер слова нужен, чтобы повторный тап циклил
+            // регистр. Чистим reconvert-состояние, иначе следующий реконверт сработал бы по
+            // устаревшим lastOriginal/lastConverted и испортил текст.
             let keys = self.keyboardMonitor.currentWordKeys
             if self.textConverter.changeCase(wordKeys: keys) {
-                // Скептик #29: НЕ markConverted() — буфер слова нужен, чтобы повторный тап
-                // циклил регистр. Но чистим reconvert-состояние, иначе следующий реконверт
-                // сработал бы по устаревшим lastOriginal/lastConverted и испортил текст.
                 self.textConverter.clearState()
             }
         }

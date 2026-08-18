@@ -222,8 +222,42 @@ final class TextConverter {
 
     // MARK: - issue #29: смена регистра (как Alt+Break в Punto)
 
-    private var caseWord: String?   // слово, по которому сейчас циклим регистр (буферный путь)
+    private var caseWord: String?   // слово/строка, по которой сейчас циклим регистр (буферный путь)
     private var caseIndex = 0
+    private var caseOnScreen = ""   // ТЕКУЩИЙ экранный текст цикла — его длину и стираем (не original.count:
+                                    // регистр не всегда сохраняет длину, напр. немецкое ß→SS, скептик #29)
+
+    /// Общий движок цикла регистра по буферу (слово или строка). original — как набрано. Стирает
+    /// реальную экранную длину и пропускает варианты, не дающие видимого изменения (односимвольные
+    /// слова, каузлес-скрипты вроде иврита → просто no-op вместо мигания). Возвращает true при инжекте.
+    private func cycleCaseByBuffer(_ original: String) -> Bool {
+        if original != caseWord {
+            caseWord = original
+            caseIndex = TextConverter.caseVariant(original, 0) == original ? 1 : 0
+            caseOnScreen = original                       // на экране — набранный оригинал
+        } else {
+            caseIndex = (caseIndex + 1) % 3
+        }
+        // Пропускаем варианты, совпадающие с тем, что уже на экране (иначе мёртвый тап / миганиe).
+        var idx = caseIndex, changed = TextConverter.caseVariant(original, idx), tries = 0
+        while changed == caseOnScreen && tries < 3 {
+            idx = (idx + 1) % 3; changed = TextConverter.caseVariant(original, idx); tries += 1
+        }
+        guard changed != caseOnScreen else { return false }   // все варианты равны (иврит и т.п.) → пропуск
+        caseIndex = idx
+        let bs = caseOnScreen.count                           // стираем РЕАЛЬНУЮ экранную длину
+        caseOnScreen = changed
+        isConverting = true
+        rslog("case: buffer \(original.count) chars → variant \(idx), bs \(bs)")
+        injectQueue.async { [weak self] in
+            guard let self else { return }
+            self.backspace(bs)
+            usleep(20_000)
+            self.insertText(changed)
+            Task { @MainActor in self.isConverting = false }
+        }
+        return true
+    }
 
     /// Вариант регистра по индексу цикла: 0 — ВЕРХНИЙ, 1 — нижний, 2 — Заглавный (Title).
     private static func caseVariant(_ s: String, _ i: Int) -> String {
@@ -245,27 +279,7 @@ final class TextConverter {
     private func changeCaseWord(_ keys: [TypedKey]) -> Bool {
         guard let pair = DynamicKeyMapping.convertKeys(keys),
               !pair.original.isEmpty, pair.original.contains(where: { $0.isLetter }) else { return false }
-        let original = pair.original
-        if original == caseWord {
-            caseIndex = (caseIndex + 1) % 3                 // то же слово → следующий вариант цикла
-        } else {
-            caseWord = original                             // новое слово → стартовый индекс так, чтобы
-            caseIndex = TextConverter.caseVariant(original, 0) == original ? 1 : 0  // первый тап всегда менял
-        }
-        // Экранный текст = предыдущий вариант (той же длины), поэтому backspace по original.count
-        // корректен, а соседние варианты цикла всегда различаются визуально.
-        let changed = TextConverter.caseVariant(original, caseIndex)
-        isConverting = true
-        let bs = original.count
-        rslog("case: word \(bs) chars → variant \(caseIndex)")
-        injectQueue.async { [weak self] in
-            guard let self else { return }
-            self.backspace(bs)
-            usleep(20_000)
-            self.insertText(changed)
-            Task { @MainActor in self.isConverting = false }
-        }
-        return true
+        return cycleCaseByBuffer(pair.original)
     }
 
     private func changeCaseSelection() -> Bool {
@@ -293,8 +307,41 @@ final class TextConverter {
     private static func nextCaseFromCurrent(_ s: String) -> String {
         let letters = s.filter { $0.isLetter }
         if letters.allSatisfy({ $0.isLowercase }) { return s.uppercased() }
-        if letters.allSatisfy({ $0.isUppercase }) { return s.capitalized }
+        if letters.allSatisfy({ $0.isUppercase }) {
+            let cap = s.capitalized
+            return cap == s ? s.lowercased() : cap   // односимвольные слова: capitalized==s → идём в нижний
+        }
         return s.lowercased()
+    }
+
+    /// issue #29: смена регистра ВСЕЙ строки (когда включён «Convert whole line»). Обычные
+    /// приложения — тем же AX-гейтом выделения строки, что и convertLine (#26). Повторные тапы
+    /// циклят регистр: changeCaseSelection перечитывает текущую строку → nextCaseFromCurrent.
+    func changeCaseLine() -> Bool {
+        guard !isConverting else { return false }
+        guard isFocusedElementEditable() else { rslog("changeCaseLine: non-editable — bail"); return false }
+        simKey(keyCode: KC.left, flags: [.maskShift, .maskCommand]); usleep(60_000)
+        if !focusedSelectionIsEmpty() {
+            let ok = changeCaseSelection()
+            if !ok { simKey(keyCode: KC.right, flags: []) }
+            return ok
+        }
+        simKey(keyCode: KC.right, flags: [.maskShift, .maskCommand]); usleep(60_000)   // RTL: начало строки справа
+        if !focusedSelectionIsEmpty() {
+            let ok = changeCaseSelection()
+            if !ok { simKey(keyCode: KC.left, flags: []) }
+            return ok
+        }
+        return false
+    }
+
+    /// issue #29 (терминал): смена регистра всей строки по БУФЕРУ нажатий (нет OS-выделения).
+    /// Циклит регистр как changeCaseWord, ключ — строка целиком (буфер живёт между тапами).
+    func changeCaseLineBuffer(_ lineKeys: [TypedKey]) -> Bool {
+        guard !isConverting, !lineKeys.isEmpty,
+              let original = DynamicKeyMapping.lineString(from: lineKeys),
+              !original.isEmpty, original.contains(where: { $0.isLetter }) else { return false }
+        return cycleCaseByBuffer(original)
     }
 
     /// issue #16: конверсия в Spotlight. Обычный путь оставляет лишнюю букву, потому что
