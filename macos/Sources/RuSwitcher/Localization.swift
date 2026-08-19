@@ -44,6 +44,7 @@ enum L10n {
     static var settingsDonate: String { s("settings.donate") }
     static var settingsContact: String { s("settings.contact") }
     static var settingsDebugLog: String { s("settings.debugLog") }
+    static var settingsSecureNotice: String { s("settings.secureNotice") }
     static var settingsShowLog: String { s("settings.showLog") }
     static var settingsSendLog: String { s("settings.sendLog") }
     static var settingsHotkey: String { s("settings.hotkey") }
@@ -73,6 +74,7 @@ enum L10n {
     static var menuCaretFlag: String { s("menu.caretFlag") }
     static var menuMonoIcon: String { s("menu.monoIcon") }
     static var settingsSwitchHotkey: String { s("settings.switchHotkey") }
+    static var settingsCaseHotkey: String { s("settings.caseHotkey") }
     static var settingsSwitchHotkeyOff: String { s("settings.switchHotkey.off") }
     static var settingsSwitchHotkeyBusy: String { s("settings.switchHotkey.busy") }
     static var settingsCaretFlag: String { s("settings.caretFlag") }
@@ -215,6 +217,7 @@ enum L10n {
             "menu.caretFlag": "Flag at cursor (beta)",
             "menu.monoIcon": "Monochrome icon",
             "settings.switchHotkey": "Layout switch hotkey",
+            "settings.caseHotkey": "Change-case hotkey",
             "settings.switchHotkey.off": "Off",
             "settings.switchHotkey.busy": " — already in use",
             "settings.caretFlag": "Show layout flag at the text cursor (beta)",
@@ -253,6 +256,7 @@ enum L10n {
             "settings.donate": "Support Development ❤️",
             "settings.contact": "Contact Developer",
             "settings.debugLog": "Debug logging",
+            "settings.secureNotice": "Show the Secure Input notice",
             "settings.showLog": "Show Log File",
             "settings.sendLog": "Send Log",
             "settings.hotkey": "Tap the trigger key alone — converts the last word (or selected text). Double tap — reverse.",
@@ -331,6 +335,7 @@ enum L10n {
             "menu.caretFlag": "Флаг у курсора (бета)",
             "menu.monoIcon": "Монохромная иконка",
             "settings.switchHotkey": "Хоткей смены раскладки",
+            "settings.caseHotkey": "Хоткей смены регистра",
             "settings.switchHotkey.off": "Выключен",
             "settings.switchHotkey.busy": " — уже используется",
             "settings.caretFlag": "Показывать флаг раскладки у курсора (бета)",
@@ -369,6 +374,7 @@ enum L10n {
             "settings.donate": "Поддержать разработку ❤️",
             "settings.contact": "Связаться с разработчиком",
             "settings.debugLog": "Режим отладки",
+            "settings.secureNotice": "Показывать подсказку о защищённом вводе",
             "settings.showLog": "Показать файл лога",
             "settings.sendLog": "Отправить лог",
             "settings.hotkey": "Тап клавиши-триггера — конвертирует последнее слово (или выделенный текст). Двойной тап — обратно.",
