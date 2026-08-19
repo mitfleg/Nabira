@@ -184,7 +184,7 @@ enum L10n {
             "menu.share.email": "Email",
             "share.message": "RuSwitcher — a free keyboard-layout switcher for macOS. Fix a wrong layout with a tap:",
             "whatsnew.title": "What's New in RuSwitcher",
-            "whatsnew.body": "• Third-party layouts (e.g. Ilya Birman) now work fully: auto-switch, menu flag and caret flag.\n• Smart selection conversion: fixes only the mis-typed words in a selection and keeps the rest.\n• Convert the whole line, including in the terminal (Settings → Advanced).\n• Words typed on punctuation keys now convert too; Spotlight no longer leaves a stray first letter.\n• New «Contact the developer» and Telegram support, plus a hint when Secure Input blocks the trigger.",
+            "whatsnew.body": "• Change-case hotkey (like Punto): a separate hotkey cycles the case of the last word, a selection, or the whole line — UPPER → lower → Title. Off by default (Settings → General).\n• Hebrew conversion now works in right-to-left web fields (Chrome address bar, WhatsApp Web).\n• The Secure Input notice no longer steals focus while you type a password.\n• Faster typing: rare freezes eliminated and word replacement is now visually instant.",
             "whatsnew.more": "Full release notes",
             "menu.quit": "Quit",
 
@@ -302,7 +302,7 @@ enum L10n {
             "menu.share.email": "Почта",
             "share.message": "RuSwitcher — бесплатный переключатель раскладки для macOS. Исправляет раскладку одним нажатием:",
             "whatsnew.title": "Что нового в RuSwitcher",
-            "whatsnew.body": "• Сторонние раскладки (напр. Ilya Birman) теперь работают полностью: автопереключение, флаг в меню и у курсора.\n• Умная конверсия выделения: чинит только слова не в той раскладке, остальное не трогает.\n• Конвертация всей строки, в том числе в терминале (Настройки → Расширенные).\n• Слова на клавишах-пунктуации теперь тоже конвертируются; Spotlight больше не оставляет лишнюю первую букву.\n• Новое: «Связаться с разработчиком» и поддержка в Telegram; подсказка, когда защищённый ввод блокирует триггер.",
+            "whatsnew.body": "• Смена регистра по хоткею (как в Punto): отдельный хоткей циклит регистр последнего слова, выделения или всей строки — ВЕРХНИЙ → нижний → Заглавный. По умолчанию выключен (Настройки → Основные).\n• Иврит теперь конвертируется в RTL-веб-полях (адресная строка Chrome, WhatsApp Web).\n• Подсказка о защищённом вводе больше не крадёт фокус при вводе пароля.\n• Печать быстрее: убраны редкие «фризы», замена слова стала визуально мгновенной.",
             "whatsnew.more": "Подробнее на GitHub",
             "menu.quit": "Выход",
 
