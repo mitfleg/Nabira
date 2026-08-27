@@ -49,6 +49,13 @@ def main():
             prev = json.loads(lines[-1])
     prev_per = prev.get("per", {}) if prev else {}
 
+    # Идемпотентность по дню: расписание GitHub — best-effort (2026-08-27 крон молча
+    # выпал), поэтому в workflow ДВА cron-слота. Если за сегодня уже отчитались —
+    # второй прогон тихо выходит, не дублируя дайджест и снапшот.
+    if prev and prev.get("date") == today:
+        print(f"Already reported today ({today}) — skipping (backup cron slot).")
+        return
+
     def d(cur, key):
         if prev is None or prev.get(key) is None:
             return ""
