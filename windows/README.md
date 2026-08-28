@@ -4,6 +4,7 @@
 
 **Status: beta.** A tray application built on the same philosophy as the macOS original —
 zero external dependencies, no telemetry, local dictionaries, keycode-based conversion.
+The CI artifact is a portable self-contained `Nabira.exe` for Windows x64 testing.
 
 ## Current beta features
 
