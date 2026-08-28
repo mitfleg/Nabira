@@ -1,5 +1,7 @@
 # Nabira for Windows
 
+[![Windows build](https://github.com/mitfleg/Nabira/actions/workflows/windows-build.yml/badge.svg)](https://github.com/mitfleg/Nabira/actions/workflows/windows-build.yml)
+
 **Status: beta.** A tray application built on the same philosophy as the macOS original —
 zero external dependencies, no telemetry, local dictionaries, keycode-based conversion.
 
