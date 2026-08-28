@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Ежедневный дайджест статистики RuSwitcher → Telegram.
+"""Ежедневный дайджест статистики Nabira → Telegram.
 Читает публичные счётчики GitHub (download_count релизов, звёзды), считает дельту
 за сутки по истории stats/history.jsonl и шлёт отчёт в Telegram. Без телеметрии в
 приложении — только агрегатные публичные числа GitHub. Зависимостей нет (urllib)."""
 import json, os, urllib.request, urllib.parse, datetime
 
-REPO = "rashn/RuSwitcher"
+REPO = "mitfleg/Nabira"
 GH_TOKEN = os.environ.get("GITHUB_TOKEN", "")
 TG_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 TG_CHAT = os.environ.get("TELEGRAM_CHAT_ID", "")
@@ -20,7 +20,7 @@ def gh(path):
         headers={
             "Authorization": f"Bearer {GH_TOKEN}" if GH_TOKEN else "",
             "Accept": "application/vnd.github+json",
-            "User-Agent": "ruswitcher-stats",
+            "User-Agent": "nabira-stats",
         },
     )
     with urllib.request.urlopen(req, timeout=30) as r:
@@ -84,7 +84,7 @@ def main():
         beta = None  # бета старее стабильного = закрытый бета-цикл, не показываем
     win = next((t for t in tags if t.startswith("win-")), None)
 
-    lines = [f"📊 RuSwitcher — {today}", ""]
+    lines = [f"📊 Nabira — {today}", ""]
     lines.append(f"Всего скачано: {total}{d(total, 'total')}")
     lines.append(f"⭐ Stars: {stars}{d(stars, 'stars')}")
     if stable:

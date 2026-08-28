@@ -1,8 +1,8 @@
 name: Announce release
 
-# Постим в Telegram-канал @RuSwitcher при публикации СТАБИЛЬНОГО релиза.
+# Постим в Telegram-канал владельца при публикации СТАБИЛЬНОГО релиза.
 # Беты (pre-release) пропускаем — канал только для стабильных версий.
-# Требует: бот @EcoDrotBot (секрет TELEGRAM_BOT_TOKEN) добавлен АДМИНОМ канала @RuSwitcher.
+# Требует секреты TELEGRAM_BOT_TOKEN и TELEGRAM_CHANNEL.
 
 on:
   release:
@@ -21,7 +21,7 @@ jobs:
       - name: Announce to Telegram channel
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHANNEL: "@RuSwitcher"
+          TELEGRAM_CHANNEL: ${{ secrets.TELEGRAM_CHANNEL }}
           RELEASE_NAME: ${{ github.event.release.name }}
           RELEASE_TAG: ${{ github.event.release.tag_name }}
           RELEASE_BODY: ${{ github.event.release.body }}

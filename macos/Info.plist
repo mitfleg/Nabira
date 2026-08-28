@@ -5,19 +5,17 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>ru</string>
 	<key>CFBundleDisplayName</key>
-	<string>RuSwitcher</string>
+	<string>Nabira</string>
 	<key>CFBundleExecutable</key>
-	<string>RuSwitcher</string>
+	<string>Nabira</string>
 	<key>CFBundleIconFile</key>
-	<string>RuSwitcher</string>
-	<key>CFBundleIconName</key>
-	<string>AppIcon</string>
+	<string>Nabira</string>
 	<key>CFBundleIdentifier</key>
-	<string>com.ruswitcher.app</string>
+	<string>com.mitfleg.nabira.app</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>RuSwitcher</string>
+	<string>Nabira</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -37,8 +35,8 @@
 	<key>NSHighResolutionCapable</key>
 	<true/>
 	<key>NSHumanReadableCopyright</key>
-	<string>Copyright © 2026 RuSwitcher. All rights reserved.</string>
-	<key>RSDevTag</key>
+	<string>Copyright © 2026 Nabira. All rights reserved.</string>
+	<key>NabiraDevTag</key>
 	<string></string>
 </dict>
 </plist>

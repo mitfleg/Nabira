@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-APP_NAME="RuSwitcher"
+APP_NAME="Nabira"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR"   # все относительные пути — от macos/ (аудит: раньше зависели от CWD)
 # --beta: собрать ПРЕД-РЕЛИЗ из version-beta.json, НЕ трогая стабильный фид (version.json)
@@ -13,29 +13,33 @@ if [ "${1:-}" = "--beta" ]; then
     VERSION_FILE="../version-beta.json"
     echo "=== BETA build (source: $VERSION_FILE — stable version.json/cask untouched) ==="
 fi
-# build_app.sh читает тот же источник версии через RS_VERSION_JSON.
-export RS_VERSION_JSON="$SCRIPT_DIR/$VERSION_FILE"
+# build_app.sh читает тот же источник версии через NABIRA_VERSION_JSON.
+export NABIRA_VERSION_JSON="$SCRIPT_DIR/$VERSION_FILE"
 VERSION=$(/usr/bin/python3 -c "import json;print(json.load(open('$VERSION_FILE'))['version'])")
 BUILD=$(/usr/bin/python3 -c "import json;print(json.load(open('$VERSION_FILE')).get('build','1'))")
 DMG_NAME="${APP_NAME}-${VERSION}.dmg"
-# Нотаризация: предпочитаем API-ключ App Store Connect — файл на диске, НЕ зависит
-# от Keychain (keychain-профиль уже дважды пропадал: 2026-07-01 и 2026-07-10).
-# Конфиг ключа: ~/.config/ruswitcher/notary.conf (задаёт NOTARY_KEY_FILE,
-# NOTARY_KEY_ID, NOTARY_ISSUER_ID; chmod 600). Фолбэк — keychain-профиль.
-# Переопределение: NOTARIZE_PROFILE=<name>, NOTARY_CONF=<path>. Пропуск: SKIP_NOTARIZE=1.
+# Стандартный релиз Nabira не зависит от Apple Developer Program: создаём DMG,
+# SHA-256 и в дальнейшем подписанный независимым ключом манифест обновления.
+# Если когда-нибудь появится Developer ID, Apple-нотаризация включается явно:
+# NABIRA_NOTARIZE=1 ./create_dmg.sh
+NABIRA_NOTARIZE="${NABIRA_NOTARIZE:-0}"
 NOTARIZE_PROFILE="${NOTARIZE_PROFILE:-notarytool-studio}"
-NOTARY_CONF="${NOTARY_CONF:-$HOME/.config/ruswitcher/notary.conf}"
-if [ -f "$NOTARY_CONF" ]; then
-    # shellcheck source=/dev/null
-    . "$NOTARY_CONF"
-fi
-if [ -n "${NOTARY_KEY_FILE:-}" ] && [ -f "$NOTARY_KEY_FILE" ] \
-   && [ -n "${NOTARY_KEY_ID:-}" ] && [ -n "${NOTARY_ISSUER_ID:-}" ]; then
-    NOTARY_ARGS=(--key "$NOTARY_KEY_FILE" --key-id "$NOTARY_KEY_ID" --issuer "$NOTARY_ISSUER_ID")
-    NOTARY_VIA="ASC API key $NOTARY_KEY_ID"
-else
-    NOTARY_ARGS=(--keychain-profile "$NOTARIZE_PROFILE")
-    NOTARY_VIA="keychain profile $NOTARIZE_PROFILE"
+NOTARY_CONF="${NOTARY_CONF:-$HOME/.config/nabira/notary.conf}"
+NOTARY_ARGS=()
+NOTARY_VIA=""
+if [ "$NABIRA_NOTARIZE" = "1" ]; then
+    if [ -f "$NOTARY_CONF" ]; then
+        # shellcheck source=/dev/null
+        . "$NOTARY_CONF"
+    fi
+    if [ -n "${NOTARY_KEY_FILE:-}" ] && [ -f "$NOTARY_KEY_FILE" ] \
+       && [ -n "${NOTARY_KEY_ID:-}" ] && [ -n "${NOTARY_ISSUER_ID:-}" ]; then
+        NOTARY_ARGS=(--key "$NOTARY_KEY_FILE" --key-id "$NOTARY_KEY_ID" --issuer "$NOTARY_ISSUER_ID")
+        NOTARY_VIA="ASC API key $NOTARY_KEY_ID"
+    else
+        NOTARY_ARGS=(--keychain-profile "$NOTARIZE_PROFILE")
+        NOTARY_VIA="keychain profile $NOTARIZE_PROFILE"
+    fi
 fi
 DMG_TEMP="${APP_NAME}-temp.dmg"
 VOL_NAME="${APP_NAME}"
@@ -49,21 +53,21 @@ echo "=== Creating styled DMG ==="
 #     Профиль уже ДВАЖДЫ пропадал из Keychain (2026-07: удалён на живой системе
 #     между релизами, без ребута/обновлений — подозрение на чистильщики/VPN-софт),
 #     и падение в середине пайплайна путает. Ловим сразу, с рецептом починки.
-if [ "${SKIP_NOTARIZE:-0}" != "1" ]; then
+if [ "$NABIRA_NOTARIZE" = "1" ]; then
     if ! xcrun notarytool history "${NOTARY_ARGS[@]}" >/dev/null 2>&1; then
         echo "ОШИБКА: нотаризационные креды недоступны (пробовали: $NOTARY_VIA)."
         echo "Вариант 1 (надёжный): API-ключ App Store Connect в $NOTARY_CONF"
         echo "  (NOTARY_KEY_FILE=…AuthKey_XXX.p8, NOTARY_KEY_ID=…, NOTARY_ISSUER_ID=…)."
         echo "Вариант 2: keychain-профиль (пароль — app-specific password, интерактивно):"
         echo "  xcrun notarytool store-credentials $NOTARIZE_PROFILE \\"
-        echo "      --apple-id xrashid@gmail.com --team-id 9GEWCZ59HK"
+        echo "      --apple-id mitfleg@icloud.com --team-id YOUR_TEAM_ID"
         exit 69
     fi
     echo "→ Notary credentials OK ($NOTARY_VIA)"
 fi
 
 # 0. ВСЕГДА пересобираем приложение из исходников. Без этого шага DMG берёт имя
-#    из version.json, а payload — из случайно лежащего рядом RuSwitcher.app.
+#    из version.json, а payload — из случайно лежащего рядом Nabira.app.
 #    Именно так в релиз 2.1.0 попал бандл 2.0.3: имя было 2.1.0, а внутри 2.0.3.
 echo "→ Rebuilding app from source (build_app.sh)..."
 "$SCRIPT_DIR/build_app.sh"
@@ -83,7 +87,7 @@ echo "→ Verified bundle $BUNDLE_VERSION (build $BUNDLE_BUILD) matches version.
 #     Без этого вытащенный из DMG бандл не имеет своего тикета и при первом запуске
 #     зависит от ОНЛАЙН-проверки Gatekeeper (после переноса/в офлайне → «не могу запустить»).
 #     Со стейплом на бандле приложение запускается чисто офлайн, без xattr.
-if [ "${SKIP_NOTARIZE:-0}" != "1" ]; then
+if [ "$NABIRA_NOTARIZE" = "1" ]; then
     echo "→ Notarizing the app bundle..."
     ditto -c -k --keepParent "$APP_PATH" "${APP_NAME}-app.zip"
     xcrun notarytool submit "${APP_NAME}-app.zip" "${NOTARY_ARGS[@]}" --wait
@@ -96,9 +100,9 @@ fi
 # Clean up
 rm -f "$DMG_NAME" "$DMG_TEMP"
 
-# 0c. Снимаем «застрявшие» тома с тем же именем. Если /Volumes/RuSwitcher уже занят,
-#     наш temp-образ примонтируется как «RuSwitcher 1», а AppleScript-оформление
-#     (`tell disk "RuSwitcher"`) уйдёт на чужой/несуществующий диск → .DS_Store с фоном
+# 0c. Снимаем «застрявшие» тома с тем же именем. Если /Volumes/Nabira уже занят,
+#     наш temp-образ примонтируется как «Nabira 1», а AppleScript-оформление
+#     (`tell disk "Nabira"`) уйдёт на чужой/несуществующий диск → .DS_Store с фоном
 #     и позициями НЕ запишется в наш образ, и DMG откроется голым. Чистим заранее.
 for v in "/Volumes/${VOL_NAME}"*; do
     if [ -d "$v" ]; then
@@ -116,7 +120,7 @@ hdiutil create -volname "$VOL_NAME" -fs HFS+ \
 echo "→ Mounting..."
 MOUNT_DIR=$(hdiutil attach -readwrite -noverify "$DMG_TEMP" | grep "/Volumes/" | sed 's/.*\(\/Volumes\/.*\)/\1/')
 echo "   Mounted at: $MOUNT_DIR"
-# Защита: если имя всё же разъехалось (том «RuSwitcher 1») — оформление уйдёт мимо. Прерываемся.
+# Защита: если имя всё же разъехалось (том «Nabira 1») — оформление уйдёт мимо. Прерываемся.
 if [ "$MOUNT_DIR" != "/Volumes/${VOL_NAME}" ]; then
     echo "ERROR: temp DMG mounted at '$MOUNT_DIR', expected '/Volumes/${VOL_NAME}'."
     echo "       Stale volume collision — refusing to build an unstyled DMG."
@@ -196,8 +200,12 @@ rm -f "$DMG_TEMP"
 # 9a. Подписываем САМ .dmg Developer ID. Без этого образ нотаризуется и стейплится, но
 #     `spctl -t install` даёт "no usable signature" — у скачанного образа нет подписи
 #     контейнера, и на части Mac это приводит к недоверию к вынутому из него .app.
-SIGN_ID="Developer ID Application: Rashid Nasibulin (9GEWCZ59HK)"
-if [ "${SKIP_NOTARIZE:-0}" != "1" ]; then
+SIGN_ID="${NABIRA_SIGN_ID:-}"
+if [ "$NABIRA_NOTARIZE" = "1" ]; then
+    if [ -z "$SIGN_ID" ]; then
+        echo "ERROR: NABIRA_SIGN_ID must contain your Developer ID Application identity."
+        exit 69
+    fi
     echo "→ Code signing the DMG (Developer ID + secure timestamp)..."
     codesign --force --timestamp --sign "$SIGN_ID" "$DMG_NAME"
     codesign --verify --verbose=2 "$DMG_NAME"
@@ -205,9 +213,7 @@ fi
 
 # 10. Notarize with Apple (required for Gatekeeper to accept the DMG on end-user Macs).
 # Signed-but-unnotarized DMGs trigger "Apple could not verify [app] is free of malware".
-if [ "${SKIP_NOTARIZE:-0}" = "1" ]; then
-    echo "→ SKIP_NOTARIZE=1 — skipping notarization (DMG will NOT pass Gatekeeper on other Macs)"
-else
+if [ "$NABIRA_NOTARIZE" = "1" ]; then
     echo "→ Submitting to Apple notary service ($NOTARY_VIA)..."
     xcrun notarytool submit "$DMG_NAME" \
         "${NOTARY_ARGS[@]}" \
@@ -219,6 +225,9 @@ else
     # Контрольная проверка: образ должен приниматься как установочный носитель.
     echo "→ Verifying DMG passes Gatekeeper (install assessment)..."
     spctl -a -vvv -t install "$DMG_NAME" 2>&1 || echo "WARNING: spctl install assessment did not pass"
+else
+    echo "→ Apple notarization disabled (default independent-distribution mode)"
+    echo "  First launch on another Mac requires Privacy & Security → Open Anyway."
 fi
 
 # 11. Записываем sha256 обратно в version.json и cask — хэш механически привязан
@@ -239,7 +248,7 @@ with open(path, "w") as f:
     f.write("\n")
 PY
 else
-    echo "→ Writing sha256 into version.json and ruswitcher.rb..."
+    echo "→ Writing sha256 into version.json and nabira.rb..."
     /usr/bin/python3 - "$DMG_SHA" <<'PY'
 import json, sys
 sha = sys.argv[1]
@@ -250,13 +259,13 @@ with open("../version.json", "w") as f:
     json.dump(data, f, indent=2)
     f.write("\n")
 PY
-    /usr/bin/sed -i '' -E "s/^([[:space:]]*sha256 \").*(\")/\1${DMG_SHA}\2/" "$SCRIPT_DIR/ruswitcher.rb"
-    /usr/bin/sed -i '' -E "s/^([[:space:]]*version \").*(\")/\1${VERSION}\2/" "$SCRIPT_DIR/ruswitcher.rb"
+    /usr/bin/sed -i '' -E "s/^([[:space:]]*sha256 \").*(\")/\1${DMG_SHA}\2/" "$SCRIPT_DIR/nabira.rb"
+    /usr/bin/sed -i '' -E "s/^([[:space:]]*version \").*(\")/\1${VERSION}\2/" "$SCRIPT_DIR/nabira.rb"
 
     # Проверяем, что подстановка реально произошла: sed при отсутствии совпадения выходит
     # с кодом 0 (set -e не ловит), поэтому дрейф формата каска прошёл бы молча со старой версией.
-    if ! grep -q "sha256 \"${DMG_SHA}\"" "$SCRIPT_DIR/ruswitcher.rb" || ! grep -q "version \"${VERSION}\"" "$SCRIPT_DIR/ruswitcher.rb"; then
-        echo "ERROR: cask update via sed did not take (format drift in ruswitcher.rb?). Aborting." >&2
+    if ! grep -q "sha256 \"${DMG_SHA}\"" "$SCRIPT_DIR/nabira.rb" || ! grep -q "version \"${VERSION}\"" "$SCRIPT_DIR/nabira.rb"; then
+        echo "ERROR: cask update via sed did not take (format drift in nabira.rb?). Aborting." >&2
         exit 1
     fi
 fi
@@ -265,4 +274,8 @@ echo ""
 echo "=== Done! ==="
 echo "DMG: $(pwd)/$DMG_NAME ($(du -h "$DMG_NAME" | cut -f1))"
 echo "SHA256: $DMG_SHA"
-echo "→ version.json and ruswitcher.rb updated with this hash."
+if [ "$BETA" = "1" ]; then
+    echo "→ $VERSION_FILE updated with this hash."
+else
+    echo "→ version.json and nabira.rb updated with this hash."
+fi

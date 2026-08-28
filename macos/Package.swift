@@ -2,18 +2,27 @@
 import PackageDescription
 
 let package = Package(
-    name: "RuSwitcher",
+    name: "Nabira",
     platforms: [.macOS(.v13)],
     targets: [
         .executableTarget(
-            name: "RuSwitcher",
-            path: "Sources/RuSwitcher",
+            name: "Nabira",
+            path: "Sources/Nabira",
+            resources: [
+                .process("Resources"),
+            ],
             linkerSettings: [
                 .linkedFramework("AppKit"),
                 .linkedFramework("Carbon"),
                 .linkedFramework("CoreGraphics"),
+                .linkedFramework("Security"),
                 .linkedFramework("ServiceManagement"),
             ]
-        )
+        ),
+        .testTarget(
+            name: "NabiraTests",
+            dependencies: ["Nabira"],
+            path: "Tests/NabiraTests"
+        ),
     ]
 )

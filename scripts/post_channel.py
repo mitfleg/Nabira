@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""Разовый пост произвольного текста в Telegram-канал @RuSwitcher.
+"""Разовый пост произвольного текста в Telegram-канал владельца.
 
-Читает файл MESSAGE_FILE и постит его содержимое через бота @EcoDrotBot
-(секрет TELEGRAM_BOT_TOKEN). Канал публичный, адресуется по @username
-(TELEGRAM_CHANNEL). Запускается вручную из workflow post-channel.yml.
+Читает файл MESSAGE_FILE и постит его содержимое через настроенного бота
+(секрет TELEGRAM_BOT_TOKEN). Канал задаётся секретом TELEGRAM_CHANNEL.
 Токен живёт только в секретах GitHub — локально/в переписке не светится.
 """
 import os
@@ -11,13 +10,13 @@ import urllib.parse
 import urllib.request
 
 TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
-CHANNEL = os.environ.get("TELEGRAM_CHANNEL", "@RuSwitcher")
+CHANNEL = os.environ.get("TELEGRAM_CHANNEL", "")
 MSG_FILE = os.environ.get("MESSAGE_FILE", "telegram/welcome.md")
 
 
 def main() -> int:
-    if not TOKEN:
-        print("TELEGRAM_BOT_TOKEN not set — aborting")
+    if not TOKEN or not CHANNEL:
+        print("TELEGRAM_BOT_TOKEN or TELEGRAM_CHANNEL not set — aborting")
         return 1
     try:
         text = open(MSG_FILE, encoding="utf-8").read().strip()

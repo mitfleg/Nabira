@@ -1,9 +1,14 @@
-# RuSwitcher for Windows
+# Nabira for Windows
 
 **Status: beta.** A tray application built on the same philosophy as the macOS original —
 zero external dependencies, no telemetry, local dictionaries, keycode-based conversion.
 
-## Features (parity with the macOS version)
+## Current beta features
+
+The keyboard-conversion engine is usable for testing. Account sign-in, the seven-day trial,
+subscription enforcement, and some newer macOS writing-assistance features are not yet ported.
+Future Windows session tokens must be stored with Windows Credential Manager or DPAPI; the plain
+`settings.json` file remains reserved for non-secret preferences and user dictionaries.
 
 - **Manual trigger** — double-tap Ctrl (default), double-tap Shift, or the Pause/Break key.
   Converts the last typed word, the current selection, or the whole line into the other layout,
@@ -39,9 +44,9 @@ zero external dependencies, no telemetry, local dictionaries, keycode-based conv
 Requires the .NET 8 SDK. On Windows:
 
 ```
-dotnet build   windows/src/RuSwitcher.Win/RuSwitcher.Win.csproj -c Release
-dotnet test    windows/tests/RuSwitcher.Win.Tests/RuSwitcher.Win.Tests.csproj -c Release
-dotnet publish windows/src/RuSwitcher.Win/RuSwitcher.Win.csproj -c Release -r win-x64 `
+dotnet build   windows/src/Nabira.Win/Nabira.Win.csproj -c Release
+dotnet test    windows/tests/Nabira.Win.Tests/Nabira.Win.Tests.csproj -c Release
+dotnet publish windows/src/Nabira.Win/Nabira.Win.csproj -c Release -r win-x64 `
   --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
 ```
 
@@ -58,7 +63,7 @@ P/Invoke code cannot *run* off Windows.
 - **Update feed:** `windows/version.json` (separate from the repository-root `version.json`, which is
   the **macOS** feed and must stay where it is). The app checks it once a day and offers to open the
   download page.
-- **Installer:** [`installer/RuSwitcher.iss`](installer/RuSwitcher.iss) (Inno Setup, per-user).
+- **Installer:** [`installer/Nabira.iss`](installer/Nabira.iss) (Inno Setup, per-user).
 - **winget:** manifest templates in [`winget/`](winget/) — see its README for the submission steps.
 
 The Windows version is versioned **separately** from macOS (`win-vX.Y.Z`).
