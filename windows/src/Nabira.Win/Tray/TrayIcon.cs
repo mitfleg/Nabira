@@ -20,23 +20,35 @@ internal sealed class TrayIcon : IDisposable
     private const uint ID_SETTINGS = 14;
     private const uint ID_AUTO = 15;
     private const uint ID_UPDATE = 16;
+    private const uint ID_ACCOUNT = 17;
 
     private readonly WndProc _wndProc;
     private IntPtr _hwnd;
     private NOTIFYICONDATA _nid;
     private bool _enabled = true;
+    private bool _accessAllowed;
+    private string _accountStatus = L10n.T("account.checking");
+    private System.Drawing.Icon? _appIcon;
 
     public event Action<bool>? EnabledChanged;
     public event Action<TriggerKind>? TriggerChanged;
     public event Action? SettingsRequested;
     public event Action? UpdateRequested;
+    public event Action? AccountRequested;
     public event Action? QuitRequested;
     /// <summary>Fired on the message-loop thread when a trigger was posted from the hook.</summary>
     public event Action? TriggerActivated;
     /// <summary>Fired on the message-loop thread when an as-you-type auto-convert was posted from the hook.</summary>
     public event Action? AutoConvertActivated;
+    public event Action? ChangeCaseActivated;
 
     public TrayIcon() => _wndProc = WindowProc;
+
+    public void SetAccessStatus(string status, bool accessAllowed)
+    {
+        _accountStatus = status;
+        _accessAllowed = accessAllowed;
+    }
 
     /// <summary>Called from the LL hook callback: posts a message so the actual (possibly slow,
     /// clipboard-touching) conversion runs on the message loop, NOT inside the hook callback —
@@ -53,6 +65,11 @@ internal sealed class TrayIcon : IDisposable
         if (_hwnd != IntPtr.Zero) PostMessageW(_hwnd, WM_AUTOCONVERT, IntPtr.Zero, IntPtr.Zero);
     }
 
+    public void PostChangeCase()
+    {
+        if (_hwnd != IntPtr.Zero) PostMessageW(_hwnd, WM_CHANGECASE, IntPtr.Zero, IntPtr.Zero);
+    }
+
     public void Show(string tooltip)
     {
         IntPtr hInstance = GetModuleHandleW(null);
@@ -67,6 +84,8 @@ internal sealed class TrayIcon : IDisposable
         _hwnd = CreateWindowExW(0, "NabiraTrayWindow", "Nabira",
             0, 0, 0, 0, 0, IntPtr.Zero, IntPtr.Zero, hInstance, IntPtr.Zero);
 
+        try { _appIcon = System.Drawing.Icon.ExtractAssociatedIcon(System.Windows.Forms.Application.ExecutablePath); }
+        catch { _appIcon = null; }
         _nid = new NOTIFYICONDATA
         {
             cbSize = (uint)System.Runtime.InteropServices.Marshal.SizeOf<NOTIFYICONDATA>(),
@@ -74,7 +93,7 @@ internal sealed class TrayIcon : IDisposable
             uID = 1,
             uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP,
             uCallbackMessage = WM_TRAYICON,
-            hIcon = LoadIconW(IntPtr.Zero, IDI_APPLICATION),
+            hIcon = _appIcon?.Handle ?? LoadIconW(IntPtr.Zero, IDI_APPLICATION),
             szTip = tooltip,
         };
         Shell_NotifyIconW(NIM_ADD, ref _nid);
@@ -119,14 +138,19 @@ internal sealed class TrayIcon : IDisposable
                 AutoConvertActivated?.Invoke();
                 return IntPtr.Zero;
 
+            case WM_CHANGECASE:
+                ChangeCaseActivated?.Invoke();
+                return IntPtr.Zero;
+
             case WM_COMMAND:
                 uint cmd = (uint)(wParam.ToInt64() & 0xFFFF);
                 switch (cmd)
                 {
-                    case ID_ENABLE: _enabled = !_enabled; EnabledChanged?.Invoke(_enabled); break;
+                    case ID_ENABLE when _accessAllowed: _enabled = !_enabled; EnabledChanged?.Invoke(_enabled); break;
                     case ID_QUIT: QuitRequested?.Invoke(); PostQuitMessage(0); break;
                     case ID_SETTINGS: SettingsRequested?.Invoke(); break;
                     case ID_UPDATE: UpdateRequested?.Invoke(); break;
+                    case ID_ACCOUNT: AccountRequested?.Invoke(); break;
                     case ID_TRIG_CTRL: SetTrigger(TriggerKind.CtrlDoubleTap); break;
                     case ID_TRIG_SHIFT: SetTrigger(TriggerKind.ShiftDoubleTap); break;
                     case ID_TRIG_PAUSE: SetTrigger(TriggerKind.PauseBreak); break;
@@ -163,9 +187,13 @@ internal sealed class TrayIcon : IDisposable
 
         // Layout indicator (disabled header, issue #7): shows the current keyboard layout.
         AppendMenuW(menu, MF_STRING | MF_DISABLED | MF_GRAYED, 0, $"⌨  {LayoutName(LayoutSwitcher.Current())}");
+        AppendMenuW(menu, MF_STRING | MF_DISABLED | MF_GRAYED, 0, $"●  {_accountStatus}");
+        AppendMenuW(menu, MF_STRING, ID_ACCOUNT, L10n.T("account.menu"));
         AppendMenuW(menu, MF_SEPARATOR, 0, null);
 
-        AppendMenuW(menu, MF_STRING | (_enabled ? MF_CHECKED : MF_UNCHECKED), ID_ENABLE, L10n.T("tray.enable"));
+        uint enabledFlags = MF_STRING | (_enabled ? MF_CHECKED : MF_UNCHECKED);
+        if (!_accessAllowed) enabledFlags |= MF_DISABLED | MF_GRAYED;
+        AppendMenuW(menu, enabledFlags, ID_ENABLE, L10n.T("tray.enable"));
 
         IntPtr sub = CreatePopupMenu();
         AppendMenuW(sub, MF_STRING | Chk(s.Trigger == TriggerKind.CtrlDoubleTap), ID_TRIG_CTRL, TriggerName(TriggerKind.CtrlDoubleTap));
@@ -197,5 +225,7 @@ internal sealed class TrayIcon : IDisposable
             DestroyWindow(_hwnd);
             _hwnd = IntPtr.Zero;
         }
+        _appIcon?.Dispose();
+        _appIcon = null;
     }
 }

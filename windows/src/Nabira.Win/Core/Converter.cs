@@ -18,12 +18,19 @@ internal static class Converter
     private static IntPtr _aHkl;
     private static IntPtr _bHkl;
     private static bool _lastWasAuto;   // last conversion came from as-you-type auto (learn-from-undo)
+    private static string? _caseWord;
+    private static string _caseOnScreen = "";
+    private static int _caseIndex;
 
     /// <summary>True if the last conversion can be reversed (nothing typed since).</summary>
     public static bool CanReconvert => _aText.Length > 0;
 
     /// <summary>Any real typing invalidates a pending reconvert (the word on screen changed).</summary>
-    public static void ClearReconvert() { _aText = ""; _bText = ""; _lastWasAuto = false; }
+    public static void ClearReconvert()
+    {
+        _aText = ""; _bText = ""; _lastWasAuto = false;
+        _caseWord = null; _caseOnScreen = ""; _caseIndex = 0;
+    }
 
     /// <summary>Record an auto-conversion so the trigger can reverse it — and so reversing it teaches
     /// an exception (learn-from-undo). <paramref name="onScreen"/> is what's now shown; the
@@ -88,7 +95,7 @@ internal static class Converter
 
         // Learn-from-undo: reversing an auto-conversion means the user rejected it — remember never to
         // auto-convert that typed word again (mirrors the macOS learn-from-undo).
-        if (_lastWasAuto)
+        if (_lastWasAuto && Settings.Current.AdaptiveLearning)
         {
             string word = LetterCoreLower(_bText);   // _bText is the original typed word being restored
             var never = Settings.Current.NeverConvert;
@@ -107,6 +114,85 @@ internal static class Converter
         (_aHkl, _bHkl) = (_bHkl, _aHkl);
         return true;
     }
+
+    public static bool CycleLastWord(KeystrokeBuffer buffer)
+    {
+        if (buffer.IsEmpty) return false;
+        string original = KeyMapper.ConvertWord(buffer.CurrentWord, LayoutSwitcher.Current());
+        return CycleCaseBuffer(original, buffer.CurrentWord.Count);
+    }
+
+    public static bool CycleCaseSelection()
+    {
+        _caseWord = null;
+        string? saved = SafeGetText();
+        SafeClear();
+        TextInjector.SendCtrl(VK_C);
+        Thread.Sleep(60);
+        string selected = SafeGetText() ?? "";
+        if (selected.Length == 0 || !selected.Any(char.IsLetter)) { RestoreClipboard(saved); return false; }
+        string changed = NextCase(selected);
+        if (changed == selected) { RestoreClipboard(saved); return false; }
+        SafeSetText(changed);
+        TextInjector.SendCtrl(VK_V);
+        Thread.Sleep(60);
+        RestoreClipboard(saved);
+        return true;
+    }
+
+    public static bool CycleCaseLine()
+    {
+        TextInjector.SendShift(VK_HOME);
+        Thread.Sleep(40);
+        bool ok = CycleCaseSelection();
+        if (!ok) TextInjector.SendKey(VK_END);
+        return ok;
+    }
+
+    private static bool CycleCaseBuffer(string original, int originalKeyCount)
+    {
+        if (string.IsNullOrEmpty(original) || !original.Any(char.IsLetter)) return false;
+        if (!string.Equals(_caseWord, original, StringComparison.Ordinal))
+        {
+            _caseWord = original;
+            _caseOnScreen = original;
+            _caseIndex = CaseVariant(original, 0) == original ? 1 : 0;
+        }
+        else _caseIndex = (_caseIndex + 1) % 3;
+
+        string changed = CaseVariant(original, _caseIndex);
+        int attempts = 0;
+        while (changed == _caseOnScreen && attempts++ < 3)
+        {
+            _caseIndex = (_caseIndex + 1) % 3;
+            changed = CaseVariant(original, _caseIndex);
+        }
+        if (changed == _caseOnScreen) return false;
+        int backspaces = _caseOnScreen == original ? originalKeyCount : _caseOnScreen.Length;
+        TextInjector.Replace(backspaces, changed);
+        _caseOnScreen = changed;
+        return true;
+    }
+
+    internal static string NextCase(string value)
+    {
+        var letters = value.Where(char.IsLetter).ToArray();
+        if (letters.Length == 0) return value;
+        if (letters.All(char.IsLower)) return value.ToUpperInvariant();
+        if (letters.All(char.IsUpper))
+        {
+            string title = System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(value.ToLower());
+            return title == value ? value.ToLowerInvariant() : title;
+        }
+        return value.ToLowerInvariant();
+    }
+
+    private static string CaseVariant(string value, int index) => (index % 3) switch
+    {
+        0 => value.ToUpperInvariant(),
+        1 => value.ToLowerInvariant(),
+        _ => System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(value.ToLower()),
+    };
 
     /// <summary>Convert the current selection via a clipboard round-trip (the counterpart of the
     /// macOS <c>convertViaClipboard</c>): Ctrl+C → convert the text char-by-char in the opposite

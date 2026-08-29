@@ -12,6 +12,7 @@ internal sealed class SettingsForm : Form
     public event Action<TriggerKind>? TriggerChanged;
     /// <summary>Raised when the layout-switch hotkey changes (so the running detector updates).</summary>
     public event Action? SwitchChanged;
+    public event Action? CaseChanged;
 
     public SettingsForm()
     {
@@ -22,7 +23,7 @@ internal sealed class SettingsForm : Form
         MaximizeBox = false;
         MinimizeBox = false;
         StartPosition = FormStartPosition.CenterScreen;
-        ClientSize = new Size(400, 360);
+        ClientSize = new Size(440, 500);
 
         int y = 16;
 
@@ -49,6 +50,16 @@ internal sealed class SettingsForm : Form
             v => { s.SmartConversion = v; s.Save(); });
         var chkAuto = MakeCheck(L10n.T("settings.auto"), ref y, s.AutoConvert,
             v => { s.AutoConvert = v; s.Save(); });
+        var chkTypo = MakeCheck(L10n.T("settings.typo"), ref y, s.TypoCorrection,
+            v => { s.TypoCorrection = v; s.Save(); });
+        var chkDoubleCaps = MakeCheck(L10n.T("settings.doublecaps"), ref y, s.FixDoubleCapitals,
+            v => { s.FixDoubleCapitals = v; s.Save(); });
+        var chkPunctuation = MakeCheck(L10n.T("settings.punctuation"), ref y, s.FixPunctuation,
+            v => { s.FixPunctuation = v; s.Save(); });
+        var chkYoficator = MakeCheck(L10n.T("settings.yoficator"), ref y, s.Yoficator,
+            v => { s.Yoficator = v; s.Save(); if (v) _ = Task.Run(Yoficator.WarmUp); });
+        var chkLearning = MakeCheck(L10n.T("settings.learning"), ref y, s.AdaptiveLearning,
+            v => { s.AdaptiveLearning = v; s.Save(); });
         var chkSound = MakeCheck(L10n.T("settings.sound"), ref y, s.SoundOnSwitch,
             v => { s.SoundOnSwitch = v; s.Save(); });
         var chkStart = MakeCheck(L10n.T("settings.startup"), ref y, AutoStart.IsEnabled(),
@@ -60,7 +71,7 @@ internal sealed class SettingsForm : Form
 
         y += 6;
         var lblSwitch = new Label { Text = L10n.T("settings.switchhotkey"), Left = 16, Top = y + 4, AutoSize = true };
-        var cmbSwitch = new ComboBox { Left = 180, Top = y, Width = 204, DropDownStyle = ComboBoxStyle.DropDownList };
+        var cmbSwitch = new ComboBox { Left = 190, Top = y, Width = 234, DropDownStyle = ComboBoxStyle.DropDownList };
         cmbSwitch.Items.AddRange(new object[]
         {
             L10n.T("settings.off"),
@@ -79,29 +90,61 @@ internal sealed class SettingsForm : Form
         };
         y += 40;
 
+        var lblCase = new Label { Text = L10n.T("settings.casehotkey"), Left = 16, Top = y + 4, AutoSize = true };
+        var cmbCase = new ComboBox { Left = 190, Top = y, Width = 234, DropDownStyle = ComboBoxStyle.DropDownList };
+        cmbCase.Items.AddRange(new object[]
+        {
+            L10n.T("settings.off"),
+            Tray.TrayIcon.TriggerName(TriggerKind.CtrlDoubleTap),
+            Tray.TrayIcon.TriggerName(TriggerKind.ShiftDoubleTap),
+            Tray.TrayIcon.TriggerName(TriggerKind.PauseBreak),
+        });
+        cmbCase.SelectedIndex = s.CaseTriggerEnabled ? (int)s.CaseTrigger + 1 : 0;
+        cmbCase.SelectedIndexChanged += (_, _) =>
+        {
+            int i = cmbCase.SelectedIndex;
+            if (i > 0)
+            {
+                var chosen = (TriggerKind)(i - 1);
+                if (chosen == s.Trigger || (s.SwitchTriggerEnabled && chosen == s.SwitchTrigger))
+                {
+                    MessageBox.Show(L10n.T("settings.hotkey.conflict"), Text,
+                        MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    cmbCase.SelectedIndex = 0;
+                    return;
+                }
+                s.CaseTrigger = chosen;
+            }
+            s.CaseTriggerEnabled = i > 0;
+            s.Save();
+            CaseChanged?.Invoke();
+        };
+        y += 40;
+
         var btnExceptions = new Button { Text = L10n.T("settings.exceptions"), Left = 16, Top = y, Width = 130 };
         btnExceptions.Click += (_, _) => { using var ex = new ExceptionsForm(); ex.ShowDialog(this); };
 
-        var link = new LinkLabel { Text = "github.com/mitfleg/Nabira", Left = 156, Top = y + 4, AutoSize = true };
-        link.LinkClicked += (_, _) => OpenUrl("https://github.com/mitfleg/Nabira");
+        var link = new LinkLabel { Text = "nabira.linkurakt.chatgpt.site", Left = 156, Top = y + 4, AutoSize = true };
+        link.LinkClicked += (_, _) => OpenUrl("https://nabira.linkurakt.chatgpt.site");
         var telegramLink = new LinkLabel { Text = "Telegram: @mitfleg", Left = 156, Top = y + 28, AutoSize = true };
         telegramLink.LinkClicked += (_, _) => OpenUrl("https://t.me/mitfleg");
         y += 64;
 
-        var btnClose = new Button { Text = L10n.T("settings.close"), Left = 294, Top = y, Width = 90, DialogResult = DialogResult.OK };
+        var btnClose = new Button { Text = L10n.T("settings.close"), Left = 334, Top = y, Width = 90, DialogResult = DialogResult.OK };
         AcceptButton = btnClose;
-        ClientSize = new Size(400, y + 40);
+        ClientSize = new Size(440, y + 40);
 
         Controls.AddRange(new Control[]
         {
-            lblTrigger, cmbTrigger, chkWhole, chkSmart, chkAuto, chkSound, chkStart, chkPerApp,
-            chkUpdates, lblSwitch, cmbSwitch, btnExceptions, link, telegramLink, btnClose,
+            lblTrigger, cmbTrigger, chkWhole, chkSmart, chkAuto, chkTypo, chkDoubleCaps,
+            chkPunctuation, chkYoficator, chkLearning, chkSound, chkStart, chkPerApp,
+            chkUpdates, lblSwitch, cmbSwitch, lblCase, cmbCase, btnExceptions, link, telegramLink, btnClose,
         });
     }
 
     private CheckBox MakeCheck(string text, ref int top, bool value, Action<bool> onChange)
     {
-        var cb = new CheckBox { Text = text, Left = 16, Top = top, Width = 368, Checked = value };
+        var cb = new CheckBox { Text = text, Left = 16, Top = top, Width = 408, Checked = value };
         cb.CheckedChanged += (_, _) => onChange(cb.Checked);
         top += 26;
         return cb;

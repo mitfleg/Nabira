@@ -32,11 +32,30 @@ public sealed class Settings
     public bool SwitchTriggerEnabled { get; set; } = false;
     public TriggerKind SwitchTrigger { get; set; } = TriggerKind.ShiftDoubleTap;
 
+    /// <summary>Separate change-case hotkey. Off by default.</summary>
+    public bool CaseTriggerEnabled { get; set; } = false;
+    public TriggerKind CaseTrigger { get; set; } = TriggerKind.PauseBreak;
+
     /// <summary>As-you-type auto conversion (beta) — flips a word into the opposite layout right after
     /// a space when the dictionary says it was typed in the wrong layout. Default OFF and conservative
     /// (precision over recall), mirroring the macOS auto-switch. Undoing an auto-conversion with the
     /// trigger teaches an exception (learn-from-undo).</summary>
     public bool AutoConvert { get; set; } = false;
+
+    /// <summary>Conservative offline typo correction for Russian and English.</summary>
+    public bool TypoCorrection { get; set; } = true;
+
+    /// <summary>Fix exactly two accidental capitals at the start of a word.</summary>
+    public bool FixDoubleCapitals { get; set; } = true;
+
+    /// <summary>Fix common punctuation typed as Russian letters at the end of a word.</summary>
+    public bool FixPunctuation { get; set; } = true;
+
+    /// <summary>Offline OpenCorpora-derived unambiguous е→ё correction.</summary>
+    public bool Yoficator { get; set; } = false;
+
+    /// <summary>Keep explicit learn-from-undo behaviour enabled.</summary>
+    public bool AdaptiveLearning { get; set; } = true;
 
     /// <summary>Words never auto-converted (typed form, lowercase). Grown by learn-from-undo.</summary>
     public List<string> NeverConvert { get; set; } = new();
@@ -44,6 +63,17 @@ public sealed class Settings
     /// <summary>Words always auto-converted — matched on the CONVERTED (target) form, lowercase, so a
     /// correctly typed word doesn't ping-pong. Mirrors the macOS always-convert list.</summary>
     public List<string> AlwaysConvert { get; set; } = new();
+
+    /// <summary>Processes where all automatic writing corrections are disabled.</summary>
+    public List<string> ExcludedApps { get; set; } = new()
+    {
+        "windowsterminal", "cmd", "powershell", "pwsh", "devenv", "code",
+        "idea64", "pycharm64", "webstorm64", "rider64", "androidstudio64",
+        "1password", "bitwarden", "keepassxc"
+    };
+
+    /// <summary>Server-side trial anchor returned by Nabira API.</summary>
+    public long TrialStartedAtUnixSeconds { get; set; } = 0;
 
     /// <summary>issue: per-app layout memory. Maps a process name (e.g. "devenv") to the last layout's
     /// full HKL (low 32 bits, so specific variants like UK vs US English are preserved); restored when

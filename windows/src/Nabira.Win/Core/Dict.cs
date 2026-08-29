@@ -56,6 +56,31 @@ internal static class Dict
         }
         catch { return false; }
     }
+
+    /// <summary>Conservative system suggestions used by the typo corrector. COM failures simply
+    /// return an empty list, keeping automatic correction precision-first.</summary>
+    public static IReadOnlyList<string> Suggestions(string word, string languageTag, int limit = 8)
+    {
+        var checker = CheckerFor(languageTag);
+        if (checker == null || string.IsNullOrWhiteSpace(word)) return Array.Empty<string>();
+        var result = new List<string>();
+        IEnumString? values = null;
+        try
+        {
+            values = checker.Suggest(word);
+            var buffer = new string[1];
+            while (result.Count < limit && values.Next(1, buffer, IntPtr.Zero) == 0)
+            {
+                if (!string.IsNullOrWhiteSpace(buffer[0])) result.Add(buffer[0]);
+            }
+        }
+        catch { }
+        finally
+        {
+            if (values != null && Marshal.IsComObject(values)) Marshal.ReleaseComObject(values);
+        }
+        return result;
+    }
 }
 
 // --- Minimal COM interop for the Spell Checking API (spellcheck.h) ---
@@ -78,7 +103,18 @@ internal interface ISpellChecker
 {
     [return: MarshalAs(UnmanagedType.LPWStr)] string get_LanguageTag();   // slot 0
     [return: MarshalAs(UnmanagedType.Interface)] IEnumSpellingError Check([MarshalAs(UnmanagedType.LPWStr)] string text);  // slot 1
-    // remaining methods (Suggest, Add, …) not declared — not needed.
+    [return: MarshalAs(UnmanagedType.Interface)] IEnumString Suggest([MarshalAs(UnmanagedType.LPWStr)] string word); // slot 2
+}
+
+[ComImport, Guid("00000101-0000-0000-C000-000000000046"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+internal interface IEnumString
+{
+    [PreserveSig] int Next(uint celt,
+        [Out, MarshalAs(UnmanagedType.LPArray, ArraySubType = UnmanagedType.LPWStr, SizeParamIndex = 0)] string[] rgelt,
+        IntPtr pceltFetched);
+    [PreserveSig] int Skip(uint celt);
+    void Reset();
+    void Clone(out IEnumString ppenum);
 }
 
 [ComImport, Guid("803E3BD4-2828-4410-8290-418D1D73C762"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]

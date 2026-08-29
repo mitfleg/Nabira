@@ -103,6 +103,7 @@ internal static class Win32
     public const uint VK_LSHIFT = 0xA0;
     public const uint VK_RSHIFT = 0xA1;
     public const ushort VK_CONTROL = 0x11;
+    public const int VK_MENU = 0x12;
     public const ushort VK_C = 0x43;
     public const ushort VK_V = 0x56;
     public const ushort VK_HOME = 0x24;
@@ -215,6 +216,7 @@ internal static class Win32
     public const uint WM_APP = 0x8000;
     public const uint WM_TRAYICON = WM_APP + 1;
     public const uint WM_AUTOCONVERT = WM_APP + 2;   // auto-convert deferred off the LL-hook callback
+    public const uint WM_CHANGECASE = WM_APP + 3;
     public const uint WM_LBUTTONUP = 0x0202;
     public const uint WM_RBUTTONUP = 0x0205;
     public const uint WM_COMMAND = 0x0111;
@@ -307,6 +309,9 @@ internal static class Win32
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool SetForegroundWindow(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    public static extern uint GetClipboardSequenceNumber();
 
     [StructLayout(LayoutKind.Sequential)]
     public struct POINT { public int X; public int Y; }

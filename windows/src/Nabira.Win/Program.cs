@@ -15,6 +15,7 @@ internal static class Program
     [STAThread]  // required for WinForms clipboard / dialogs
     private static void Main()
     {
+        System.Windows.Forms.ApplicationConfiguration.Initialize();
         string logDir = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Nabira");
         Directory.CreateDirectory(logDir);
@@ -29,8 +30,15 @@ internal static class Program
 
         var settings = Settings.Current;
         var buffer = new KeystrokeBuffer();
-        bool enabled = true;
-        List<TypedKey>? pendingAuto = null;   // word snapshot handed to the message loop for auto-convert
+        bool userEnabled = true;
+        CompletedWord? pendingAutomatic = null; // snapshot handed to the message loop for correction
+
+        // Force a WindowsFormsSynchronizationContext before starting network/account work.
+        using var uiAnchor = new System.Windows.Forms.Control();
+        _ = uiAnchor.Handle;
+        var ui = SynchronizationContext.Current ?? new SynchronizationContext();
+        using var access = new AccountAccessManager(ui);
+        bool EffectiveEnabled() => userEnabled && access.HasAccess;
 
         // Auto-conversion checks the dictionary on the message loop; warm the COM spell-checker for the
         // actually-installed layout languages now, so the first auto-convert of the session isn't slow.
@@ -49,19 +57,25 @@ internal static class Program
 
         // Hook thread: only post a message — the real (possibly slow, clipboard-touching)
         // conversion runs on the message loop so the LL hook callback stays fast.
-        detector.Triggered += () => { if (enabled) tray.PostTrigger(); };
+        detector.Triggered += () => { if (EffectiveEnabled()) tray.PostTrigger(); };
 
         // issue #14: a separate hotkey that only switches the layout (fast → safe in-callback).
         var switchDetector = new TriggerDetector(settings.SwitchTrigger);
         switchDetector.Triggered += () =>
         {
-            if (enabled && settings.SwitchTriggerEnabled && LayoutSwitcher.Opposite() is { } opp)
+            if (EffectiveEnabled() && settings.SwitchTriggerEnabled && LayoutSwitcher.Opposite() is { } opp)
                 LayoutSwitcher.SwitchTo(opp);
+        };
+
+        var caseDetector = new TriggerDetector(settings.CaseTrigger);
+        caseDetector.Triggered += () =>
+        {
+            if (EffectiveEnabled() && settings.CaseTriggerEnabled) tray.PostChangeCase();
         };
 
         tray.TriggerActivated += () =>
         {
-            if (!enabled) return;
+            if (!EffectiveEnabled()) return;
             // Trigger again with nothing typed since = reverse the last conversion (toggle);
             // else whole-line mode → convert the line; else convert the typed word; else the selection.
             bool acted;
@@ -73,36 +87,75 @@ internal static class Program
         };
         tray.AutoConvertActivated += () =>
         {
-            // Deferred off the hook callback: the real Space has already landed, so TryConvertWord
-            // deletes the word + that space and re-types the converted word + space (or keeps it).
-            if (pendingAuto is { } w) { AutoConverter.TryConvertWord(w); pendingAuto = null; }
+            // Deferred off the hook callback: the real boundary has already landed. One pipeline
+            // handles layout, register, punctuation, typo and ё corrections before restoring it.
+            if (pendingAutomatic is { } word)
+            {
+                WritingAssistant.TryProcess(word);
+                pendingAutomatic = null;
+            }
         };
-        tray.EnabledChanged += on => { enabled = on; Log($"enabled = {on}"); };
+        tray.ChangeCaseActivated += () =>
+        {
+            if (!EffectiveEnabled()) return;
+            bool acted = settings.ConvertWholeLine
+                ? Converter.CycleCaseLine()
+                : !buffer.IsEmpty ? Converter.CycleLastWord(buffer) : Converter.CycleCaseSelection();
+            Log($"change-case: acted={acted}");
+        };
+        tray.EnabledChanged += on => { userEnabled = on; Log($"enabled = {on}"); };
         tray.TriggerChanged += kind => { detector.Kind = kind; Log($"trigger set: {kind}"); };  // Settings written by the tray
         tray.SettingsRequested += () =>
         {
             using var form = new UI.SettingsForm();
             form.TriggerChanged += kind => detector.Kind = kind;
             form.SwitchChanged += () => switchDetector.Kind = settings.SwitchTrigger;
+            form.CaseChanged += () => caseDetector.Kind = settings.CaseTrigger;
             form.ShowDialog();   // modal; the message loop keeps pumping the hook + tray
         };
         tray.QuitRequested += () => Log("quit requested");
         tray.Show("Nabira");
 
-        // A hidden WinForms control forces a WindowsFormsSynchronizationContext onto this thread, so
-        // the background update check can marshal its message box back here (dispatched by our loop).
-        using var uiAnchor = new System.Windows.Forms.Control();
-        _ = uiAnchor.Handle;   // force handle creation → installs the sync context
-        var ui = SynchronizationContext.Current ?? new SynchronizationContext();
+        UI.AccountForm? accountForm = null;
+        void ShowAccount()
+        {
+            if (accountForm == null || accountForm.IsDisposed)
+                accountForm = new UI.AccountForm(access);
+            accountForm.Show();
+            accountForm.Activate();
+        }
+        tray.AccountRequested += ShowAccount;
+        access.Changed += snapshot =>
+        {
+            tray.SetAccessStatus(access.MenuTitle, snapshot.HasAccess);
+            Log($"access: allowed={snapshot.HasAccess} trial_days={snapshot.TrialDaysRemaining} authenticated={snapshot.Authenticated}");
+            if (!snapshot.HasAccess && snapshot.Error == null) ShowAccount();
+        };
+        tray.SetAccessStatus(L10n.T("account.checking"), false);
+        _ = access.RefreshAsync();
+
         tray.UpdateRequested += () => Updater.CheckNow(ui);
 
         using var hook = new KeyboardHook();
         hook.KeyDown += (vk, sc) =>
         {
-            if (!enabled) return;
+            if (!EffectiveEnabled()) return;
+
+            // Ctrl+Shift+V: temporarily strip formatting from the clipboard while the original
+            // shortcut continues to the focused application.
+            if (vk == VK_V && (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0
+                && (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0
+                && (GetAsyncKeyState(VK_MENU) & 0x8000) == 0)
+            {
+                PlainTextPaste.Prepare(ui);
+                buffer.Reset();
+                Converter.ClearReconvert();
+                return;
+            }
 
             detector.OnKeyDown(vk);
             switchDetector.OnKeyDown(vk);
+            caseDetector.OnKeyDown(vk);
 
             if (KeystrokeBuffer.IsWordBoundary(vk))
             {
@@ -110,9 +163,10 @@ internal static class Program
                 // word and post to the message loop — the dictionary check + retype must NOT run inside
                 // this LL-hook callback (COM/SendInput there risks the LowLevelHooksTimeout → unhook).
                 // We do NOT swallow the space; the deferred handler deletes the word + delivered space.
-                if (vk == KeystrokeBuffer.VK_SPACE && settings.AutoConvert && !buffer.IsEmpty)
+                if ((vk is KeystrokeBuffer.VK_SPACE or KeystrokeBuffer.VK_RETURN or KeystrokeBuffer.VK_TAB)
+                    && WritingAssistant.Enabled && !buffer.IsEmpty)
                 {
-                    pendingAuto = new List<TypedKey>(buffer.CurrentWord);
+                    pendingAutomatic = new CompletedWord(new List<TypedKey>(buffer.CurrentWord), vk);
                     tray.PostAutoConvert();
                 }
                 buffer.Reset();
@@ -131,9 +185,10 @@ internal static class Program
         };
         hook.KeyUp += (vk, sc) =>
         {
-            if (!enabled) return;
+            if (!EffectiveEnabled()) return;
             detector.OnKeyUp(vk);
             switchDetector.OnKeyUp(vk);
+            caseDetector.OnKeyUp(vk);
         };
         hook.Install();
 

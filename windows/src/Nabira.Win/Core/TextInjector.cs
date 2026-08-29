@@ -30,6 +30,14 @@ internal static class TextInjector
         SendInput((uint)arr.Length, arr, Marshal.SizeOf<INPUT>());
     }
 
+    /// <summary>Replace a completed word after the real boundary key already reached the app,
+    /// then restore that boundary. This makes Space and Enter corrections behave identically.</summary>
+    public static void ReplaceCompletedWord(int wordKeyCount, string text, uint boundaryVk)
+    {
+        Replace(wordKeyCount + 1, text);
+        SendKey((ushort)boundaryVk);
+    }
+
     /// <summary>Send Ctrl+<paramref name="vk"/> (e.g. Ctrl+C / Ctrl+V).</summary>
     public static void SendCtrl(ushort vk) => SendChord(VK_CONTROL, vk);
 

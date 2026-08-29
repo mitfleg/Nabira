@@ -36,7 +36,7 @@ internal static class AutoConverter
 
         TextInjector.Replace(backspaces: keys.Count + 1, text: converted + " ");
         LayoutSwitcher.SwitchTo(targetHkl);
-        Converter.NoteAutoConversion(converted, typed, targetHkl, sourceHkl);
+        Converter.NoteAutoConversion(converted + " ", typed + " ", targetHkl, sourceHkl);
         return true;
     }
 
