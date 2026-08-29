@@ -14,9 +14,11 @@ internal sealed class KeyboardHook : IDisposable
     // freed memory and the process crashes. (Classic P/Invoke hook pitfall.)
     private readonly LowLevelKeyboardProc _proc;
     private IntPtr _hook;
+    private readonly HashSet<uint> _suppressedKeyUps = new();
 
-    /// <summary>(vkCode, scanCode) of a real key press.</summary>
-    public event Action<uint, uint>? KeyDown;
+    /// <summary>(vkCode, scanCode) of a real key press. Return true to keep the key away from
+    /// the focused application. Nabira uses this only for a captured word-boundary key.</summary>
+    public event Func<uint, uint, bool>? KeyDown;
 
     /// <summary>(vkCode, scanCode) of a real key release — needed for modifier double-tap.</summary>
     public event Action<uint, uint>? KeyUp;
@@ -40,13 +42,28 @@ internal sealed class KeyboardHook : IDisposable
                 var data = Marshal.PtrToStructure<KBDLLHOOKSTRUCT>(lParam);
                 // Ignore our own injected retype events (self-event marker).
                 if (data.dwExtraInfo != InjectedMarker)
-                    KeyDown?.Invoke(data.vkCode, data.scanCode);
+                {
+                    bool suppress = KeyDown?.Invoke(data.vkCode, data.scanCode) == true;
+                    if (suppress)
+                    {
+                        _suppressedKeyUps.Add(data.vkCode);
+                        return (IntPtr)1;
+                    }
+
+                    // If a held key starts repeating and a later key-down is not captured,
+                    // its final key-up must reach the focused application as well.
+                    _suppressedKeyUps.Remove(data.vkCode);
+                }
             }
             else if (msg == WM_KEYUP || msg == WM_SYSKEYUP)
             {
                 var data = Marshal.PtrToStructure<KBDLLHOOKSTRUCT>(lParam);
                 if (data.dwExtraInfo != InjectedMarker)
+                {
                     KeyUp?.Invoke(data.vkCode, data.scanCode);
+                    if (_suppressedKeyUps.Remove(data.vkCode))
+                        return (IntPtr)1;
+                }
             }
         }
         return CallNextHookEx(_hook, nCode, wParam, lParam);

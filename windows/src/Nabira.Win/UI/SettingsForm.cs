@@ -4,155 +4,255 @@ using Nabira.Win.Core;
 
 namespace Nabira.Win.UI;
 
-/// <summary>Settings window (WinForms) — the Windows counterpart of the macOS settings window.
-/// Edits Settings.Current live (saved on each change). Trigger changes are surfaced via
-/// <see cref="TriggerChanged"/>/<see cref="SwitchChanged"/> so the running detectors update at once.</summary>
+/// <summary>Modern Russian-first settings surface. Settings are persisted immediately,
+/// so closing the window never loses a change.</summary>
 internal sealed class SettingsForm : Form
 {
     public event Action<TriggerKind>? TriggerChanged;
-    /// <summary>Raised when the layout-switch hotkey changes (so the running detector updates).</summary>
     public event Action? SwitchChanged;
     public event Action? CaseChanged;
+
+    private readonly Panel _content;
 
     public SettingsForm()
     {
         var s = Settings.Current;
 
         Text = L10n.T("settings.title");
-        FormBorderStyle = FormBorderStyle.FixedDialog;
-        MaximizeBox = false;
-        MinimizeBox = false;
         StartPosition = FormStartPosition.CenterScreen;
-        ClientSize = new Size(440, 500);
+        ClientSize = new Size(980, 700);
+        MinimumSize = new Size(900, 640);
+        BackColor = NabiraTheme.Cloud;
+        Font = NabiraTheme.Font(9.5f);
+        AutoScaleMode = AutoScaleMode.Dpi;
+        DoubleBuffered = true;
+        try { Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath); } catch { }
 
-        int y = 16;
-
-        var lblTrigger = new Label { Text = L10n.T("settings.trigger"), Left = 16, Top = y + 4, AutoSize = true };
-        var cmbTrigger = new ComboBox { Left = 150, Top = y, Width = 234, DropDownStyle = ComboBoxStyle.DropDownList };
-        cmbTrigger.Items.AddRange(new object[]
+        var sidebar = BuildSidebar();
+        _content = new Panel
         {
-            Tray.TrayIcon.TriggerName(TriggerKind.CtrlDoubleTap),
-            Tray.TrayIcon.TriggerName(TriggerKind.ShiftDoubleTap),
-            Tray.TrayIcon.TriggerName(TriggerKind.PauseBreak),
-        });
-        cmbTrigger.SelectedIndex = (int)s.Trigger;
-        cmbTrigger.SelectedIndexChanged += (_, _) =>
-        {
-            var t = (TriggerKind)cmbTrigger.SelectedIndex;
-            s.Trigger = t; s.Save();
-            TriggerChanged?.Invoke(t);
+            Dock = DockStyle.Fill,
+            BackColor = NabiraTheme.Cloud,
+            AutoScroll = true,
+            Padding = new Padding(38, 28, 38, 28),
         };
-        y += 34;
+        Controls.Add(_content);
+        Controls.Add(sidebar);
+        sidebar.BringToFront();
 
-        var chkWhole = MakeCheck(L10n.T("settings.wholeline"), ref y, s.ConvertWholeLine,
-            v => { s.ConvertWholeLine = v; s.Save(); });
-        var chkSmart = MakeCheck(L10n.T("settings.smart"), ref y, s.SmartConversion,
-            v => { s.SmartConversion = v; s.Save(); });
-        var chkAuto = MakeCheck(L10n.T("settings.auto"), ref y, s.AutoConvert,
-            v => { s.AutoConvert = v; s.Save(); });
-        var chkTypo = MakeCheck(L10n.T("settings.typo"), ref y, s.TypoCorrection,
-            v => { s.TypoCorrection = v; s.Save(); });
-        var chkDoubleCaps = MakeCheck(L10n.T("settings.doublecaps"), ref y, s.FixDoubleCapitals,
-            v => { s.FixDoubleCapitals = v; s.Save(); });
-        var chkPunctuation = MakeCheck(L10n.T("settings.punctuation"), ref y, s.FixPunctuation,
-            v => { s.FixPunctuation = v; s.Save(); });
-        var chkYoficator = MakeCheck(L10n.T("settings.yoficator"), ref y, s.Yoficator,
-            v => { s.Yoficator = v; s.Save(); if (v) _ = Task.Run(Yoficator.WarmUp); });
-        var chkLearning = MakeCheck(L10n.T("settings.learning"), ref y, s.AdaptiveLearning,
-            v => { s.AdaptiveLearning = v; s.Save(); });
-        var chkSound = MakeCheck(L10n.T("settings.sound"), ref y, s.SoundOnSwitch,
-            v => { s.SoundOnSwitch = v; s.Save(); });
-        var chkStart = MakeCheck(L10n.T("settings.startup"), ref y, AutoStart.IsEnabled(),
-            v => AutoStart.SetEnabled(v));
-        var chkPerApp = MakeCheck(L10n.T("settings.perapp"), ref y, s.PerAppLayout,
-            v => { s.PerAppLayout = v; s.Save(); });
-        var chkUpdates = MakeCheck(L10n.T("settings.updates"), ref y, s.CheckUpdatesEnabled,
-            v => { s.CheckUpdatesEnabled = v; s.Save(); });
+        _content.Controls.Add(NabiraTheme.Label("Настройки", 38, 25, 560, 45, 24, FontStyle.Bold));
+        _content.Controls.Add(NabiraTheme.Label(
+            "Настройте Nabira под свой способ печати. Изменения сохраняются сразу.",
+            40, 73, 640, 26, 10, color: NabiraTheme.Muted));
 
-        y += 6;
-        var lblSwitch = new Label { Text = L10n.T("settings.switchhotkey"), Left = 16, Top = y + 4, AutoSize = true };
-        var cmbSwitch = new ComboBox { Left = 190, Top = y, Width = 234, DropDownStyle = ComboBoxStyle.DropDownList };
-        cmbSwitch.Items.AddRange(new object[]
+        var demo = new CardPanel
         {
-            L10n.T("settings.off"),
-            Tray.TrayIcon.TriggerName(TriggerKind.CtrlDoubleTap),
-            Tray.TrayIcon.TriggerName(TriggerKind.ShiftDoubleTap),
-            Tray.TrayIcon.TriggerName(TriggerKind.PauseBreak),
-        });
-        cmbSwitch.SelectedIndex = s.SwitchTriggerEnabled ? (int)s.SwitchTrigger + 1 : 0;
-        cmbSwitch.SelectedIndexChanged += (_, _) =>
+            Left = 38,
+            Top = 112,
+            Width = 660,
+            Height = 74,
+            Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
+            BackColor = NabiraTheme.AccentSoft,
+        };
+        demo.Controls.Add(NabiraTheme.Label("Nabira замечает раскладку сама", 20, 13, 330, 23,
+            10, FontStyle.Bold, NabiraTheme.Accent));
+        demo.Controls.Add(NabiraTheme.Label("ghbdtn", 365, 22, 86, 28, 12, FontStyle.Strikeout, NabiraTheme.Muted));
+        demo.Controls.Add(NabiraTheme.Label("→", 454, 21, 30, 28, 13, FontStyle.Bold, NabiraTheme.Accent));
+        demo.Controls.Add(NabiraTheme.Label("привет", 490, 20, 130, 30, 13, FontStyle.Bold, NabiraTheme.Ink));
+        _content.Controls.Add(demo);
+
+        int y = 208;
+        CardPanel correctionCard = Section("Автокоррекция", "Исправление текста сразу после пробела", y, 350);
+        AddToggle(correctionCard, 66, "Автоматически исправлять раскладку",
+            "Nabira заменит неверно набранное слово после пробела.", s.AutoConvert,
+            value => { s.AutoConvert = value; s.Save(); });
+        AddToggle(correctionCard, 124, "Исправлять опечатки",
+            "Только уверенные исправления на русском и английском.", s.TypoCorrection,
+            value => { s.TypoCorrection = value; s.Save(); });
+        AddToggle(correctionCard, 182, "Исправлять ДВе заглавные",
+            "Например, «ПРивет» превратится в «Привет».", s.FixDoubleCapitals,
+            value => { s.FixDoubleCapitals = value; s.Save(); });
+        AddToggle(correctionCard, 240, "Исправлять пунктуацию",
+            "Знаки препинания, введённые в неверной раскладке.", s.FixPunctuation,
+            value => { s.FixPunctuation = value; s.Save(); });
+        AddToggle(correctionCard, 298, "Автоматически ставить «ё»",
+            "Только в однозначных русских словах.", s.Yoficator,
+            value => { s.Yoficator = value; s.Save(); if (value) _ = Task.Run(Yoficator.WarmUp); });
+        _content.Controls.Add(correctionCard);
+
+        y += 370;
+        CardPanel conversionCard = Section("Конвертация", "Ручное исправление текста и обучение", y, 270);
+        var trigger = AddCombo(conversionCard, 72, "Исправлять текст по нажатию", TriggerItems(), (int)s.Trigger);
+        trigger.SelectedIndexChanged += (_, _) =>
         {
-            int i = cmbSwitch.SelectedIndex;
-            s.SwitchTriggerEnabled = i > 0;
-            if (i > 0) s.SwitchTrigger = (TriggerKind)(i - 1);
+            s.Trigger = (TriggerKind)trigger.SelectedIndex;
+            s.Save();
+            TriggerChanged?.Invoke(s.Trigger);
+        };
+        AddToggle(conversionCard, 126, "Конвертировать всю строку",
+            "Иначе исправляется последнее набранное слово.", s.ConvertWholeLine,
+            value => { s.ConvertWholeLine = value; s.Save(); });
+        AddToggle(conversionCard, 184, "Умная конвертация выделения",
+            "Уже правильные слова останутся без изменений.", s.SmartConversion,
+            value => { s.SmartConversion = value; s.Save(); });
+        AddToggle(conversionCard, 242, "Запоминать мои отмены",
+            "Явная отмена добавляет слово в персональное исключение.", s.AdaptiveLearning,
+            value => { s.AdaptiveLearning = value; s.Save(); });
+        _content.Controls.Add(conversionCard);
+
+        y += 290;
+        CardPanel hotkeysCard = Section("Горячие клавиши", "Отдельные действия Nabira", y, 190);
+        var switchCombo = AddCombo(hotkeysCard, 72, "Только переключить раскладку", OptionalTriggerItems(),
+            s.SwitchTriggerEnabled ? (int)s.SwitchTrigger + 1 : 0);
+        switchCombo.SelectedIndexChanged += (_, _) =>
+        {
+            int index = switchCombo.SelectedIndex;
+            s.SwitchTriggerEnabled = index > 0;
+            if (index > 0) s.SwitchTrigger = (TriggerKind)(index - 1);
             s.Save();
             SwitchChanged?.Invoke();
         };
-        y += 40;
-
-        var lblCase = new Label { Text = L10n.T("settings.casehotkey"), Left = 16, Top = y + 4, AutoSize = true };
-        var cmbCase = new ComboBox { Left = 190, Top = y, Width = 234, DropDownStyle = ComboBoxStyle.DropDownList };
-        cmbCase.Items.AddRange(new object[]
+        var caseCombo = AddCombo(hotkeysCard, 128, "Изменить регистр текста", OptionalTriggerItems(),
+            s.CaseTriggerEnabled ? (int)s.CaseTrigger + 1 : 0);
+        caseCombo.SelectedIndexChanged += (_, _) =>
         {
-            L10n.T("settings.off"),
-            Tray.TrayIcon.TriggerName(TriggerKind.CtrlDoubleTap),
-            Tray.TrayIcon.TriggerName(TriggerKind.ShiftDoubleTap),
-            Tray.TrayIcon.TriggerName(TriggerKind.PauseBreak),
-        });
-        cmbCase.SelectedIndex = s.CaseTriggerEnabled ? (int)s.CaseTrigger + 1 : 0;
-        cmbCase.SelectedIndexChanged += (_, _) =>
-        {
-            int i = cmbCase.SelectedIndex;
-            if (i > 0)
+            int index = caseCombo.SelectedIndex;
+            if (index > 0)
             {
-                var chosen = (TriggerKind)(i - 1);
+                var chosen = (TriggerKind)(index - 1);
                 if (chosen == s.Trigger || (s.SwitchTriggerEnabled && chosen == s.SwitchTrigger))
                 {
                     MessageBox.Show(L10n.T("settings.hotkey.conflict"), Text,
                         MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    cmbCase.SelectedIndex = 0;
+                    caseCombo.SelectedIndex = 0;
                     return;
                 }
                 s.CaseTrigger = chosen;
             }
-            s.CaseTriggerEnabled = i > 0;
+            s.CaseTriggerEnabled = index > 0;
             s.Save();
             CaseChanged?.Invoke();
         };
-        y += 40;
+        _content.Controls.Add(hotkeysCard);
 
-        var btnExceptions = new Button { Text = L10n.T("settings.exceptions"), Left = 16, Top = y, Width = 130 };
-        btnExceptions.Click += (_, _) => { using var ex = new ExceptionsForm(); ex.ShowDialog(this); };
+        y += 210;
+        CardPanel systemCard = Section("Система", "Запуск, раскладки и обновления", y, 270);
+        AddToggle(systemCard, 66, "Запускать вместе с Windows", "Nabira будет готова сразу после входа.",
+            AutoStart.IsEnabled(), AutoStart.SetEnabled);
+        AddToggle(systemCard, 124, "Запоминать раскладку для приложений",
+            "Например, русский в Telegram и английский в редакторе кода.", s.PerAppLayout,
+            value => { s.PerAppLayout = value; s.Save(); });
+        AddToggle(systemCard, 182, "Звук при смене раскладки", "Короткое подтверждение успешного переключения.",
+            s.SoundOnSwitch, value => { s.SoundOnSwitch = value; s.Save(); });
+        AddToggle(systemCard, 240, "Проверять обновления", "Автоматическая проверка не чаще одного раза в сутки.",
+            s.CheckUpdatesEnabled, value => { s.CheckUpdatesEnabled = value; s.Save(); });
+        _content.Controls.Add(systemCard);
 
-        var link = new LinkLabel { Text = "nabira.site", Left = 156, Top = y + 4, AutoSize = true };
-        link.LinkClicked += (_, _) => OpenUrl("https://nabira.site");
-        var telegramLink = new LinkLabel { Text = "Telegram: @mitfleg", Left = 156, Top = y + 28, AutoSize = true };
-        telegramLink.LinkClicked += (_, _) => OpenUrl("https://t.me/mitfleg");
-        y += 64;
+        y += 294;
+        var exceptions = NabiraTheme.SecondaryButton("Настроить исключения", 38, y, 190, 42);
+        exceptions.Click += (_, _) => { using var form = new ExceptionsForm(); form.ShowDialog(this); };
+        var site = MakeLink("nabira.site", 250, y + 12, "https://nabira.site");
+        var telegram = MakeLink("Поддержка: @mitfleg", 348, y + 12, "https://t.me/mitfleg");
+        var close = NabiraTheme.PrimaryButton("Готово", 586, y, 112, 42);
+        close.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+        close.Click += (_, _) => Close();
+        _content.Controls.AddRange(new Control[] { exceptions, site, telegram, close });
 
-        var btnClose = new Button { Text = L10n.T("settings.close"), Left = 334, Top = y, Width = 90, DialogResult = DialogResult.OK };
-        AcceptButton = btnClose;
-        ClientSize = new Size(440, y + 40);
-
-        Controls.AddRange(new Control[]
-        {
-            lblTrigger, cmbTrigger, chkWhole, chkSmart, chkAuto, chkTypo, chkDoubleCaps,
-            chkPunctuation, chkYoficator, chkLearning, chkSound, chkStart, chkPerApp,
-            chkUpdates, lblSwitch, cmbSwitch, lblCase, cmbCase, btnExceptions, link, telegramLink, btnClose,
-        });
+        _content.AutoScrollMinSize = new Size(0, y + 82);
+        AcceptButton = close;
     }
 
-    private CheckBox MakeCheck(string text, ref int top, bool value, Action<bool> onChange)
+    private static GradientPanel BuildSidebar()
     {
-        var cb = new CheckBox { Text = text, Left = 16, Top = top, Width = 408, Checked = value };
-        cb.CheckedChanged += (_, _) => onChange(cb.Checked);
-        top += 26;
-        return cb;
+        var panel = new GradientPanel { Dock = DockStyle.Left, Width = 236 };
+        var mark = NabiraTheme.Label("A│Я", 30, 34, 76, 48, 21, FontStyle.Bold, Color.White);
+        var name = NabiraTheme.Label("Nabira", 30, 92, 170, 40, 20, FontStyle.Bold, Color.White);
+        var tag = NabiraTheme.Label("Печатайте мысль,\nа не раскладку.", 30, 133, 180, 62, 11,
+            FontStyle.Bold, Color.FromArgb(225, 238, 255));
+        var privacy = NabiraTheme.Label("Ваш текст остаётся\nна этом компьютере", 30, 615, 180, 50, 9,
+            color: Color.FromArgb(220, 240, 255));
+        privacy.Anchor = AnchorStyles.Left | AnchorStyles.Bottom;
+        panel.Controls.AddRange(new Control[] { mark, name, tag, privacy });
+        return panel;
+    }
+
+    private static CardPanel Section(string title, string subtitle, int top, int height)
+    {
+        var card = new CardPanel
+        {
+            Left = 38,
+            Top = top,
+            Width = 660,
+            Height = height,
+            Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
+        };
+        card.Controls.Add(NabiraTheme.Label(title, 22, 16, 280, 28, 13, FontStyle.Bold));
+        card.Controls.Add(NabiraTheme.Label(subtitle, 22, 43, 470, 22, 9, color: NabiraTheme.Muted));
+        return card;
+    }
+
+    private static void AddToggle(Control card, int top, string title, string detail, bool value,
+        Action<bool> changed)
+    {
+        card.Controls.Add(NabiraTheme.Label(title, 22, top, 490, 23, 10, FontStyle.Bold));
+        card.Controls.Add(NabiraTheme.Label(detail, 22, top + 23, 500, 22, 8.7f, color: NabiraTheme.Muted));
+        var toggle = new ToggleSwitch
+        {
+            Left = card.Width - 70,
+            Top = top + 7,
+            Checked = value,
+            Anchor = AnchorStyles.Top | AnchorStyles.Right,
+            AccessibleName = title,
+        };
+        toggle.CheckedChanged += (_, _) => changed(toggle.Checked);
+        card.Controls.Add(toggle);
+    }
+
+    private static ComboBox AddCombo(Control card, int top, string title, object[] items, int selected)
+    {
+        card.Controls.Add(NabiraTheme.Label(title, 22, top + 7, 300, 25, 9.5f, FontStyle.Bold));
+        var combo = NabiraTheme.ComboBox(card.Width - 292, top, 264);
+        combo.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+        combo.Items.AddRange(items);
+        combo.SelectedIndex = Math.Clamp(selected, 0, items.Length - 1);
+        card.Controls.Add(combo);
+        return combo;
+    }
+
+    private static object[] TriggerItems() => new object[]
+    {
+        Tray.TrayIcon.TriggerName(TriggerKind.CtrlDoubleTap),
+        Tray.TrayIcon.TriggerName(TriggerKind.ShiftDoubleTap),
+        Tray.TrayIcon.TriggerName(TriggerKind.PauseBreak),
+    };
+
+    private static object[] OptionalTriggerItems() => new object[]
+    {
+        L10n.T("settings.off"),
+        Tray.TrayIcon.TriggerName(TriggerKind.CtrlDoubleTap),
+        Tray.TrayIcon.TriggerName(TriggerKind.ShiftDoubleTap),
+        Tray.TrayIcon.TriggerName(TriggerKind.PauseBreak),
+    };
+
+    private static LinkLabel MakeLink(string text, int left, int top, string url)
+    {
+        var link = new LinkLabel
+        {
+            Text = text,
+            Left = left,
+            Top = top,
+            AutoSize = true,
+            Font = NabiraTheme.Font(9.5f, FontStyle.Bold),
+            LinkColor = NabiraTheme.Accent,
+            ActiveLinkColor = NabiraTheme.Cyan,
+        };
+        link.LinkClicked += (_, _) => OpenUrl(url);
+        return link;
     }
 
     private static void OpenUrl(string url)
     {
         try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true }); }
-        catch { /* ignore */ }
+        catch { }
     }
 }

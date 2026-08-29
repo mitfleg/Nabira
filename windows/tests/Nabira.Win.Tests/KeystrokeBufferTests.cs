@@ -48,4 +48,28 @@ public class KeystrokeBufferTests
         b.Reset();
         Assert.True(b.IsEmpty);
     }
+
+    [Fact]
+    public void Backspace_removes_only_the_last_captured_key()
+    {
+        var b = new KeystrokeBuffer();
+        b.Append(new TypedKey(0x41, 0x1E, Shift: false, Caps: false));
+        b.Append(new TypedKey(0x42, 0x30, Shift: false, Caps: false));
+
+        b.RemoveLast();
+        Assert.Single(b.CurrentWord);
+        Assert.Equal(0x41u, b.CurrentWord[0].VkCode);
+
+        b.RemoveLast();
+        b.RemoveLast();
+        Assert.True(b.IsEmpty);
+    }
+
+    [Theory]
+    [InlineData(0x10)] // Shift
+    [InlineData(0x11)] // Ctrl
+    [InlineData(0x12)] // Alt
+    [InlineData(0x5B)] // Win
+    public void Modifier_keys_keep_the_current_word(uint vk) =>
+        Assert.True(KeystrokeBuffer.IsModifierKey(vk));
 }

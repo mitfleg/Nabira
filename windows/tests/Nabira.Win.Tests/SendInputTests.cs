@@ -1,6 +1,7 @@
 using System;
 using System.Runtime.InteropServices;
 using Nabira.Win.Native;
+using Nabira.Win.Core;
 using Xunit;
 
 namespace Nabira.Win.Tests;
@@ -14,6 +15,22 @@ namespace Nabira.Win.Tests;
 /// </summary>
 public class SendInputTests
 {
+    [Fact]
+    public void Captured_word_is_replaced_in_one_ordered_batch()
+    {
+        var inputs = TextInjector.BuildCapturedWordInputs(
+            wordKeyCount: 3, text: "мир", boundaryVk: KeystrokeBuffer.VK_SPACE);
+
+        Assert.Equal(14, inputs.Length); // 3 backspaces + 3 Unicode chars + Space, all down/up
+        Assert.Equal(Win32.VK_BACK, inputs[0].U.ki.wVk);
+        Assert.Equal(Win32.KEYEVENTF_KEYUP, inputs[1].U.ki.dwFlags);
+        Assert.Equal('м', inputs[6].U.ki.wScan);
+        Assert.Equal(Win32.KEYEVENTF_UNICODE, inputs[6].U.ki.dwFlags);
+        Assert.Equal(KeystrokeBuffer.VK_SPACE, inputs[^2].U.ki.wVk);
+        Assert.Equal(Win32.InjectedMarker, inputs[^1].U.ki.dwExtraInfo);
+        Assert.Equal(Win32.KEYEVENTF_KEYUP, inputs[^1].U.ki.dwFlags);
+    }
+
     [Fact]
     public void Input_struct_has_the_size_the_OS_expects()
     {

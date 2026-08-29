@@ -9,80 +9,144 @@ internal sealed class AccountForm : Form
     private readonly AccountAccessManager _manager;
     private readonly Label _status;
     private readonly Label _detail;
-    private readonly TabControl _tabs;
+    private readonly ProgressStrip _trial;
+    private readonly CardPanel _authCard;
+    private readonly Panel _loginPanel;
+    private readonly Panel _registerPanel;
+    private readonly Button _loginTab;
+    private readonly Button _registerTab;
     private readonly Button _signOut;
-    private readonly ProgressBar _trial;
 
     public AccountForm(AccountAccessManager manager)
     {
         _manager = manager;
         Text = L10n.T("account.title");
-        FormBorderStyle = FormBorderStyle.FixedDialog;
-        MaximizeBox = false;
-        MinimizeBox = false;
         StartPosition = FormStartPosition.CenterScreen;
-        ClientSize = new Size(500, 500);
-        BackColor = Color.FromArgb(246, 248, 253);
+        ClientSize = new Size(940, 610);
+        MinimumSize = new Size(860, 590);
+        BackColor = NabiraTheme.Cloud;
+        Font = NabiraTheme.Font(9.5f);
+        AutoScaleMode = AutoScaleMode.Dpi;
+        try { Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath); } catch { }
 
-        var brand = new Label
-        {
-            Text = "Nabira", Left = 24, Top = 20, AutoSize = true,
-            Font = new Font(Font.FontFamily, 18, FontStyle.Bold), ForeColor = Color.FromArgb(17, 22, 42),
-        };
-        _status = new Label { Left = 24, Top = 64, Width = 450, Height = 32, Font = new Font(Font, FontStyle.Bold) };
-        _detail = new Label { Left = 24, Top = 96, Width = 450, Height = 44, ForeColor = Color.DimGray };
-        _trial = new ProgressBar { Left = 24, Top = 140, Width = 450, Height = 8, Maximum = 7 };
+        var brandPanel = BuildBrandPanel();
+        var content = new Panel { Dock = DockStyle.Fill, BackColor = NabiraTheme.Cloud };
+        Controls.Add(content);
+        Controls.Add(brandPanel);
+        brandPanel.BringToFront();
 
-        _tabs = new TabControl { Left = 24, Top = 172, Width = 450, Height = 260 };
-        _tabs.TabPages.Add(LoginPage());
-        _tabs.TabPages.Add(RegisterPage());
+        content.Controls.Add(NabiraTheme.Label("Аккаунт Nabira", 44, 34, 440, 42, 22, FontStyle.Bold));
+        content.Controls.Add(NabiraTheme.Label(
+            "Управляйте пробным периодом, входом и подпиской.",
+            46, 78, 460, 24, 9.5f, color: NabiraTheme.Muted));
 
-        _signOut = new Button { Text = L10n.T("account.signout"), Left = 24, Top = 450, Width = 140, Visible = false };
+        var accessCard = new CardPanel { Left = 44, Top = 120, Width = 500, Height = 118 };
+        _status = NabiraTheme.Label("", 22, 18, 450, 28, 11.5f, FontStyle.Bold);
+        _detail = NabiraTheme.Label("", 22, 49, 450, 38, 9, color: NabiraTheme.Muted);
+        _trial = new ProgressStrip { Left = 22, Top = 93, Width = 456, Maximum = 7 };
+        accessCard.Controls.AddRange(new Control[] { _status, _detail, _trial });
+        content.Controls.Add(accessCard);
+
+        _authCard = new CardPanel { Left = 44, Top = 258, Width = 500, Height = 286 };
+        _loginTab = NabiraTheme.PrimaryButton(L10n.T("account.login"), 22, 18, 220, 38);
+        _registerTab = NabiraTheme.SecondaryButton(L10n.T("account.register"), 256, 18, 220, 38);
+        _loginTab.Click += (_, _) => ShowMode(register: false);
+        _registerTab.Click += (_, _) => ShowMode(register: true);
+
+        _loginPanel = BuildLoginPanel();
+        _registerPanel = BuildRegisterPanel();
+        _authCard.Controls.AddRange(new Control[] { _loginTab, _registerTab, _loginPanel, _registerPanel });
+        content.Controls.Add(_authCard);
+        ShowMode(register: false);
+
+        _signOut = NabiraTheme.SecondaryButton(L10n.T("account.signout"), 44, 270, 180, 42);
+        _signOut.Visible = false;
         _signOut.Click += async (_, _) => await RunAsync(_manager.SignOutAsync);
-        var site = new LinkLabel { Text = L10n.T("account.open.site"), Left = 282, Top = 456, AutoSize = true };
-        site.LinkClicked += (_, _) => OpenSite();
+        content.Controls.Add(_signOut);
 
-        Controls.AddRange(new Control[] { brand, _status, _detail, _trial, _tabs, _signOut, site });
+        var site = new LinkLabel
+        {
+            Text = L10n.T("account.open.site"),
+            Left = 44,
+            Top = 564,
+            AutoSize = true,
+            Font = NabiraTheme.Font(9.5f, FontStyle.Bold),
+            LinkColor = NabiraTheme.Accent,
+            ActiveLinkColor = NabiraTheme.Cyan,
+        };
+        site.LinkClicked += (_, _) => OpenSite();
+        content.Controls.Add(site);
+
         _manager.Changed += UpdateSnapshot;
         UpdateSnapshot(_manager.Snapshot);
         FormClosed += (_, _) => _manager.Changed -= UpdateSnapshot;
     }
 
-    private TabPage LoginPage()
+    private static GradientPanel BuildBrandPanel()
     {
-        var page = new TabPage(L10n.T("account.login"));
-        var email = Field(page, L10n.T("account.email"), 18, 20, false);
-        var password = Field(page, L10n.T("account.password"), 18, 88, true);
-        var submit = new Button { Text = L10n.T("account.login"), Left = 18, Top = 158, Width = 180, Height = 34 };
-        submit.Click += async (_, _) => await RunAsync(() => _manager.SignInAsync(email.Text, password.Text));
-        page.Controls.Add(submit);
-        return page;
+        var panel = new GradientPanel { Dock = DockStyle.Left, Width = 330 };
+        panel.Controls.Add(NabiraTheme.Label("A│Я", 44, 56, 100, 55, 24, FontStyle.Bold, Color.White));
+        panel.Controls.Add(NabiraTheme.Label("Nabira", 44, 146, 240, 50, 25, FontStyle.Bold, Color.White));
+        panel.Controls.Add(NabiraTheme.Label("Печатайте мысль,\nа не раскладку.", 44, 204, 240, 76,
+            13, FontStyle.Bold, Color.FromArgb(232, 243, 255)));
+        panel.Controls.Add(NabiraTheme.Label("7 дней полного доступа", 44, 474, 240, 28,
+            10, FontStyle.Bold, Color.White));
+        panel.Controls.Add(NabiraTheme.Label("Без привязки карты. Регистрация\nпонадобится после пробного периода.",
+            44, 508, 250, 52, 9, color: Color.FromArgb(220, 240, 255)));
+        return panel;
     }
 
-    private TabPage RegisterPage()
+    private Panel BuildLoginPanel()
     {
-        var page = new TabPage(L10n.T("account.register"));
-        var email = Field(page, L10n.T("account.email"), 18, 10, false);
-        var password = Field(page, L10n.T("account.password"), 18, 72, true);
-        var confirmation = Field(page, L10n.T("account.password.confirm"), 18, 134, true);
-        var submit = new Button { Text = L10n.T("account.register"), Left = 18, Top = 196, Width = 180, Height = 34 };
+        var panel = new Panel { Left = 22, Top = 70, Width = 454, Height = 198, BackColor = Color.Transparent };
+        var email = Field(panel, L10n.T("account.email"), 0, 0, false);
+        var password = Field(panel, L10n.T("account.password"), 0, 68, true);
+        var submit = NabiraTheme.PrimaryButton(L10n.T("account.login"), 0, 144, 454, 42);
+        submit.Click += async (_, _) => await RunAsync(() => _manager.SignInAsync(email.Text, password.Text));
+        panel.Controls.Add(submit);
+        return panel;
+    }
+
+    private Panel BuildRegisterPanel()
+    {
+        var panel = new Panel { Left = 22, Top = 70, Width = 454, Height = 210, BackColor = Color.Transparent };
+        var email = Field(panel, L10n.T("account.email"), 0, 0, false, 214);
+        var password = Field(panel, L10n.T("account.password"), 230, 0, true, 224);
+        var confirmation = Field(panel, L10n.T("account.password.confirm"), 0, 68, true, 454);
+        var submit = NabiraTheme.PrimaryButton(L10n.T("account.register"), 0, 144, 454, 42);
         submit.Click += async (_, _) => await RunAsync(async () =>
         {
             string registered = await _manager.RegisterAsync(email.Text, password.Text, confirmation.Text);
             MessageBox.Show(L10n.T("account.verify.sent", registered), Text,
                 MessageBoxButtons.OK, MessageBoxIcon.Information);
-            _tabs.SelectedIndex = 0;
+            ShowMode(register: false);
         });
-        page.Controls.Add(submit);
-        return page;
+        panel.Controls.Add(submit);
+        return panel;
     }
 
-    private static TextBox Field(Control parent, string label, int left, int top, bool password)
+    private static TextBox Field(Control parent, string label, int left, int top, bool password,
+        int width = 454)
     {
-        parent.Controls.Add(new Label { Text = label, Left = left, Top = top, Width = 390 });
-        var box = new TextBox { Left = left, Top = top + 22, Width = 390, UseSystemPasswordChar = password };
+        parent.Controls.Add(NabiraTheme.Label(label, left, top, width, 21, 8.5f, FontStyle.Bold,
+            NabiraTheme.Muted));
+        var box = NabiraTheme.TextBox(left, top + 23, width, password);
         parent.Controls.Add(box);
         return box;
+    }
+
+    private void ShowMode(bool register)
+    {
+        _loginPanel.Visible = !register;
+        _registerPanel.Visible = register;
+        StyleTab(_loginTab, !register);
+        StyleTab(_registerTab, register);
+    }
+
+    private static void StyleTab(Button button, bool active)
+    {
+        button.BackColor = active ? NabiraTheme.Accent : NabiraTheme.AccentSoft;
+        button.ForeColor = active ? Color.White : NabiraTheme.Accent;
     }
 
     private async Task RunAsync(Func<Task> operation)
@@ -97,20 +161,26 @@ internal sealed class AccountForm : Form
     {
         if (IsDisposed) return;
         if (InvokeRequired) { BeginInvoke(new Action(() => UpdateSnapshot(snapshot))); return; }
+
         _status.Text = snapshot.HasAccess
             ? snapshot.TrialActive ? L10n.T("account.trial.active", snapshot.TrialDaysRemaining) : L10n.T("account.subscription.active")
             : L10n.T("account.access.required");
+        _status.ForeColor = snapshot.HasAccess ? NabiraTheme.Success : NabiraTheme.Danger;
         _detail.Text = snapshot.Error ?? (snapshot.Authenticated
             ? snapshot.Email! : L10n.T("account.trial.detail"));
         _trial.Value = Math.Clamp(snapshot.TrialDaysRemaining, 0, 7);
-        _tabs.Visible = !snapshot.Authenticated;
+        _authCard.Visible = !snapshot.Authenticated;
         _signOut.Visible = snapshot.Authenticated;
     }
 
     private static void OpenSite()
     {
-        try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(
-            "https://nabira.site/account") { UseShellExecute = true }); }
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(
+                "https://nabira.site/account")
+            { UseShellExecute = true });
+        }
         catch { }
     }
 }

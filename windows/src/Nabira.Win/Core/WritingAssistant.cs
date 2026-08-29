@@ -14,16 +14,22 @@ internal static class WritingAssistant
         }
     }
 
-    public static bool TryProcess(CompletedWord completed)
+    /// <summary>Processes a word whose physical Space was swallowed by the keyboard hook.
+    /// Exactly one replacement Space is always injected, even when no correction is needed.</summary>
+    public static bool TryProcessCaptured(CompletedWord completed)
     {
-        if (completed.Keys.Count == 0 || ForegroundApp.IsAutomaticCorrectionDenied()) return false;
-        if (completed.BoundaryVk is not (KeystrokeBuffer.VK_SPACE or KeystrokeBuffer.VK_RETURN or KeystrokeBuffer.VK_TAB)) return false;
+        if (completed.Keys.Count == 0 || ForegroundApp.IsAutomaticCorrectionDenied())
+            return PassBoundary(completed.BoundaryVk);
+        if (completed.BoundaryVk != KeystrokeBuffer.VK_SPACE)
+            return PassBoundary(completed.BoundaryVk);
 
         var settings = Settings.Current;
         IntPtr sourceHkl = LayoutSwitcher.Current();
         string original = KeyMapper.ConvertWord(completed.Keys, sourceHkl);
-        if (string.IsNullOrEmpty(original)) return false;
-        if (settings.NeverConvert.Contains(original.ToLowerInvariant(), StringComparer.OrdinalIgnoreCase)) return false;
+        if (string.IsNullOrEmpty(original)) return PassBoundary(completed.BoundaryVk);
+        if (IsLaughter(original)) return PassBoundary(completed.BoundaryVk);
+        if (settings.NeverConvert.Contains(original.ToLowerInvariant(), StringComparer.OrdinalIgnoreCase))
+            return PassBoundary(completed.BoundaryVk);
 
         string replacement = original;
         IntPtr resultHkl = sourceHkl;
@@ -54,15 +60,42 @@ internal static class WritingAssistant
         if (settings.Yoficator)
             replacement = Yoficator.Replacement(replacement) ?? replacement;
 
-        if (replacement == original && resultHkl == sourceHkl) return false;
+        if (replacement == original && resultHkl == sourceHkl)
+            return PassBoundary(completed.BoundaryVk);
 
-        TextInjector.ReplaceCompletedWord(completed.Keys.Count, replacement, completed.BoundaryVk);
+        if (!TextInjector.ReplaceCapturedWord(completed.Keys.Count, replacement, completed.BoundaryVk))
+            return false;
         if (resultHkl != sourceHkl) LayoutSwitcher.SwitchTo(resultHkl);
 
         // Repeated trigger can undo a Space-delimited automatic correction. Enter/Tab are deliberately
         // not recorded because they are semantic submit/focus actions, not plain text characters.
         if (completed.BoundaryVk == KeystrokeBuffer.VK_SPACE)
             Converter.NoteAutoConversion(replacement + " ", original + " ", resultHkl, sourceHkl);
+        return true;
+    }
+
+    private static bool PassBoundary(uint boundaryVk)
+    {
+        TextInjector.SendKey((ushort)boundaryVk);
+        return false;
+    }
+
+    /// <summary>Repeated conversational laughter is intentional text, not a typo or a word typed in
+    /// the wrong layout. Preserve both Russian and Latin forms before any dictionary pipeline.</summary>
+    internal static bool IsLaughter(string word)
+    {
+        if (word.Length < 4) return false;
+        string value = word.ToLowerInvariant();
+        bool cyrillic = value[0] is 'а' or 'х';
+        bool latin = value[0] is 'a' or 'h';
+        if (!cyrillic && !latin) return false;
+
+        char first = value[0];
+        char second = cyrillic ? (first == 'а' ? 'х' : 'а') : (first == 'a' ? 'h' : 'a');
+        for (int i = 0; i < value.Length; i++)
+        {
+            if (value[i] != (i % 2 == 0 ? first : second)) return false;
+        }
         return true;
     }
 

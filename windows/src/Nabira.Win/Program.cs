@@ -32,7 +32,7 @@ internal static class Program
         var settings = Settings.Current;
         var buffer = new KeystrokeBuffer();
         bool userEnabled = true;
-        CompletedWord? pendingAutomatic = null; // snapshot handed to the message loop for correction
+        var pendingAutomatic = new Queue<CompletedWord>(); // snapshots handed to the message loop
 
         // Force a WindowsFormsSynchronizationContext before starting network/account work.
         using var uiAnchor = new System.Windows.Forms.Control();
@@ -88,12 +88,16 @@ internal static class Program
         };
         tray.AutoConvertActivated += () =>
         {
-            // Deferred off the hook callback: the real boundary has already landed. One pipeline
-            // handles layout, register, punctuation, typo and ё corrections before restoring it.
-            if (pendingAutomatic is { } word)
+            // The physical Space was swallowed by the hook. One pipeline now injects correction
+            // and exactly one replacement Space as a single, ordered SendInput batch.
+            if (pendingAutomatic.TryDequeue(out var word))
             {
-                WritingAssistant.TryProcess(word);
-                pendingAutomatic = null;
+                try { WritingAssistant.TryProcessCaptured(word); }
+                catch (Exception ex)
+                {
+                    Log("auto-convert failed: " + ex);
+                    TextInjector.SendKey((ushort)word.BoundaryVk);
+                }
             }
         };
         tray.ChangeCaseActivated += () =>
@@ -140,7 +144,7 @@ internal static class Program
         using var hook = new KeyboardHook();
         hook.KeyDown += (vk, sc) =>
         {
-            if (!EffectiveEnabled()) return;
+            if (!EffectiveEnabled()) return false;
 
             // Ctrl+Shift+V: temporarily strip formatting from the clipboard while the original
             // shortcut continues to the focused application.
@@ -151,27 +155,45 @@ internal static class Program
                 PlainTextPaste.Prepare(ui);
                 buffer.Reset();
                 Converter.ClearReconvert();
-                return;
+                return false;
             }
 
             detector.OnKeyDown(vk);
             switchDetector.OnKeyDown(vk);
             caseDetector.OnKeyDown(vk);
 
+            bool commandModifier = (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0
+                || (GetAsyncKeyState(VK_MENU) & 0x8000) != 0
+                || (GetAsyncKeyState(0x5B) & 0x8000) != 0
+                || (GetAsyncKeyState(0x5C) & 0x8000) != 0;
+            if (commandModifier && KeystrokeBuffer.IsTypingKey(vk))
+            {
+                buffer.Reset();
+                Converter.ClearReconvert();
+                return false;
+            }
+
+            if (vk == KeystrokeBuffer.VK_BACK)
+            {
+                buffer.RemoveLast();
+                Converter.ClearReconvert();
+                return false;
+            }
+
             if (KeystrokeBuffer.IsWordBoundary(vk))
             {
-                // As-you-type auto conversion (beta): on Space, arm a deferred check. We snapshot the
-                // word and post to the message loop — the dictionary check + retype must NOT run inside
-                // this LL-hook callback (COM/SendInput there risks the LowLevelHooksTimeout → unhook).
-                // We do NOT swallow the space; the deferred handler deletes the word + delivered space.
-                if ((vk is KeystrokeBuffer.VK_SPACE or KeystrokeBuffer.VK_RETURN or KeystrokeBuffer.VK_TAB)
-                    && WritingAssistant.Enabled && !buffer.IsEmpty)
+                // Capture only Space: Enter and Tab are semantic actions (submit/focus) and must never
+                // race a deferred correction. Returning true keeps the physical Space away from the app;
+                // the message-loop handler restores it after checking the word.
+                if (vk == KeystrokeBuffer.VK_SPACE && WritingAssistant.Enabled && !buffer.IsEmpty)
                 {
-                    pendingAutomatic = new CompletedWord(new List<TypedKey>(buffer.CurrentWord), vk);
+                    pendingAutomatic.Enqueue(new CompletedWord(new List<TypedKey>(buffer.CurrentWord), vk));
                     tray.PostAutoConvert();
+                    buffer.Reset();
+                    return true;
                 }
                 buffer.Reset();
-                return;
+                return false;
             }
 
             if (KeystrokeBuffer.IsTypingKey(vk))
@@ -182,7 +204,15 @@ internal static class Program
                 bool caps = (GetKeyState(VK_CAPITAL) & 0x0001) != 0;
                 buffer.Append(new TypedKey(vk, sc, shift, caps));
             }
-            // Modifiers and other keys: leave the buffer as-is.
+            else if (!KeystrokeBuffer.IsModifierKey(vk))
+            {
+                // Navigation, Delete and application shortcuts move the caret or mutate text.
+                // Keeping the old word would make the next correction delete unrelated characters.
+                buffer.Reset();
+                Converter.ClearReconvert();
+            }
+
+            return false;
         };
         hook.KeyUp += (vk, sc) =>
         {

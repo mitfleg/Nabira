@@ -16,6 +16,11 @@ public sealed class KeystrokeBuffer
     public bool IsEmpty => _current.Count == 0;
 
     public void Append(TypedKey key) => _current.Add(key);
+    public void RemoveLast()
+    {
+        if (_current.Count > 0)
+            _current.RemoveAt(_current.Count - 1);
+    }
     public void Reset() => _current.Clear();
 
     /// <summary>Keys that end a word (and clear the buffer): space, Enter, Tab, Esc.</summary>
@@ -28,6 +33,11 @@ public sealed class KeystrokeBuffer
         (vkCode >= 0x41 && vkCode <= 0x5A)   // A–Z
         || (vkCode >= 0x30 && vkCode <= 0x39) // 0–9
         || (vkCode >= 0xBA && vkCode <= 0xE2); // OEM keys (;=,-./`[\]' etc. — letters in ЙЦУКЕН)
+
+    /// <summary>Modifier presses do not change the text caret and therefore keep the buffer.</summary>
+    public static bool IsModifierKey(uint vkCode) => vkCode is
+        0x10 or 0x11 or 0x12 or 0x5B or 0x5C or
+        0xA0 or 0xA1 or 0xA2 or 0xA3 or 0xA4 or 0xA5;
 
     public const uint VK_BACK = 0x08;
     public const uint VK_TAB = 0x09;

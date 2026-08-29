@@ -6,6 +6,23 @@ namespace Nabira.Win.Tests;
 public class WritingCorrectionsTests
 {
     [Theory]
+    [InlineData("ахах")]
+    [InlineData("ахахахахахах")]
+    [InlineData("хахаха")]
+    [InlineData("АХАХАХ")]
+    [InlineData("hahaha")]
+    public void Conversational_laughter_is_preserved(string word) =>
+        Assert.True(WritingAssistant.IsLaughter(word));
+
+    [Theory]
+    [InlineData("ахота")]
+    [InlineData("характер")]
+    [InlineData("haha!")]
+    [InlineData("ах")]
+    public void Ordinary_words_are_not_classified_as_laughter(string word) =>
+        Assert.False(WritingAssistant.IsLaughter(word));
+
+    [Theory]
     [InlineData("ПРивет", "Привет")]
     [InlineData("HEllo", "Hello")]
     public void Fixes_exactly_two_initial_capitals(string input, string expected) =>

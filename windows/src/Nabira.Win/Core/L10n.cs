@@ -1,26 +1,13 @@
-using System.Globalization;
-
 namespace Nabira.Win.Core;
 
 /// <summary>
 /// UI localization — the Windows counterpart of the macOS <c>Localization</c>. Resolves the UI
-/// language from the OS (CurrentUICulture), falling back to English for any missing key or language.
-/// English and Russian are the shipped languages for the first beta; the table is structured so more
-/// languages (matching the macOS 16) can be added without touching call sites.
+/// language. Nabira's first Windows release is Russian-first by product decision; English remains in
+/// the table as a safe per-key fallback and for a future explicit language selector.
 /// </summary>
 internal static class L10n
 {
-    private static readonly string Lang = Resolve();
-
-    private static string Resolve()
-    {
-        try
-        {
-            string two = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName.ToLowerInvariant();
-            return Table.ContainsKey(two) ? two : "en";
-        }
-        catch { return "en"; }
-    }
+    private const string Lang = "ru";
 
     /// <summary>Localized string for <paramref name="key"/> (English fallback), then string.Format
     /// with any arguments.</summary>

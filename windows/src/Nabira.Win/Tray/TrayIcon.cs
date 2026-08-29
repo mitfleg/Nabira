@@ -111,7 +111,7 @@ internal sealed class TrayIcon : IDisposable
     private static string LayoutName(IntPtr hkl) => ((int)hkl.ToInt64() & 0x3FF) switch
     {
         0x19 => "Русский",
-        0x09 => "English",
+        0x09 => "Английский",
         0x22 => "Українська",
         0x23 => "Беларуская",
         0x02 => "Български",
@@ -119,7 +119,7 @@ internal sealed class TrayIcon : IDisposable
         0x08 => "Ελληνικά",
         0x2B => "Հայերեն",
         0x37 => "ქართული",
-        _ => "Layout",
+        _ => "Раскладка",
     };
 
     private IntPtr WindowProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam)
