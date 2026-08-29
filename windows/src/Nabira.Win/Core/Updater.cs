@@ -15,7 +15,7 @@ namespace Nabira.Win.Core;
 /// </summary>
 internal static class Updater
 {
-    private const string FeedUrl = "https://nabira.linkurakt.chatgpt.site/downloads/windows-version.json";
+    private const string FeedUrl = "https://nabira.site/downloads/windows-version.json";
 
     // Single-flight: repeated tray clicks / an overlapping launch check must not spawn concurrent
     // HTTP checks that each write Settings and stack message boxes.
@@ -115,7 +115,7 @@ internal static class Updater
         if (r == DialogResult.Yes)
         {
             string open = string.IsNullOrWhiteSpace(feed.url)
-                ? "https://nabira.linkurakt.chatgpt.site/#downloads" : feed.url;
+                ? "https://nabira.site/#downloads" : feed.url;
             try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(open) { UseShellExecute = true }); }
             catch { /* ignore */ }
         }

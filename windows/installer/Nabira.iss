@@ -17,7 +17,7 @@
 
 #define MyAppName "Nabira"
 #define MyAppPublisher "Nabira"
-#define MyAppURL "https://nabira.linkurakt.chatgpt.site"
+#define MyAppURL "https://nabira.site"
 #define MyAppExeName "Nabira.exe"
 
 [Setup]

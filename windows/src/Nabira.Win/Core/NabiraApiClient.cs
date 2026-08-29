@@ -20,7 +20,7 @@ internal sealed class NabiraApiClient
     {
         string configured = Environment.GetEnvironmentVariable("NABIRA_API_URL")?.Trim() ?? "";
         if (!Uri.TryCreate(configured, UriKind.Absolute, out Uri? baseUri))
-            baseUri = new Uri("http://127.0.0.1:8080");
+            baseUri = new Uri("https://api.nabira.site");
         _http = handler == null ? new HttpClient() : new HttpClient(handler);
         _http.BaseAddress = baseUri;
         _http.Timeout = TimeSpan.FromSeconds(15);

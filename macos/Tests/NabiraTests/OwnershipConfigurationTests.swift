@@ -8,8 +8,8 @@ final class OwnershipConfigurationTests: XCTestCase {
         XCTAssertEqual(SettingsManager.telegramUsername, "@mitfleg")
         XCTAssertEqual(SettingsManager.telegramChatURL, "https://t.me/mitfleg")
         XCTAssertEqual(
-            SettingsManager.releaseDMGURL(version: "3.3.0"),
-            "https://github.com/mitfleg/Nabira/releases/download/v3.3.0/Nabira-3.3.0.dmg"
+            SettingsManager.releaseDMGURL(version: "3.3.1"),
+            "https://nabira.site/downloads/Nabira-macOS.dmg?version=3.3.1"
         )
         XCTAssertTrue(SettingsManager.donateURL.isEmpty)
         XCTAssertTrue(SettingsManager.developerTeamID.isEmpty)

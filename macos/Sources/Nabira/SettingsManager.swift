@@ -391,7 +391,7 @@ final class SettingsManager: @unchecked Sendable {
     static var rawGitHubURL: String {
         "https://raw.githubusercontent.com/\(githubOwner)/\(githubRepo)/main"
     }
-    static let siteURL = "https://nabira.linkurakt.chatgpt.site"
+    static let siteURL = "https://nabira.site"
     static var stableUpdateFeedURL: String { "\(siteURL)/downloads/version.json" }
     static var betaUpdateFeedURL: String { "\(siteURL)/downloads/version-beta.json" }
     /// Email для «Связаться с разработчиком» (mailto с предзаполнением). Пусто → кнопка

@@ -110,7 +110,7 @@ internal sealed class AccountForm : Form
     private static void OpenSite()
     {
         try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(
-            "https://nabira.linkurakt.chatgpt.site/account") { UseShellExecute = true }); }
+            "https://nabira.site/account") { UseShellExecute = true }); }
         catch { }
     }
 }

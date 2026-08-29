@@ -5,22 +5,29 @@ import CoreGraphics
 let width: CGFloat = 660
 let height: CGFloat = 400
 
-// Версия читается из version.json (единый источник правды, лежит в КОРНЕ репо —
-// путь строим от расположения скрипта, а не от CWD).
 func readVersion() -> String {
     let path = URL(fileURLWithPath: #filePath)
         .deletingLastPathComponent().deletingLastPathComponent()
         .appendingPathComponent("version.json").path
     guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-          let v = json["version"] as? String else {
+          let version = json["version"] as? String else {
         return "?"
     }
-    return v
+    return version
 }
-let appVersion = readVersion()
 
-// Create bitmap context
+func color(_ red: CGFloat, _ green: CGFloat, _ blue: CGFloat, _ alpha: CGFloat = 1) -> NSColor {
+    NSColor(srgbRed: red / 255, green: green / 255, blue: blue / 255, alpha: alpha)
+}
+
+func drawCentered(_ text: String, y: CGFloat, attributes: [NSAttributedString.Key: Any]) {
+    let value = text as NSString
+    let size = value.size(withAttributes: attributes)
+    value.draw(at: NSPoint(x: (width - size.width) / 2, y: y), withAttributes: attributes)
+}
+
+let appVersion = readVersion()
 let rep = NSBitmapImageRep(
     bitmapDataPlanes: nil,
     pixelsWide: Int(width),
@@ -34,117 +41,133 @@ let rep = NSBitmapImageRep(
     bitsPerPixel: 0
 )!
 
-let context = NSGraphicsContext(bitmapImageRep: rep)!
-NSGraphicsContext.current = context
-let ctx = context.cgContext
-
-// --- Background gradient (dark blue-gray) ---
+let graphics = NSGraphicsContext(bitmapImageRep: rep)!
+NSGraphicsContext.current = graphics
+let ctx = graphics.cgContext
 let colorSpace = CGColorSpace(name: CGColorSpace.sRGB)!
-let gradientColors = [
-    CGColor(colorSpace: colorSpace, components: [0.12, 0.13, 0.18, 1.0])!,
-    CGColor(colorSpace: colorSpace, components: [0.18, 0.20, 0.28, 1.0])!,
-    CGColor(colorSpace: colorSpace, components: [0.12, 0.13, 0.18, 1.0])!,
-]
-let gradient = CGGradient(colorsSpace: colorSpace, colors: gradientColors as CFArray, locations: [0.0, 0.5, 1.0])!
-ctx.drawLinearGradient(gradient, start: CGPoint(x: 0, y: height), end: CGPoint(x: 0, y: 0), options: [])
 
-// --- Subtle grid pattern ---
-ctx.setStrokeColor(CGColor(colorSpace: colorSpace, components: [1, 1, 1, 0.03])!)
-ctx.setLineWidth(0.5)
-for x in stride(from: 0, through: width, by: 30) {
-    ctx.move(to: CGPoint(x: x, y: 0))
-    ctx.addLine(to: CGPoint(x: x, y: height))
+// Quiet, deep background: Finder's app icon remains the brightest object.
+let baseGradient = CGGradient(
+    colorsSpace: colorSpace,
+    colors: [color(8, 13, 32).cgColor, color(15, 24, 54).cgColor] as CFArray,
+    locations: [0, 1]
+)!
+ctx.drawLinearGradient(
+    baseGradient,
+    start: CGPoint(x: 0, y: 0),
+    end: CGPoint(x: width, y: height),
+    options: []
+)
+
+// Nabira-specific signature: a restrained field of keyboard keys.
+ctx.setLineWidth(1)
+for row in 0..<5 {
+    let keyWidth: CGFloat = 54
+    let gap: CGFloat = 10
+    let offset: CGFloat = row.isMultiple(of: 2) ? -22 : 10
+    for column in 0..<12 {
+        let rect = CGRect(
+            x: offset + CGFloat(column) * (keyWidth + gap),
+            y: 92 + CGFloat(row) * 54,
+            width: keyWidth,
+            height: 36
+        )
+        let key = NSBezierPath(roundedRect: rect, xRadius: 9, yRadius: 9)
+        color(124, 145, 255, 0.026).setFill()
+        color(151, 167, 255, 0.045).setStroke()
+        key.fill()
+        key.stroke()
+    }
 }
-for y in stride(from: 0, through: height, by: 30) {
-    ctx.move(to: CGPoint(x: 0, y: y))
-    ctx.addLine(to: CGPoint(x: width, y: y))
+
+func drawGlow(center: CGPoint, radius: CGFloat, rgb: (CGFloat, CGFloat, CGFloat), alpha: CGFloat) {
+    let colors = [
+        color(rgb.0, rgb.1, rgb.2, alpha).cgColor,
+        color(rgb.0, rgb.1, rgb.2, 0).cgColor,
+    ] as CFArray
+    let gradient = CGGradient(colorsSpace: colorSpace, colors: colors, locations: [0, 1])!
+    ctx.drawRadialGradient(
+        gradient,
+        startCenter: center,
+        startRadius: 0,
+        endCenter: center,
+        endRadius: radius,
+        options: []
+    )
 }
-ctx.strokePath()
 
-// --- Title "Nabira" at top ---
-let titleAttrs: [NSAttributedString.Key: Any] = [
-    .font: NSFont.systemFont(ofSize: 28, weight: .bold),
-    .foregroundColor: NSColor(calibratedRed: 0.85, green: 0.88, blue: 0.95, alpha: 1.0),
+// Light anchors beneath Finder's two draggable icons.
+drawGlow(center: CGPoint(x: 170, y: 190), radius: 126, rgb: (82, 104, 255), alpha: 0.24)
+drawGlow(center: CGPoint(x: 490, y: 190), radius: 118, rgb: (66, 182, 219), alpha: 0.12)
+
+let titleAttributes: [NSAttributedString.Key: Any] = [
+    .font: NSFont.systemFont(ofSize: 31, weight: .bold),
+    .foregroundColor: color(247, 249, 255),
+    .kern: -0.7,
 ]
-let title = "Nabira" as NSString
-let titleSize = title.size(withAttributes: titleAttrs)
-title.draw(at: NSPoint(x: (width - titleSize.width) / 2, y: height - 55), withAttributes: titleAttrs)
+drawCentered("Nabira", y: 337, attributes: titleAttributes)
 
-// --- Subtitle ---
-let subAttrs: [NSAttributedString.Key: Any] = [
-    .font: NSFont.systemFont(ofSize: 13, weight: .regular),
-    .foregroundColor: NSColor(calibratedRed: 0.55, green: 0.58, blue: 0.68, alpha: 1.0),
+let subtitleAttributes: [NSAttributedString.Key: Any] = [
+    .font: NSFont.systemFont(ofSize: 13, weight: .medium),
+    .foregroundColor: color(171, 183, 226),
 ]
-let subtitle = "Keyboard layout switcher for macOS" as NSString
-let subSize = subtitle.size(withAttributes: subAttrs)
-subtitle.draw(at: NSPoint(x: (width - subSize.width) / 2, y: height - 80), withAttributes: subAttrs)
+drawCentered("Печатайте мысль, а не раскладку", y: 311, attributes: subtitleAttributes)
 
-// --- Arrow in the middle (between icon positions) ---
-// App icon will be at x=170, Applications at x=490
-// Arrow goes from ~260 to ~400
+let badgeRect = CGRect(x: 566, y: 338, width: 58, height: 24)
+let badge = NSBezierPath(roundedRect: badgeRect, xRadius: 12, yRadius: 12)
+color(103, 124, 255, 0.12).setFill()
+color(145, 159, 255, 0.22).setStroke()
+badge.fill()
+badge.stroke()
+let versionAttributes: [NSAttributedString.Key: Any] = [
+    .font: NSFont.monospacedSystemFont(ofSize: 10, weight: .semibold),
+    .foregroundColor: color(190, 200, 255),
+]
+let versionText = "v\(appVersion)" as NSString
+let versionSize = versionText.size(withAttributes: versionAttributes)
+versionText.draw(
+    at: NSPoint(x: badgeRect.midX - versionSize.width / 2, y: badgeRect.midY - versionSize.height / 2),
+    withAttributes: versionAttributes
+)
 
-let arrowY: CGFloat = 185  // vertical center of icons area
-let arrowStartX: CGFloat = 255
-let arrowEndX: CGFloat = 405
-
-// Arrow body - gradient line
+// The conversion rail also acts as the drag direction.
+let railY: CGFloat = 191
 ctx.setLineCap(.round)
 ctx.setLineWidth(3)
-
-// Draw dashed arrow body
-let dashColor = CGColor(colorSpace: colorSpace, components: [0.4, 0.5, 0.9, 0.6])!
-ctx.setStrokeColor(dashColor)
-ctx.setLineDash(phase: 0, lengths: [8, 6])
-ctx.move(to: CGPoint(x: arrowStartX, y: arrowY))
-ctx.addLine(to: CGPoint(x: arrowEndX - 15, y: arrowY))
+ctx.setStrokeColor(color(111, 131, 255, 0.52).cgColor)
+ctx.move(to: CGPoint(x: 257, y: railY))
+ctx.addLine(to: CGPoint(x: 393, y: railY))
 ctx.strokePath()
 
-// Arrow head
-ctx.setLineDash(phase: 0, lengths: [])
-ctx.setFillColor(dashColor)
-ctx.move(to: CGPoint(x: arrowEndX, y: arrowY))
-ctx.addLine(to: CGPoint(x: arrowEndX - 20, y: arrowY + 12))
-ctx.addLine(to: CGPoint(x: arrowEndX - 20, y: arrowY - 12))
+ctx.setFillColor(color(124, 145, 255, 0.92).cgColor)
+ctx.move(to: CGPoint(x: 407, y: railY))
+ctx.addLine(to: CGPoint(x: 388, y: railY + 12))
+ctx.addLine(to: CGPoint(x: 388, y: railY - 12))
 ctx.closePath()
 ctx.fillPath()
 
-// --- "Drag to install" text under arrow ---
-let dragAttrs: [NSAttributedString.Key: Any] = [
-    .font: NSFont.systemFont(ofSize: 12, weight: .medium),
-    .foregroundColor: NSColor(calibratedRed: 0.45, green: 0.50, blue: 0.65, alpha: 0.8),
+let caret = NSBezierPath(
+    roundedRect: CGRect(x: 326, y: 181, width: 5, height: 20),
+    xRadius: 2.5,
+    yRadius: 2.5
+)
+color(228, 233, 255, 0.9).setFill()
+caret.fill()
+
+let hintAttributes: [NSAttributedString.Key: Any] = [
+    .font: NSFont.systemFont(ofSize: 12, weight: .semibold),
+    .foregroundColor: color(215, 222, 250),
 ]
-let dragText = "Drag to install  •  Перетащите для установки" as NSString
-let dragSize = dragText.size(withAttributes: dragAttrs)
-dragText.draw(at: NSPoint(x: (width - dragSize.width) / 2, y: arrowY - 45), withAttributes: dragAttrs)
+drawCentered("Перетащите Nabira в Applications", y: 74, attributes: hintAttributes)
 
-// --- Glow circles behind icon positions ---
-func drawGlow(at center: CGPoint, radius: CGFloat, color: [CGFloat]) {
-    let glowColors = [
-        CGColor(colorSpace: colorSpace, components: color + [0.15])!,
-        CGColor(colorSpace: colorSpace, components: color + [0.0])!,
-    ]
-    let glowGradient = CGGradient(colorsSpace: colorSpace, colors: glowColors as CFArray, locations: [0.0, 1.0])!
-    ctx.drawRadialGradient(glowGradient, startCenter: center, startRadius: 0, endCenter: center, endRadius: radius, options: [])
-}
-
-// Glow behind app icon area (left)
-drawGlow(at: CGPoint(x: 170, y: 195), radius: 90, color: [0.3, 0.4, 0.9])
-
-// Glow behind Applications area (right)
-drawGlow(at: CGPoint(x: 490, y: 195), radius: 90, color: [0.3, 0.7, 0.5])
-
-// --- Version badge at bottom ---
-let verAttrs: [NSAttributedString.Key: Any] = [
-    .font: NSFont.systemFont(ofSize: 10, weight: .regular),
-    .foregroundColor: NSColor(calibratedRed: 0.4, green: 0.42, blue: 0.5, alpha: 0.6),
+let footerAttributes: [NSAttributedString.Key: Any] = [
+    .font: NSFont.systemFont(ofSize: 10, weight: .medium),
+    .foregroundColor: color(119, 132, 176),
 ]
-let verText = "v\(appVersion)  •  MIT License  •  github.com/mitfleg/Nabira" as NSString
-let verSize = verText.size(withAttributes: verAttrs)
-verText.draw(at: NSPoint(x: (width - verSize.width) / 2, y: 15), withAttributes: verAttrs)
+drawCentered("nabira.site", y: 22, attributes: footerAttributes)
 
-// --- Save ---
 NSGraphicsContext.current = nil
 let pngData = rep.representation(using: .png, properties: [:])!
 let outputPath = CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : "dmg_background.png"
-try! pngData.write(to: URL(fileURLWithPath: outputPath))
+try pngData.write(to: URL(fileURLWithPath: outputPath), options: .atomic)
 print("Generated: \(outputPath) (\(Int(width))x\(Int(height)))")

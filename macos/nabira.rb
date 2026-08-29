@@ -1,11 +1,11 @@
 cask "nabira" do
-  version "3.3.0"
-  sha256 "f736a0dfc6e5907ec25fcbe58aa5b59e053a00b52ee2607313c338f07e3ba484"
+  version "3.3.1"
+  sha256 "65d576a1861ea9509832818915d0b14c8a3af8b7955613c048a07812a6755056"
 
-  url "https://github.com/mitfleg/Nabira/releases/download/v#{version}/Nabira-#{version}.dmg"
+  url "https://nabira.site/downloads/Nabira-macOS.dmg?version=#{version}"
   name "Nabira"
   desc "Lightweight keyboard layout switcher, free alternative to PuntoSwitcher"
-  homepage "https://github.com/mitfleg/Nabira"
+  homepage "https://nabira.site"
 
   livecheck do
     url :url

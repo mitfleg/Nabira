@@ -124,8 +124,8 @@ internal sealed class SettingsForm : Form
         var btnExceptions = new Button { Text = L10n.T("settings.exceptions"), Left = 16, Top = y, Width = 130 };
         btnExceptions.Click += (_, _) => { using var ex = new ExceptionsForm(); ex.ShowDialog(this); };
 
-        var link = new LinkLabel { Text = "nabira.linkurakt.chatgpt.site", Left = 156, Top = y + 4, AutoSize = true };
-        link.LinkClicked += (_, _) => OpenUrl("https://nabira.linkurakt.chatgpt.site");
+        var link = new LinkLabel { Text = "nabira.site", Left = 156, Top = y + 4, AutoSize = true };
+        link.LinkClicked += (_, _) => OpenUrl("https://nabira.site");
         var telegramLink = new LinkLabel { Text = "Telegram: @mitfleg", Left = 156, Top = y + 28, AutoSize = true };
         telegramLink.LinkClicked += (_, _) => OpenUrl("https://t.me/mitfleg");
         y += 64;

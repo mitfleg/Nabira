@@ -42,8 +42,8 @@ enum NabiraAPIError: LocalizedError, Equatable, Sendable {
             )
         case .serviceUnavailable:
             return NabiraCopy.text(
-                "Сервер Nabira недоступен. Проверьте, что локальный backend запущен.",
-                "Nabira is unavailable. Make sure the local backend is running."
+                "Сервер Nabira временно недоступен. Проверьте интернет-соединение и повторите попытку.",
+                "Nabira is temporarily unavailable. Check your internet connection and try again."
             )
         case let .server(code, message):
             switch code {
@@ -278,6 +278,6 @@ actor NabiraAPIClient {
            let url = URL(string: value), url.scheme != nil {
             return url
         }
-        return URL(string: "http://127.0.0.1:8080")!
+        return URL(string: "https://api.nabira.site")!
     }
 }

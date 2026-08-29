@@ -51,6 +51,15 @@ DMG_SIZE="40m"
 
 echo "=== Creating styled DMG ==="
 
+# Фон генерируется из исходника при КАЖДОЙ сборке. Раньше в репозитории мог
+# остаться старый PNG с брендом RuSwitcher, хотя генератор уже содержал Nabira.
+echo "→ Generating current Nabira installer background..."
+xcrun swift "$SCRIPT_DIR/generate_dmg_background.swift" "$SCRIPT_DIR/$BACKGROUND"
+if [ ! -s "$SCRIPT_DIR/$BACKGROUND" ]; then
+    echo "ERROR: DMG background was not generated." >&2
+    exit 1
+fi
+
 # 00. Fail fast: нотаризационный профиль проверяем ДО многоминутной сборки.
 #     Профиль уже ДВАЖДЫ пропадал из Keychain (2026-07: удалён на живой системе
 #     между релизами, без ребута/обновлений — подозрение на чистильщики/VPN-софт),
