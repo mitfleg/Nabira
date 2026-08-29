@@ -2,5 +2,5 @@
   "version": "0.10.1",
   "url": "https://nabira.site/downloads/Nabira-Windows-x64.exe?version=0.10.1",
   "notes": "Исправлена атомарная замена слова в Windows и Parallels, восстановлено исправление двух заглавных, добавлена защита разговорного смеха и полностью обновлён русский интерфейс.",
-  "sha256": "e7b5ed606f37009370ae1e17e0a88ac7e7cb76f4ed72d8187523256a26a4c3d2"
+  "sha256": "ddbed097d7ccae861972ecc52f3d43ef4b711dadd69d64a383d3b3955eb43ec9"
 }
