@@ -15,7 +15,8 @@ internal static class Program
     [STAThread]  // required for WinForms clipboard / dialogs
     private static void Main()
     {
-        System.Windows.Forms.ApplicationConfiguration.Initialize();
+        System.Windows.Forms.Application.EnableVisualStyles();
+        System.Windows.Forms.Application.SetCompatibleTextRenderingDefault(false);
         string logDir = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Nabira");
         Directory.CreateDirectory(logDir);
