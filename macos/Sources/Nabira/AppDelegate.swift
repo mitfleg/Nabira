@@ -40,12 +40,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // Бесплатная неделя не требует решения или регистрации: она начинается
         // автоматически при первом запуске. Отдельное окно нужно только после её окончания.
         accessManager.startTrial()
-        Task { await accessManager.refreshAccount() }
-
-        if accessManager.hasAccess {
-            completeInitialLaunchFlowIfNeeded()
-        } else {
-            accountController.show(.required)
+        // До ответа backend не доверяем локальным датам или данным Keychain.
+        Task {
+            await accessManager.refreshAccount()
+            if accessManager.hasAccess {
+                completeInitialLaunchFlowIfNeeded()
+            } else {
+                accountController.show(.required)
+            }
         }
     }
 
@@ -1855,7 +1857,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         alert.addButton(withTitle: "OK")
         alert.addButton(withTitle: L10n.whatsNewMore)
         if alert.runModal() == .alertSecondButtonReturn,
-           let url = URL(string: "\(SettingsManager.githubURL)/releases/latest") {
+           let url = URL(string: "\(SettingsManager.siteURL)/#downloads") {
             NSWorkspace.shared.open(url)
         }
     }

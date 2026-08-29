@@ -114,6 +114,7 @@ After you switch layout, Nabira can briefly show the layout flag **right next to
 - **Auto-start at login** — set and forget.
 - **Minimal footprint** — no Electron, no web views, pure Swift + AppKit.
 - **No telemetry** — your keystrokes stay on your Mac.
+- **Private trial check** — the backend receives only a SHA-256 device fingerprint and trial/account status; typed text is never sent.
 
 ### Installation
 
@@ -255,6 +256,7 @@ Nabira работает через **Apple Screen Sharing**. Печатаете 
 - **Автозапуск при входе** — настроил и забыл.
 - **Минимальное потребление** — без Electron и веб-вьюх, чистый Swift + AppKit.
 - **Без телеметрии** — ваши нажатия остаются на вашем Mac.
+- **Приватная проверка trial** — backend получает только SHA-256-отпечаток устройства и статус trial/аккаунта; набранный текст не отправляется.
 
 ### Установка
 

@@ -10,16 +10,11 @@ enum NabiraSubscriptionStatus: String, Codable, Equatable, Sendable {
 }
 
 struct AccountAccessSnapshot: Equatable, Sendable {
-    static let trialDuration: TimeInterval = 7 * 24 * 60 * 60
-
     let now: Date
     let trialStartedAt: Date?
+    let trialEndsAt: Date?
     let authenticatedEmail: String?
     let subscriptionStatus: NabiraSubscriptionStatus
-
-    var trialEndsAt: Date? {
-        trialStartedAt?.addingTimeInterval(Self.trialDuration)
-    }
 
     var trialSecondsRemaining: TimeInterval {
         guard let trialEndsAt else { return 0 }
@@ -32,7 +27,10 @@ struct AccountAccessSnapshot: Equatable, Sendable {
     }
 
     var trialProgress: Double {
-        min(1, max(0, trialSecondsRemaining / Self.trialDuration))
+        guard let trialStartedAt, let trialEndsAt else { return 0 }
+        let duration = trialEndsAt.timeIntervalSince(trialStartedAt)
+        guard duration > 0 else { return 0 }
+        return min(1, max(0, trialSecondsRemaining / duration))
     }
 
     var isTrialActive: Bool { trialSecondsRemaining > 0 }
@@ -98,7 +96,10 @@ private final class NabiraSessionStore {
             kSecAttrService: service,
             kSecAttrAccount: account,
         ]
-        let attributes: [CFString: Any] = [kSecValueData: value]
+        let attributes: [CFString: Any] = [
+            kSecValueData: value,
+            kSecAttrAccessible: kSecAttrAccessibleWhenUnlockedThisDeviceOnly,
+        ]
         let updateStatus = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
         if updateStatus == errSecSuccess { return }
         guard updateStatus == errSecItemNotFound else {
@@ -106,7 +107,7 @@ private final class NabiraSessionStore {
         }
         var add = query
         add[kSecValueData] = value
-        add[kSecAttrAccessible] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+        add[kSecAttrAccessible] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
         let addStatus = SecItemAdd(add as CFDictionary, nil)
         guard addStatus == errSecSuccess else {
             throw NabiraAuthenticationError.keychainFailure(addStatus)
@@ -158,14 +159,21 @@ final class AccountAccessManager: ObservableObject {
 
     @Published private(set) var snapshot: AccountAccessSnapshot
     @Published private(set) var isRefreshingAccount = false
+    @Published private(set) var accessVerificationError: String?
     var onAccessChanged: ((Bool) -> Void)?
 
     private let defaults: UserDefaults
     private let sessionStore: NabiraSessionStore
     private let api: NabiraAPIClient
+    private let deviceID: String?
     private var session: StoredAccountSession?
+    private var serverTrialStartedAt: Date?
+    private var serverTrialEndsAt: Date?
+    private var serverTimeAnchor: Date?
+    private var uptimeAnchor: TimeInterval?
+    private var serverSubscriptionStatus: NabiraSubscriptionStatus?
     private var clockTimer: Timer?
-    private var lastServerRefresh = Date.distantPast
+    private var lastServerRefreshUptime = -TimeInterval.infinity
 
     private init(
         defaults: UserDefaults = .standard,
@@ -178,11 +186,14 @@ final class AccountAccessManager: ObservableObject {
         self.api = api
         NabiraBrandMigration.migrateUserDefaults(into: defaults)
         session = sessionStore.load()
+
+        deviceID = try? NabiraDeviceIdentity.identifier()
         snapshot = AccountAccessSnapshot(
             now: now,
-            trialStartedAt: defaults.object(forKey: Keys.trialStartedAt) as? Date,
+            trialStartedAt: nil,
+            trialEndsAt: nil,
             authenticatedEmail: session?.user.email,
-            subscriptionStatus: session?.user.subscriptionStatus ?? .inactive
+            subscriptionStatus: .inactive
         )
     }
 
@@ -194,7 +205,7 @@ final class AccountAccessManager: ObservableObject {
             Task { @MainActor in
                 guard let self else { return }
                 self.refresh()
-                if Date().timeIntervalSince(self.lastServerRefresh) >= 5 * 60 {
+                if ProcessInfo.processInfo.systemUptime - self.lastServerRefreshUptime >= 5 * 60 {
                     await self.refreshAccount()
                 }
             }
@@ -205,7 +216,6 @@ final class AccountAccessManager: ObservableObject {
         if defaults.object(forKey: Keys.trialStartedAt) == nil {
             defaults.set(Date(), forKey: Keys.trialStartedAt)
         }
-        refresh()
     }
 
     @discardableResult
@@ -230,7 +240,9 @@ final class AccountAccessManager: ObservableObject {
             )
             try sessionStore.save(newSession)
             session = newSession
+            serverSubscriptionStatus = user.subscriptionStatus
             refresh()
+            await refreshAccount()
         } catch {
             try? await api.logout(accessToken: pair.accessToken)
             throw error
@@ -253,37 +265,64 @@ final class AccountAccessManager: ObservableObject {
             nabiraLog("account: failed to clear API session from Keychain")
         }
         session = nil
+        serverSubscriptionStatus = nil
         refresh()
         if let accessToken {
-            Task { try? await api.logout(accessToken: accessToken) }
+            Task {
+                try? await api.logout(accessToken: accessToken)
+                await refreshAccount()
+            }
+        } else {
+            Task { await refreshAccount() }
         }
     }
 
     func refreshAccount() async {
-        guard !isRefreshingAccount, session != nil else { return }
+        guard !isRefreshingAccount else { return }
         isRefreshingAccount = true
         defer {
             isRefreshingAccount = false
-            lastServerRefresh = Date()
+            lastServerRefreshUptime = ProcessInfo.processInfo.systemUptime
         }
         do {
-            try await refreshAuthenticatedSession()
+            if session != nil {
+                try await refreshAuthenticatedSession()
+            }
+            try await refreshServerEntitlement()
+            accessVerificationError = nil
         } catch let error as NabiraAPIError where error.isUnauthorized {
             clearExpiredSession()
+            do {
+                try await refreshServerEntitlement()
+                accessVerificationError = nil
+            } catch {
+                accessVerificationError = error.localizedDescription
+                nabiraLog("account: anonymous entitlement unavailable")
+            }
         } catch {
-            // При временной недоступности backend сохраняем последнюю подтверждённую
-            // сессию. Пробный период и локальные функции продолжают работать.
+            // В уже запущенном процессе сохраняем последний подтверждённый статус.
+            // После нового запуска доступ появится только после ответа backend.
+            accessVerificationError = error.localizedDescription
             nabiraLog("account: server refresh unavailable")
         }
     }
 
-    func refresh(now: Date = Date()) {
+    func refresh() {
         let oldAccess = snapshot.hasAccess
+        let currentNow: Date
+        if let serverTimeAnchor, let uptimeAnchor {
+            currentNow = serverTimeAnchor.addingTimeInterval(
+                max(0, ProcessInfo.processInfo.systemUptime - uptimeAnchor)
+            )
+        } else {
+            currentNow = Date()
+        }
         snapshot = AccountAccessSnapshot(
-            now: now,
-            trialStartedAt: defaults.object(forKey: Keys.trialStartedAt) as? Date,
+            now: currentNow,
+            trialStartedAt: serverTrialStartedAt,
+            trialEndsAt: serverTrialEndsAt,
             authenticatedEmail: session?.user.email,
-            subscriptionStatus: session?.user.subscriptionStatus ?? .inactive
+            subscriptionStatus: serverSubscriptionStatus ?? .inactive
         )
         if oldAccess != snapshot.hasAccess {
             onAccessChanged?(snapshot.hasAccess)
@@ -307,6 +346,7 @@ final class AccountAccessManager: ObservableObject {
             if current.accessExpiresAt > Date().addingTimeInterval(30) {
                 let user = try await api.me(accessToken: current.accessToken)
                 try updateSession(current, user: user)
+                serverSubscriptionStatus = user.subscriptionStatus
                 return
             }
         } catch let error as NabiraAPIError where !error.isUnauthorized {
@@ -325,6 +365,28 @@ final class AccountAccessManager: ObservableObject {
         )
         try sessionStore.save(updated)
         session = updated
+        serverSubscriptionStatus = user.subscriptionStatus
+        refresh()
+    }
+
+    private func refreshServerEntitlement() async throws {
+        guard let deviceID else { throw NabiraDeviceIdentityError.unavailable }
+
+        let entitlement = try await api.accessStatus(
+            deviceID: deviceID,
+            localTrialStartedAt: defaults.object(forKey: Keys.trialStartedAt) as? Date,
+            accessToken: session?.accessToken
+        )
+        apply(entitlement: entitlement)
+    }
+
+    private func apply(entitlement: NabiraEntitlement) {
+        serverTimeAnchor = entitlement.serverTime
+        uptimeAnchor = ProcessInfo.processInfo.systemUptime
+        serverTrialStartedAt = entitlement.trialStartedAt
+        serverTrialEndsAt = entitlement.trialEndsAt
+        serverSubscriptionStatus = entitlement.subscriptionStatus
+        defaults.set(entitlement.trialStartedAt, forKey: Keys.trialStartedAt)
         refresh()
     }
 
@@ -338,12 +400,14 @@ final class AccountAccessManager: ObservableObject {
         )
         try sessionStore.save(updated)
         session = updated
+        serverSubscriptionStatus = user.subscriptionStatus
         refresh()
     }
 
     private func clearExpiredSession() {
         try? sessionStore.clear()
         session = nil
+        serverSubscriptionStatus = nil
         refresh()
     }
 

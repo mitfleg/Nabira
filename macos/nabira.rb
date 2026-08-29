@@ -1,6 +1,6 @@
 cask "nabira" do
   version "3.3.0"
-  sha256 "22e1ffa0c2021eb75c0d341d175ef7da310b5411e82456125d8f24fa59a02a19"
+  sha256 "f736a0dfc6e5907ec25fcbe58aa5b59e053a00b52ee2607313c338f07e3ba484"
 
   url "https://github.com/mitfleg/Nabira/releases/download/v#{version}/Nabira-#{version}.dmg"
   name "Nabira"

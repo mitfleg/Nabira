@@ -15,6 +15,19 @@ struct NabiraTokenPair: Codable, Equatable, Sendable {
     let expiresIn: Int
 }
 
+struct NabiraEntitlement: Codable, Equatable, Sendable {
+    let serverTime: Date
+    let trialStartedAt: Date
+    let trialEndsAt: Date
+    let trialActive: Bool
+    let trialDaysRemaining: Int
+    let authenticated: Bool
+    let subscriptionStatus: NabiraSubscriptionStatus
+    let activeSubscription: Bool
+    let hasAccess: Bool
+    let authenticationRequired: Bool
+}
+
 enum NabiraAPIError: LocalizedError, Equatable, Sendable {
     case invalidResponse
     case serviceUnavailable
@@ -85,8 +98,27 @@ actor NabiraAPIClient {
         self.session = session
         encoder = JSONEncoder()
         encoder.keyEncodingStrategy = .convertToSnakeCase
+        encoder.dateEncodingStrategy = .iso8601
         decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
+        decoder.dateDecodingStrategy = .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            let value = try container.decode(String.self)
+            let fractional = ISO8601DateFormatter()
+            fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            if let date = fractional.date(from: value) {
+                return date
+            }
+            let standard = ISO8601DateFormatter()
+            standard.formatOptions = [.withInternetDateTime]
+            if let date = standard.date(from: value) {
+                return date
+            }
+            throw DecodingError.dataCorruptedError(
+                in: container,
+                debugDescription: "Invalid ISO-8601 date: \(value)"
+            )
+        }
     }
 
     func register(email: String, password: String) async throws -> NabiraAccountUser {
@@ -126,6 +158,22 @@ actor NabiraAPIClient {
         try await request(
             path: "/v1/me", method: "GET", bearerToken: accessToken,
             acceptedStatuses: [200]
+        )
+    }
+
+    func accessStatus(
+        deviceID: String,
+        localTrialStartedAt: Date?,
+        accessToken: String?
+    ) async throws -> NabiraEntitlement {
+        struct Body: Encodable {
+            let deviceID: String
+            let localTrialStartedAt: Date?
+        }
+        return try await request(
+            path: "/v1/access/status", method: "POST",
+            body: Body(deviceID: deviceID, localTrialStartedAt: localTrialStartedAt),
+            bearerToken: accessToken, acceptedStatuses: [200]
         )
     }
 

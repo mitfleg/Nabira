@@ -11,6 +11,7 @@ struct AccountAccessTests {
         let state = AccountAccessSnapshot(
             now: start.addingTimeInterval(7 * 24 * 60 * 60 - 1),
             trialStartedAt: start,
+            trialEndsAt: start.addingTimeInterval(7 * 24 * 60 * 60),
             authenticatedEmail: nil,
             subscriptionStatus: .inactive
         )
@@ -25,6 +26,7 @@ struct AccountAccessTests {
         let state = AccountAccessSnapshot(
             now: start.addingTimeInterval(7 * 24 * 60 * 60),
             trialStartedAt: start,
+            trialEndsAt: start.addingTimeInterval(7 * 24 * 60 * 60),
             authenticatedEmail: nil,
             subscriptionStatus: .inactive
         )
@@ -39,6 +41,7 @@ struct AccountAccessTests {
         let state = AccountAccessSnapshot(
             now: start.addingTimeInterval(8 * 24 * 60 * 60),
             trialStartedAt: start,
+            trialEndsAt: start.addingTimeInterval(7 * 24 * 60 * 60),
             authenticatedEmail: "user@example.com",
             subscriptionStatus: .inactive
         )
@@ -52,11 +55,26 @@ struct AccountAccessTests {
         let state = AccountAccessSnapshot(
             now: start.addingTimeInterval(30 * 24 * 60 * 60),
             trialStartedAt: start,
+            trialEndsAt: start.addingTimeInterval(7 * 24 * 60 * 60),
             authenticatedEmail: "user@example.com",
             subscriptionStatus: .active
         )
 
         #expect(state.hasAccess)
         #expect(state.hasActiveSubscription)
+    }
+
+    @Test("The access policy uses the server-provided trial end")
+    func serverTrialEnd() {
+        let state = AccountAccessSnapshot(
+            now: start.addingTimeInterval(3 * 24 * 60 * 60),
+            trialStartedAt: start,
+            trialEndsAt: start.addingTimeInterval(2 * 24 * 60 * 60),
+            authenticatedEmail: nil,
+            subscriptionStatus: .inactive
+        )
+
+        #expect(!state.hasAccess)
+        #expect(state.trialDaysRemaining == 0)
     }
 }

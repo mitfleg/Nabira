@@ -391,6 +391,9 @@ final class SettingsManager: @unchecked Sendable {
     static var rawGitHubURL: String {
         "https://raw.githubusercontent.com/\(githubOwner)/\(githubRepo)/main"
     }
+    static let siteURL = "https://nabira.linkurakt.chatgpt.site"
+    static var stableUpdateFeedURL: String { "\(siteURL)/downloads/version.json" }
+    static var betaUpdateFeedURL: String { "\(siteURL)/downloads/version-beta.json" }
     /// Email для «Связаться с разработчиком» (mailto с предзаполнением). Пусто → кнопка
     /// открывает GitHub Issues как фолбэк.
     static let contactEmail = "mitfleg@icloud.com"
@@ -404,7 +407,7 @@ final class SettingsManager: @unchecked Sendable {
     /// Публичное имя репозитория меняется независимо от имени уже выпускаемых DMG.
     static let releaseAssetBaseName = "Nabira"
     static func releaseDMGURL(version: String) -> String {
-        "\(githubURL)/releases/download/v\(version)/\(releaseAssetBaseName)-\(version).dmg"
+        "\(siteURL)/downloads/Nabira-macOS.dmg?version=\(version)"
     }
 
     // MARK: - Login Item

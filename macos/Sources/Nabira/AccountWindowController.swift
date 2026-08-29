@@ -147,7 +147,9 @@ struct NabiraAccountWindowView: View {
 
     @ViewBuilder
     private var content: some View {
-        if presentation == .manage, accessManager.snapshot.isAuthenticated, !showsForm {
+        if let error = accessManager.accessVerificationError, !accessManager.snapshot.hasAccess {
+            accessUnavailable(error)
+        } else if presentation == .manage, accessManager.snapshot.isAuthenticated, !showsForm {
             accountSummary
         } else if presentation == .welcome, !showsForm, !accessManager.snapshot.trialHasStarted {
             trialWelcome
@@ -155,6 +157,41 @@ struct NabiraAccountWindowView: View {
             subscriptionRequired
         } else {
             authenticationForm
+        }
+    }
+
+    private func accessUnavailable(_ message: String) -> some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Image(systemName: "wifi.exclamationmark")
+                .font(.system(size: 30, weight: .semibold))
+                .foregroundStyle(NabiraPalette.signal)
+            Text(NabiraCopy.text("Не удалось проверить доступ", "Could not verify access"))
+                .font(.system(size: 24, weight: .bold, design: .rounded))
+                .foregroundStyle(NabiraPalette.ink)
+            Text(message)
+                .font(.system(size: 13))
+                .foregroundStyle(NabiraPalette.secondary)
+            Text(NabiraCopy.text(
+                "Для проверки пробного периода требуется соединение с сервером Nabira.",
+                "A connection to Nabira is required to verify the free trial."
+            ))
+            .font(.system(size: 12))
+            .foregroundStyle(NabiraPalette.secondary)
+
+            Spacer()
+
+            Button {
+                Task {
+                    await accessManager.refreshAccount()
+                    if accessManager.hasAccess { onClose() }
+                }
+            } label: {
+                Text(NabiraCopy.text("Повторить проверку", "Try again"))
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            .disabled(accessManager.isRefreshingAccount)
         }
     }
 

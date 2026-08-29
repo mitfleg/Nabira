@@ -6,7 +6,7 @@ using System.Windows.Forms;
 namespace Nabira.Win.Core;
 
 /// <summary>
-/// Checks GitHub for a newer version — the Windows counterpart of the macOS <c>UpdateChecker</c>.
+/// Checks the official Nabira site for a newer version.
 /// Reads the same kind of feed (windows/version.json) and, when a newer version exists, offers to
 /// open the download page. It does NOT self-replace the running exe (Windows makes in-place swap of a
 /// running file awkward and risky); it defers to the signed installer, mirroring the macOS
@@ -15,7 +15,7 @@ namespace Nabira.Win.Core;
 /// </summary>
 internal static class Updater
 {
-    private const string FeedUrl = "https://raw.githubusercontent.com/mitfleg/Nabira/main/windows/version.json";
+    private const string FeedUrl = "https://nabira.linkurakt.chatgpt.site/downloads/windows-version.json";
 
     // Single-flight: repeated tray clicks / an overlapping launch check must not spawn concurrent
     // HTTP checks that each write Settings and stack message boxes.
@@ -115,7 +115,7 @@ internal static class Updater
         if (r == DialogResult.Yes)
         {
             string open = string.IsNullOrWhiteSpace(feed.url)
-                ? "https://github.com/mitfleg/Nabira/releases/latest" : feed.url;
+                ? "https://nabira.linkurakt.chatgpt.site/#downloads" : feed.url;
             try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(open) { UseShellExecute = true }); }
             catch { /* ignore */ }
         }

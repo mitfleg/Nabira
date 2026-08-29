@@ -1,14 +1,14 @@
 import AppKit
 import Foundation
 
-/// Проверяет наличие обновлений через GitHub
+/// Проверяет наличие обновлений через официальный сайт Nabira.
 @MainActor
 enum UpdateChecker {
     // URL к JSON с информацией о версии (стабильный фид).
-    private static var versionURL: String { "\(SettingsManager.rawGitHubURL)/version.json" }
+    private static var versionURL: String { SettingsManager.stableUpdateFeedURL }
     // Фид пред-релизов (бет). Читается ТОЛЬКО если включён бета-канал в настройках.
     // Может отсутствовать (404) — тогда бета-клиент просто остаётся на стабильном фиде.
-    private static var betaVersionURL: String { "\(SettingsManager.rawGitHubURL)/version-beta.json" }
+    private static var betaVersionURL: String { SettingsManager.betaUpdateFeedURL }
 
     /// Структура JSON версии
     private struct VersionInfo: Decodable {
@@ -152,7 +152,7 @@ enum UpdateChecker {
         guard let expectedSHA = info.sha256, !expectedSHA.isEmpty else {
             nabiraLog("Update: no sha256 in version.json — falling back to browser download")
             // URL строим локально, а не из фида: фиду установщик не доверяет нигде.
-            if let url = URL(string: "\(SettingsManager.githubURL)/releases/latest") {
+            if let url = URL(string: "\(SettingsManager.siteURL)/#downloads") {
                 NSWorkspace.shared.open(url)
             }
             return
@@ -392,7 +392,7 @@ enum UpdateChecker {
         // URL строим локально из константы, а НЕ из info.url: фид приходит по сети,
         // и остальной установщик ему сознательно не доверяет (ревью-находка).
         if alert.runModal() == .alertFirstButtonReturn,
-           let url = URL(string: "\(SettingsManager.githubURL)/releases/latest") {
+           let url = URL(string: "\(SettingsManager.siteURL)/#downloads") {
             NSWorkspace.shared.open(url)
         }
     }

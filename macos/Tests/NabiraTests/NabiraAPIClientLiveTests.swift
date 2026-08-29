@@ -45,6 +45,32 @@ final class NabiraAPIClientLiveTests: XCTestCase {
         let client = NabiraAPIClient(baseURL: apiURL)
         let email = "swift-e2e+\(UUID().uuidString.lowercased())@nabira.local"
         let password = "NabiraSwift123!"
+        let deviceID = (
+            UUID().uuidString.replacingOccurrences(of: "-", with: "")
+            + UUID().uuidString.replacingOccurrences(of: "-", with: "")
+        ).lowercased()
+
+        let firstAccess = try await client.accessStatus(
+            deviceID: deviceID,
+            localTrialStartedAt: nil,
+            accessToken: nil
+        )
+        XCTAssertTrue(firstAccess.trialActive)
+        XCTAssertTrue(firstAccess.hasAccess)
+        XCTAssertFalse(firstAccess.authenticated)
+        XCTAssertEqual(
+            firstAccess.trialEndsAt.timeIntervalSince(firstAccess.trialStartedAt),
+            7 * 24 * 60 * 60,
+            accuracy: 1
+        )
+
+        let repeatedAccess = try await client.accessStatus(
+            deviceID: deviceID,
+            localTrialStartedAt: nil,
+            accessToken: nil
+        )
+        XCTAssertEqual(repeatedAccess.trialStartedAt, firstAccess.trialStartedAt)
+        XCTAssertEqual(repeatedAccess.trialEndsAt, firstAccess.trialEndsAt)
 
         let registered = try await client.register(email: email, password: password)
         XCTAssertEqual(registered.email, email)
@@ -61,6 +87,15 @@ final class NabiraAPIClientLiveTests: XCTestCase {
         XCTAssertEqual(profile.email, email)
         XCTAssertTrue(profile.emailVerified)
         XCTAssertEqual(profile.subscriptionStatus, .inactive)
+
+        let authenticatedAccess = try await client.accessStatus(
+            deviceID: deviceID,
+            localTrialStartedAt: nil,
+            accessToken: pair.accessToken
+        )
+        XCTAssertTrue(authenticatedAccess.authenticated)
+        XCTAssertEqual(authenticatedAccess.subscriptionStatus, .inactive)
+        XCTAssertTrue(authenticatedAccess.hasAccess)
 
         let rotated = try await client.refresh(refreshToken: pair.refreshToken)
         XCTAssertNotEqual(rotated.accessToken, pair.accessToken)

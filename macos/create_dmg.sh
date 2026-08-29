@@ -45,7 +45,9 @@ DMG_TEMP="${APP_NAME}-temp.dmg"
 VOL_NAME="${APP_NAME}"
 BACKGROUND="dmg_background.png"
 APP_PATH="${APP_NAME}.app"
-DMG_SIZE="10m"
+# Локальные словари ёфикатора и частотная модель заметно увеличили bundle.
+# Writable-образ должен иметь запас для приложения, фона и Finder metadata.
+DMG_SIZE="40m"
 
 echo "=== Creating styled DMG ==="
 
