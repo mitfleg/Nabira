@@ -125,9 +125,11 @@ def verify_feed(feed_path: Path, platform: str, public_key: Path) -> dict[str, o
     signature_bytes = strict_base64(signature, "signature")
     payload = validate_payload(json.loads(payload_bytes.decode("utf-8")), platform)
 
-    with tempfile.NamedTemporaryFile() as signature_file:
-        signature_file.write(signature_bytes)
-        signature_file.flush()
+    # NamedTemporaryFile stays exclusively open on Windows, so OpenSSL cannot reopen it by path.
+    # A private temporary directory lets us close the file before launching the verifier.
+    with tempfile.TemporaryDirectory() as directory:
+        signature_path = Path(directory) / "signature.der"
+        signature_path.write_bytes(signature_bytes)
         result = subprocess.run(
             [
                 "openssl",
@@ -136,7 +138,7 @@ def verify_feed(feed_path: Path, platform: str, public_key: Path) -> dict[str, o
                 "-verify",
                 str(public_key),
                 "-signature",
-                signature_file.name,
+                str(signature_path),
             ],
             input=payload_bytes,
             capture_output=True,
