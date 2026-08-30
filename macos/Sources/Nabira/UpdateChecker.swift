@@ -70,26 +70,29 @@ enum UpdateChecker {
     /// бета-тестер получает беты, но автоматически «сходит» на финальный стабильный релиз,
     /// когда тот обгонит бету. Отсутствие/ошибка бета-фида не мешает стабильному.
     private static func fetchApplicableInfo() async -> NabiraUpdateInfo? {
-        guard let stable = await fetchInfo(from: versionURL) else { return nil }
+        guard let stable = await fetchInfo(from: versionURL, channel: .stable) else { return nil }
         guard SettingsManager.shared.betaChannelEnabled else { return stable }
-        guard let beta = await fetchInfo(from: betaVersionURL) else { return stable }
+        guard let beta = await fetchInfo(from: betaVersionURL, channel: .beta) else { return stable }
         return compareVersions(beta.version, isNewerThan: stable.version) ? beta : stable
     }
 
     /// Текст изменений текущей беты (поле notes бета-фида) — для отдельной «витрины беты».
     /// nil, если бета-фид недоступен или без notes.
     static func fetchBetaNotes() async -> String? {
-        await fetchInfo(from: betaVersionURL)?.notes
+        await fetchInfo(from: betaVersionURL, channel: .beta)?.notes
     }
 
     /// Скачивает и декодирует VersionInfo из фида. nil при сетевой ошибке или не-200
     /// (напр. бета-фида ещё нет — тогда вызывающий остаётся на стабильном).
-    private static func fetchInfo(from urlString: String) async -> NabiraUpdateInfo? {
+    private static func fetchInfo(
+        from urlString: String,
+        channel: NabiraUpdateChannel
+    ) async -> NabiraUpdateInfo? {
         guard let url = URL(string: urlString) else { return nil }
         do {
             let (data, response) = try await URLSession.shared.data(from: url)
             if let http = response as? HTTPURLResponse, http.statusCode != 200 { return nil }
-            return try UpdateManifest.verify(data: data)
+            return try UpdateManifest.verify(data: data, expectedChannel: channel)
         } catch {
             nabiraLog("UpdateChecker fetch \(urlString): \(error)")
             return nil

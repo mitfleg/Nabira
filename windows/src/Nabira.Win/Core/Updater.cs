@@ -7,7 +7,8 @@ namespace Nabira.Win.Core;
 /// <summary>Checks, downloads, verifies, and installs signed Nabira releases.</summary>
 internal static class Updater
 {
-    private const string FeedUrl = "https://nabira.site/downloads/windows-version.json";
+    private const string StableFeedUrl = "https://nabira.site/downloads/windows-version.json";
+    private const string BetaFeedUrl = "https://nabira.site/downloads/windows-version-beta.json";
     private const long MaximumDownloadBytes = 250L * 1024 * 1024;
     private static int _busy;
 
@@ -45,21 +46,35 @@ internal static class Updater
         if (Interlocked.Exchange(ref _busy, 1) == 1) return;
         try
         {
-            string json;
+            NabiraUpdateInfo? stable;
             try
             {
-                using var http = Client(TimeSpan.FromSeconds(15));
-                json = await http.GetStringAsync(FeedUrl).ConfigureAwait(false);
+                stable = await FetchAsync(StableFeedUrl, UpdateChannel.Stable)
+                    .ConfigureAwait(false);
             }
             catch
             {
                 if (!silent) Show(ui, L10n.T("upd.error"), MessageBoxIcon.Warning);
                 return;
             }
-            if (!UpdateManifest.TryVerify(json, out var feed) || feed == null)
+            if (stable == null)
             {
                 if (!silent) Show(ui, L10n.T("upd.integrity"), MessageBoxIcon.Error);
                 return;
+            }
+
+            NabiraUpdateInfo feed = stable;
+            if (Settings.Current.BetaChannelEnabled)
+            {
+                // Beta is opt-in and optional. A missing, unreachable or invalid beta feed must
+                // never prevent the client from receiving stable security updates.
+                try
+                {
+                    var beta = await FetchAsync(BetaFeedUrl, UpdateChannel.Beta)
+                        .ConfigureAwait(false);
+                    feed = SelectLatest(stable, beta);
+                }
+                catch { /* keep the verified stable feed */ }
             }
 
             ui.Post(_ =>
@@ -94,7 +109,10 @@ internal static class Updater
         string body = L10n.T("upd.available.body", feed.Version, Current.ToString(3));
         if (!string.IsNullOrWhiteSpace(feed.Notes)) body += "\n\n" + feed.Notes;
         body += "\n\n" + L10n.T("upd.install");
-        var answer = MessageBox.Show(body, L10n.T("upd.available.title"),
+        string title = feed.Channel == UpdateChannel.Beta
+            ? L10n.T("upd.beta.title")
+            : L10n.T("upd.available.title");
+        var answer = MessageBox.Show(body, title,
             MessageBoxButtons.YesNo, MessageBoxIcon.Information);
         if (answer != DialogResult.Yes)
         {
@@ -162,6 +180,23 @@ internal static class Updater
         var client = new HttpClient { Timeout = timeout };
         client.DefaultRequestHeaders.UserAgent.ParseAdd("Nabira-Win-Updater");
         return client;
+    }
+
+    private static async Task<NabiraUpdateInfo?> FetchAsync(
+        string url, UpdateChannel expectedChannel)
+    {
+        using var http = Client(TimeSpan.FromSeconds(15));
+        string json = await http.GetStringAsync(url).ConfigureAwait(false);
+        return UpdateManifest.TryVerify(json, expectedChannel, out var info) ? info : null;
+    }
+
+    internal static NabiraUpdateInfo SelectLatest(
+        NabiraUpdateInfo stable, NabiraUpdateInfo? beta)
+    {
+        if (beta == null || !Version.TryParse(beta.Version, out var betaVersion) ||
+            !Version.TryParse(stable.Version, out var stableVersion))
+            return stable;
+        return betaVersion > stableVersion ? beta : stable;
     }
 
     private static void Show(SynchronizationContext ui, string text, MessageBoxIcon icon) =>

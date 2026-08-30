@@ -7,9 +7,11 @@ cd "$SCRIPT_DIR"   # все относительные пути — от macos/ 
 # --beta: собрать ПРЕД-РЕЛИЗ из version-beta.json, НЕ трогая стабильный фид (version.json)
 # и cask. Иначе — обычный стабильный релиз из version.json (живой фид обновлений).
 BETA=0
+UPDATE_CHANNEL="stable"
 VERSION_FILE="../version.json"
 if [ "${1:-}" = "--beta" ]; then
     BETA=1
+    UPDATE_CHANNEL="beta"
     VERSION_FILE="../version-beta.json"
     echo "=== BETA build (source: $VERSION_FILE — stable version.json/cask untouched) ==="
 fi
@@ -292,9 +294,11 @@ if [ ! -f "$UPDATE_SIGNING_KEY" ]; then
 fi
 echo "→ Signing update feed with the offline release key..."
 /usr/bin/python3 "$SCRIPT_DIR/../scripts/update_feed.py" sign \
-    --platform macos --key "$UPDATE_SIGNING_KEY" --feed "$VERSION_FILE"
+    --platform macos --channel "$UPDATE_CHANNEL" \
+    --key "$UPDATE_SIGNING_KEY" --feed "$VERSION_FILE"
 /usr/bin/python3 "$SCRIPT_DIR/../scripts/update_feed.py" verify \
-    --platform macos --public-key "$UPDATE_PUBLIC_KEY" --feed "$VERSION_FILE"
+    --platform macos --channel "$UPDATE_CHANNEL" \
+    --public-key "$UPDATE_PUBLIC_KEY" --feed "$VERSION_FILE"
 
 echo ""
 echo "=== Done! ==="

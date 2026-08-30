@@ -22,8 +22,14 @@ from urllib.parse import urlparse
 
 ALGORITHM = "ecdsa-p256-sha256"
 PLATFORM_PATHS = {
-    "macos": "/downloads/Nabira-macOS.dmg",
-    "windows": "/downloads/Nabira-Windows-x64.exe",
+    "macos": {
+        "stable": "/downloads/Nabira-macOS.dmg",
+        "beta": "/downloads/beta/Nabira-macOS.dmg",
+    },
+    "windows": {
+        "stable": "/downloads/Nabira-Windows-x64.exe",
+        "beta": "/downloads/beta/Nabira-Windows-x64.exe",
+    },
 }
 VERSION_PATTERNS = {
     "macos": re.compile(r"^[0-9]+(?:\.[0-9]+){1,3}[a-z]?$"),
@@ -53,7 +59,9 @@ def strict_base64(value: str, field: str) -> bytes:
         raise ValueError(f"invalid {field}") from error
 
 
-def validate_payload(payload: object, expected_platform: str) -> dict[str, object]:
+def validate_payload(
+    payload: object, expected_platform: str, expected_channel: str = "stable"
+) -> dict[str, object]:
     if not isinstance(payload, dict):
         fail("signed payload must be a JSON object")
     expected_keys = {"schema", "platform", "version", "url", "notes", "sha256"}
@@ -81,14 +89,14 @@ def validate_payload(payload: object, expected_platform: str) -> dict[str, objec
         or parsed.username is not None
         or parsed.password is not None
         or parsed.port is not None
-        or parsed.path != PLATFORM_PATHS[expected_platform]
+        or parsed.path != PLATFORM_PATHS[expected_platform][expected_channel]
         or parsed.fragment
     ):
         fail("update URL must use the official Nabira download endpoint")
     return payload
 
 
-def compact_payload(feed: dict[str, object], platform: str) -> bytes:
+def compact_payload(feed: dict[str, object], platform: str, channel: str = "stable") -> bytes:
     payload = {
         "schema": 1,
         "platform": platform,
@@ -97,7 +105,7 @@ def compact_payload(feed: dict[str, object], platform: str) -> bytes:
         "notes": feed.get("notes", ""),
         "sha256": feed.get("sha256"),
     }
-    validate_payload(payload, platform)
+    validate_payload(payload, platform, channel)
     return json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
 
 
@@ -109,7 +117,9 @@ def key_id(public_key: Path) -> str:
     return hashlib.sha256(public_der(public_key)).hexdigest()[:16]
 
 
-def verify_feed(feed_path: Path, platform: str, public_key: Path) -> dict[str, object]:
+def verify_feed(
+    feed_path: Path, platform: str, public_key: Path, channel: str = "stable"
+) -> dict[str, object]:
     feed = json.loads(feed_path.read_text(encoding="utf-8"))
     if not isinstance(feed, dict):
         fail("feed must be a JSON object")
@@ -123,7 +133,7 @@ def verify_feed(feed_path: Path, platform: str, public_key: Path) -> dict[str, o
         fail("signed feed fields are missing")
     payload_bytes = strict_base64(signed_payload, "signed_payload")
     signature_bytes = strict_base64(signature, "signature")
-    payload = validate_payload(json.loads(payload_bytes.decode("utf-8")), platform)
+    payload = validate_payload(json.loads(payload_bytes.decode("utf-8")), platform, channel)
 
     # NamedTemporaryFile stays exclusively open on Windows, so OpenSSL cannot reopen it by path.
     # A private temporary directory lets us close the file before launching the verifier.
@@ -153,7 +163,13 @@ def verify_feed(feed_path: Path, platform: str, public_key: Path) -> dict[str, o
     return payload
 
 
-def sign_feed(feed_path: Path, output_path: Path, platform: str, private_key: Path) -> None:
+def sign_feed(
+    feed_path: Path,
+    output_path: Path,
+    platform: str,
+    private_key: Path,
+    channel: str = "stable",
+) -> None:
     mode = private_key.stat().st_mode & 0o777
     # Windows does not expose POSIX ownership bits and commonly reports 0666 for a private temp
     # file. The GitHub runner deletes that file in a finally block; enforce 0600 where permissions
@@ -163,7 +179,7 @@ def sign_feed(feed_path: Path, output_path: Path, platform: str, private_key: Pa
     feed = json.loads(feed_path.read_text(encoding="utf-8"))
     if not isinstance(feed, dict):
         fail("feed must be a JSON object")
-    payload_bytes = compact_payload(feed, platform)
+    payload_bytes = compact_payload(feed, platform, channel)
     signature = run_openssl(
         ["dgst", "-sha256", "-sign", str(private_key)], input_data=payload_bytes
     )
@@ -187,7 +203,7 @@ def sign_feed(feed_path: Path, output_path: Path, platform: str, private_key: Pa
             json.dumps(feed, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
         )
         os.replace(temporary, output_path)
-        verify_feed(output_path, platform, public_key)
+        verify_feed(output_path, platform, public_key, channel)
 
 
 def parser() -> argparse.ArgumentParser:
@@ -196,12 +212,14 @@ def parser() -> argparse.ArgumentParser:
 
     sign = subcommands.add_parser("sign")
     sign.add_argument("--platform", choices=PLATFORM_PATHS, required=True)
+    sign.add_argument("--channel", choices=("stable", "beta"), default="stable")
     sign.add_argument("--key", type=Path, required=True)
     sign.add_argument("--feed", type=Path, required=True)
     sign.add_argument("--output", type=Path)
 
     verify = subcommands.add_parser("verify")
     verify.add_argument("--platform", choices=PLATFORM_PATHS, required=True)
+    verify.add_argument("--channel", choices=("stable", "beta"), default="stable")
     verify.add_argument("--public-key", type=Path, required=True)
     verify.add_argument("--feed", type=Path, required=True)
     return result
@@ -211,11 +229,17 @@ def main() -> int:
     args = parser().parse_args()
     try:
         if args.command == "sign":
-            sign_feed(args.feed, args.output or args.feed, args.platform, args.key)
-            print(f"signed {args.platform} feed: {args.output or args.feed}")
+            sign_feed(
+                args.feed,
+                args.output or args.feed,
+                args.platform,
+                args.key,
+                args.channel,
+            )
+            print(f"signed {args.platform}/{args.channel} feed: {args.output or args.feed}")
         else:
-            payload = verify_feed(args.feed, args.platform, args.public_key)
-            print(f"verified {args.platform} feed version {payload['version']}")
+            payload = verify_feed(args.feed, args.platform, args.public_key, args.channel)
+            print(f"verified {args.platform}/{args.channel} feed version {payload['version']}")
     except (OSError, ValueError, RuntimeError, json.JSONDecodeError, UnicodeDecodeError) as error:
         print(f"update feed error: {error}", file=sys.stderr)
         return 1

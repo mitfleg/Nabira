@@ -1,7 +1,7 @@
 {
-  "version": "0.11.0",
-  "url": "https://nabira.site/downloads/Nabira-Windows-x64.exe?version=0.11.0",
-  "notes": "Добавлено безопасное обновление прямо из Nabira: подписанный фид, проверка SHA-256, атомарная замена EXE, резервная копия и автоматический откат, если новая версия не запускается.",
+  "version": "0.11.1",
+  "url": "https://nabira.site/downloads/Nabira-Windows-x64.exe?version=0.11.1",
+  "notes": "Добавлен отдельный подписанный beta-канал. Stable остаётся каналом по умолчанию и используется как fallback при любой ошибке beta-фида.",
   "sha256": "72d29194b5a914ee5cf454e6a22ee15024f906432d920acee59b58c245ad98f8",
   "signed_payload": "eyJzY2hlbWEiOjEsInBsYXRmb3JtIjoid2luZG93cyIsInZlcnNpb24iOiIwLjExLjAiLCJ1cmwiOiJodHRwczovL25hYmlyYS5zaXRlL2Rvd25sb2Fkcy9OYWJpcmEtV2luZG93cy14NjQuZXhlP3ZlcnNpb249MC4xMS4wIiwibm90ZXMiOiLQlNC+0LHQsNCy0LvQtdC90L4g0LHQtdC30L7Qv9Cw0YHQvdC+0LUg0L7QsdC90L7QstC70LXQvdC40LUg0L/RgNGP0LzQviDQuNC3IE5hYmlyYTog0L/QvtC00L/QuNGB0LDQvdC90YvQuSDRhNC40LQsINC/0YDQvtCy0LXRgNC60LAgU0hBLTI1Niwg0LDRgtC+0LzQsNGA0L3QsNGPINC30LDQvNC10L3QsCBFWEUsINGA0LXQt9C10YDQstC90LDRjyDQutC+0L/QuNGPINC4INCw0LLRgtC+0LzQsNGC0LjRh9C10YHQutC40Lkg0L7RgtC60LDRgiwg0LXRgdC70Lgg0L3QvtCy0LDRjyDQstC10YDRgdC40Y8g0L3QtSDQt9Cw0L/Rg9GB0LrQsNC10YLRgdGPLiIsInNoYTI1NiI6IjcyZDI5MTk0YjVhOTE0ZWU1Y2Y0NTRlNmEyMmVlMTUwMjRmOTA2NDMyZDkyMGFjZWU1OWI1OGMyNDVhZDk4ZjgifQ==",
   "signature": "MEQCIBw3NhZWFtnm/XcPgCWLO4enHTnnYowp1RY2pKo0SsiFAiA5UDFWKrPLy9Ey0aEzzeXzZam5iqYFOJAhERPOyYBi3g==",

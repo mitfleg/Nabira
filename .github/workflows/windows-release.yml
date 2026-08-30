@@ -16,6 +16,14 @@ on:
       version:
         description: 'Version to build (e.g. 0.9.0), for manual runs'
         required: true
+      channel:
+        description: 'Update channel'
+        required: true
+        default: stable
+        type: choice
+        options:
+          - stable
+          - beta
 
 permissions:
   contents: write
@@ -40,13 +48,20 @@ jobs:
         run: |
           if ('${{ github.event_name }}' -eq 'workflow_dispatch') {
             $v = '${{ github.event.inputs.version }}'
+            $channel = '${{ github.event.inputs.channel }}'
           } else {
             $v = '${{ github.ref_name }}' -replace '^win-v',''
+            $channel = 'stable'
           }
           "version=$v" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-          $pre = if ($v -like '0.*') { 'true' } else { 'false' }
+          "channel=$channel" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          $feedAsset = if ($channel -eq 'beta') { 'windows-version-beta.json' } else { 'windows-version.json' }
+          $releaseTag = if ($channel -eq 'beta') { "win-beta-v$v" } else { "win-v$v" }
+          "feed_asset=$feedAsset" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "release_tag=$releaseTag" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          $pre = if ($channel -eq 'beta' -or $v -like '0.*') { 'true' } else { 'false' }
           "prerelease=$pre" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-          Write-Host "version=$v prerelease=$pre"
+          Write-Host "version=$v channel=$channel prerelease=$pre"
 
       - name: Test
         run: dotnet test windows/tests/Nabira.Win.Tests/Nabira.Win.Tests.csproj -c Release --nologo
@@ -159,17 +174,21 @@ jobs:
           $key = Join-Path $env:RUNNER_TEMP 'nabira-update-signing-private.pem'
           [IO.File]::WriteAllText($key, $env:UPDATE_SIGNING_KEY, [Text.UTF8Encoding]::new($false))
           try {
-            $feedPath = 'assets\windows-version.json'
-            $feed = Get-Content windows\version.json -Raw | ConvertFrom-Json
+            $channel = '${{ steps.ver.outputs.channel }}'
+            $feedAsset = '${{ steps.ver.outputs.feed_asset }}'
+            $feedPath = "assets\$feedAsset"
+            $feedSource = if ($channel -eq 'beta') { 'windows\version-beta.json' } else { 'windows\version.json' }
+            $downloadPath = if ($channel -eq 'beta') { 'downloads/beta/Nabira-Windows-x64.exe' } else { 'downloads/Nabira-Windows-x64.exe' }
+            $feed = Get-Content $feedSource -Raw | ConvertFrom-Json
             $feed.version = $v
-            $feed.url = "https://nabira.site/downloads/Nabira-Windows-x64.exe?version=$v"
+            $feed.url = "https://nabira.site/$downloadPath`?version=$v"
             $feed.sha256 = (Get-FileHash publish\x64\Nabira.exe -Algorithm SHA256).Hash.ToLower()
             $feed | ConvertTo-Json -Depth 5 | Set-Content -Encoding utf8 $feedPath
-            python scripts\update_feed.py sign --platform windows --key $key --feed $feedPath
-            python scripts\update_feed.py verify --platform windows `
+            python scripts\update_feed.py sign --platform windows --channel $channel --key $key --feed $feedPath
+            python scripts\update_feed.py verify --platform windows --channel $channel `
               --public-key shared\update-signing-public.pem --feed $feedPath
             $feedHash = (Get-FileHash $feedPath -Algorithm SHA256).Hash.ToLower()
-            "$feedHash  windows-version.json" | Out-File -Append -Encoding ascii assets\SHA256SUMS.txt
+            "$feedHash  $feedAsset" | Out-File -Append -Encoding ascii assets\SHA256SUMS.txt
           } finally {
             Remove-Item $key -Force -ErrorAction SilentlyContinue
           }
@@ -180,13 +199,15 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $v = '${{ steps.ver.outputs.version }}'
-          $notes = "Nabira for Windows $v`n`nAssets: portable single-file exe (x64/arm64) and an installer.`n`nSHA256:`n" + (Get-Content assets\SHA256SUMS.txt -Raw)
+          $channel = '${{ steps.ver.outputs.channel }}'
+          $label = if ($channel -eq 'beta') { ' beta' } else { '' }
+          $notes = "Nabira for Windows $v$label`n`nAssets: portable single-file exe (x64/arm64) and an installer.`n`nSHA256:`n" + (Get-Content assets\SHA256SUMS.txt -Raw)
           $notes | Out-File -Encoding utf8 notes.md
           # Build the arg list explicitly: an empty '$pre' would otherwise reach gh as an empty
           # positional (a bogus asset path) and fail the first stable release. --target pins the tag to
           # the built commit (matters on the workflow_dispatch path, which creates the tag).
-          $ghArgs = @("win-v$v") + (Get-ChildItem assets\* | ForEach-Object { $_.FullName }) +
-                    @('--title', "Nabira for Windows $v", '--notes-file', 'notes.md',
+          $ghArgs = @('${{ steps.ver.outputs.release_tag }}') + (Get-ChildItem assets\* | ForEach-Object { $_.FullName }) +
+                    @('--title', "Nabira for Windows $v$label", '--notes-file', 'notes.md',
                       '--target', '${{ github.sha }}')
           if ('${{ steps.ver.outputs.prerelease }}' -eq 'true') { $ghArgs += '--prerelease' }
           gh release create @ghArgs

@@ -10,6 +10,18 @@ struct NabiraUpdateInfo: Decodable, Equatable {
     let sha256: String
 }
 
+enum NabiraUpdateChannel {
+    case stable
+    case beta
+
+    var downloadPath: String {
+        switch self {
+        case .stable: "/downloads/Nabira-macOS.dmg"
+        case .beta: "/downloads/beta/Nabira-macOS.dmg"
+        }
+    }
+}
+
 enum UpdateManifestError: Error {
     case malformedEnvelope
     case unsupportedKey
@@ -39,7 +51,11 @@ enum UpdateManifest {
         }
     }
 
-    static func verify(data: Data, expectedPlatform: String = "macos") throws -> NabiraUpdateInfo {
+    static func verify(
+        data: Data,
+        expectedPlatform: String = "macos",
+        expectedChannel: NabiraUpdateChannel = .stable
+    ) throws -> NabiraUpdateInfo {
         guard let envelope = try? JSONDecoder().decode(Envelope.self, from: data),
               envelope.signatureAlgorithm == algorithm,
               envelope.keyID == trustedKeyID,
@@ -61,13 +77,17 @@ enum UpdateManifest {
             throw UpdateManifestError.invalidSignature
         }
         guard let info = try? JSONDecoder().decode(NabiraUpdateInfo.self, from: payloadData),
-              validate(info, expectedPlatform: expectedPlatform) else {
+              validate(info, expectedPlatform: expectedPlatform, expectedChannel: expectedChannel) else {
             throw UpdateManifestError.invalidPayload
         }
         return info
     }
 
-    private static func validate(_ info: NabiraUpdateInfo, expectedPlatform: String) -> Bool {
+    private static func validate(
+        _ info: NabiraUpdateInfo,
+        expectedPlatform: String,
+        expectedChannel: NabiraUpdateChannel
+    ) -> Bool {
         guard info.schema == 1, info.platform == expectedPlatform,
               info.version.range(
                 of: "^[0-9]+(\\.[0-9]+){1,3}[a-z]?$",
@@ -78,7 +98,7 @@ enum UpdateManifest {
               let url = URL(string: info.url),
               url.scheme == "https", url.host == "nabira.site", url.port == nil,
               url.user == nil, url.password == nil, url.fragment == nil,
-              url.path == "/downloads/Nabira-macOS.dmg" else {
+              url.path == expectedChannel.downloadPath else {
             return false
         }
         return true

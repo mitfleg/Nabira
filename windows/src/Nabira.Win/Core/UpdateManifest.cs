@@ -5,8 +5,15 @@ using System.Text.Json.Serialization;
 
 namespace Nabira.Win.Core;
 
+internal enum UpdateChannel
+{
+    Stable,
+    Beta,
+}
+
 internal sealed record NabiraUpdateInfo(
-    int Schema, string Platform, string Version, string Url, string Notes, string Sha256);
+    int Schema, string Platform, string Version, string Url, string Notes, string Sha256,
+    UpdateChannel Channel);
 
 /// <summary>Verifies update metadata with the embedded Nabira release public key.</summary>
 internal static class UpdateManifest
@@ -49,7 +56,11 @@ internal static class UpdateManifest
         UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
     };
 
-    internal static bool TryVerify(string json, out NabiraUpdateInfo? info)
+    internal static bool TryVerify(string json, out NabiraUpdateInfo? info) =>
+        TryVerify(json, UpdateChannel.Stable, out info);
+
+    internal static bool TryVerify(
+        string json, UpdateChannel expectedChannel, out NabiraUpdateInfo? info)
     {
         info = null;
         try
@@ -70,10 +81,10 @@ internal static class UpdateManifest
                 return false;
 
             var payload = JsonSerializer.Deserialize<Payload>(payloadBytes, PayloadJson);
-            if (payload == null || !Valid(payload)) return false;
+            if (payload == null || !Valid(payload, expectedChannel)) return false;
             info = new NabiraUpdateInfo(
                 payload.Schema, payload.Platform, payload.Version,
-                payload.Url, payload.Notes, payload.Sha256);
+                payload.Url, payload.Notes, payload.Sha256, expectedChannel);
             return true;
         }
         catch (Exception ex) when (ex is JsonException or FormatException or CryptographicException)
@@ -82,7 +93,7 @@ internal static class UpdateManifest
         }
     }
 
-    private static bool Valid(Payload payload)
+    private static bool Valid(Payload payload, UpdateChannel expectedChannel)
     {
         if (payload.Schema != 1 || payload.Platform != "windows" ||
             payload.Notes == null || Encoding.UTF8.GetByteCount(payload.Notes) > 20_000 ||
@@ -91,8 +102,11 @@ internal static class UpdateManifest
             !System.Text.RegularExpressions.Regex.IsMatch(payload.Sha256, "^[0-9a-f]{64}$") ||
             !Uri.TryCreate(payload.Url, UriKind.Absolute, out var uri))
             return false;
+        string expectedPath = expectedChannel == UpdateChannel.Beta
+            ? "/downloads/beta/Nabira-Windows-x64.exe"
+            : "/downloads/Nabira-Windows-x64.exe";
         return uri.Scheme == Uri.UriSchemeHttps && uri.Host == "nabira.site" && uri.IsDefaultPort &&
                string.IsNullOrEmpty(uri.UserInfo) && string.IsNullOrEmpty(uri.Fragment) &&
-               uri.AbsolutePath == "/downloads/Nabira-Windows-x64.exe";
+               uri.AbsolutePath == expectedPath;
     }
 }

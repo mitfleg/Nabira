@@ -6,6 +6,8 @@ import XCTest
 final class UpdateManifestTests: XCTestCase {
     private let payload = "eyJzY2hlbWEiOjEsInBsYXRmb3JtIjoibWFjb3MiLCJ2ZXJzaW9uIjoiOS44LjciLCJ1cmwiOiJodHRwczovL25hYmlyYS5zaXRlL2Rvd25sb2Fkcy9OYWJpcmEtbWFjT1MuZG1nP3ZlcnNpb249OS44LjciLCJub3RlcyI6ImZpeHR1cmUiLCJzaGEyNTYiOiJhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhIn0="
     private let signature = "MEUCIEZGRVXZtyzAlK4EOKZBQVAnxitkk2gR1N/KZ8LJe4P2AiEA9JilDNUOpRPPqK7p2Vi3/ofoM1igV+cCI3SUqN8l1Cg="
+    private let betaPayload = "eyJzY2hlbWEiOjEsInBsYXRmb3JtIjoibWFjb3MiLCJ2ZXJzaW9uIjoiOS44LjhhIiwidXJsIjoiaHR0cHM6Ly9uYWJpcmEuc2l0ZS9kb3dubG9hZHMvYmV0YS9OYWJpcmEtbWFjT1MuZG1nP3ZlcnNpb249OS44LjhhIiwibm90ZXMiOiJiZXRhIGZpeHR1cmUiLCJzaGEyNTYiOiJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiIn0="
+    private let betaSignature = "MEYCIQCr1IhrnpLDU6piKp0D7ggbW7t1mSMF4lftyGA25+CZWAIhALnCanKCzGkLCaBVDm5DHyrxf/mbMq09KsrB+2ifVtlb"
 
     func testVerifiesSignedOfficialMacOSPayload() throws {
         let info = try UpdateManifest.verify(data: envelope(payload: payload, signature: signature))
@@ -31,6 +33,19 @@ final class UpdateManifestTests: XCTestCase {
             try UpdateManifest.verify(
                 data: envelope(payload: payload, signature: signature),
                 expectedPlatform: "windows"
+            )
+        )
+    }
+
+    func testVerifiesBetaOnlyForBetaChannel() throws {
+        let data = envelope(payload: betaPayload, signature: betaSignature)
+        let info = try UpdateManifest.verify(data: data, expectedChannel: .beta)
+        XCTAssertEqual(info.version, "9.8.8a")
+        XCTAssertThrowsError(try UpdateManifest.verify(data: data, expectedChannel: .stable))
+        XCTAssertThrowsError(
+            try UpdateManifest.verify(
+                data: envelope(payload: payload, signature: signature),
+                expectedChannel: .beta
             )
         )
     }

@@ -83,6 +83,8 @@ public sealed class Settings
 
     /// <summary>Auto-check for updates on launch (once per 24h). Manual check always works.</summary>
     public bool CheckUpdatesEnabled { get; set; } = true;
+    /// <summary>Opt in to separately signed pre-release builds. Stable remains the fallback.</summary>
+    public bool BetaChannelEnabled { get; set; } = false;
     /// <summary>Last auto-check time (UTC ticks) — throttles to once a day, like the macOS updater.</summary>
     public long LastUpdateCheckTicks { get; set; } = 0;
     /// <summary>A version the user chose to skip (not re-notified while it's the latest).</summary>

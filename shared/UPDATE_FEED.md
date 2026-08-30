@@ -20,7 +20,7 @@ Clients must:
 1. decode `signed_payload` and `signature` with strict standard Base64;
 2. verify the signature with the embedded public key before using any payload field;
 3. require `schema == 1` and the exact platform (`macos` or `windows`);
-4. require HTTPS on `nabira.site` and the platform-specific download path;
+4. require HTTPS on `nabira.site` and the exact channel/platform download path;
 5. verify the downloaded file's SHA-256 before replacing the installed application;
 6. verify the bundle/executable identity before restart.
 
@@ -31,4 +31,11 @@ maintainer copy lives outside the repository at
 `~/Library/Application Support/NabiraRelease/update-signing-private.pem`. Back it up offline:
 losing it makes existing clients unable to trust future releases.
 
-Sign and verify feeds with `scripts/update_feed.py`.
+Stable clients use `/downloads/Nabira-macOS.dmg` and
+`/downloads/Nabira-Windows-x64.exe`. Opt-in beta clients use the separate
+`/downloads/beta/` paths. A missing or invalid beta feed falls back to the verified stable feed.
+The channel is not trusted metadata: the client supplies the expected channel based on the feed URL
+it requested, and the signed payload must contain that channel's exact download path.
+
+Sign and verify feeds with `scripts/update_feed.py`. Pass `--channel beta` for a beta feed; omitted
+`--channel` means `stable` for backward-compatible release commands.

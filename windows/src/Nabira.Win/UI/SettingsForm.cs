@@ -134,7 +134,7 @@ internal sealed class SettingsForm : Form
         _content.Controls.Add(hotkeysCard);
 
         y += 210;
-        CardPanel systemCard = Section("Система", "Запуск, раскладки и обновления", y, 270);
+        CardPanel systemCard = Section("Система", "Запуск, раскладки и обновления", y, 328);
         AddToggle(systemCard, 66, "Запускать вместе с Windows", "Nabira будет готова сразу после входа.",
             AutoStart.IsEnabled(), AutoStart.SetEnabled);
         AddToggle(systemCard, 124, "Запоминать раскладку для приложений",
@@ -144,9 +144,17 @@ internal sealed class SettingsForm : Form
             s.SoundOnSwitch, value => { s.SoundOnSwitch = value; s.Save(); });
         AddToggle(systemCard, 240, "Проверять обновления", "Автоматическая проверка не чаще одного раза в сутки.",
             s.CheckUpdatesEnabled, value => { s.CheckUpdatesEnabled = value; s.Save(); });
+        AddToggle(systemCard, 298, "Получать бета-версии", "Ранний доступ; при ошибке используется стабильный канал.",
+            s.BetaChannelEnabled, value =>
+            {
+                s.BetaChannelEnabled = value;
+                s.LastUpdateCheckTicks = 0;
+                s.SkippedVersion = "";
+                s.Save();
+            });
         _content.Controls.Add(systemCard);
 
-        y += 294;
+        y += 352;
         var exceptions = NabiraTheme.SecondaryButton("Настроить исключения", 38, y, 190, 42);
         exceptions.Click += (_, _) => { using var form = new ExceptionsForm(); form.ShowDialog(this); };
         var site = MakeLink("nabira.site", 250, y + 12, "https://nabira.site");

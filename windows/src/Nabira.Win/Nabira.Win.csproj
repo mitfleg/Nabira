@@ -19,7 +19,7 @@
     <LangVersion>latest</LangVersion>
     <Platforms>x64;ARM64</Platforms>
     <!-- Windows track starts pre-1.0 (beta). Keep in sync with windows/version.json. -->
-    <Version>0.11.0</Version>
+    <Version>0.11.1</Version>
     <ApplicationIcon>Resources\Nabira.ico</ApplicationIcon>
   </PropertyGroup>
 
