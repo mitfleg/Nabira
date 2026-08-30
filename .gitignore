@@ -13,6 +13,9 @@ DerivedData/
 .claude/
 *.certSigningRequest
 
+# Локальная резервная копия ключа подписи update-фидов. Никогда не добавлять в Git.
+/.release-secrets/
+
 # .NET (Windows version)
 [Bb]in/
 [Oo]bj/
