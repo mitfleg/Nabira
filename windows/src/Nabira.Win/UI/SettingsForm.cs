@@ -31,14 +31,12 @@ internal sealed class SettingsForm : Form
         var sidebar = BuildSidebar();
         _content = new Panel
         {
-            Dock = DockStyle.Fill,
+            Name = "settingsContent",
             BackColor = NabiraTheme.Cloud,
             AutoScroll = true,
             Padding = new Padding(38, 28, 38, 28),
         };
-        Controls.Add(_content);
-        Controls.Add(sidebar);
-        sidebar.BringToFront();
+        Controls.Add(NabiraTheme.SplitShell(sidebar, _content, 236));
 
         _content.Controls.Add(NabiraTheme.Label("Настройки", 38, 25, 560, 45, 24, FontStyle.Bold));
         _content.Controls.Add(NabiraTheme.Label(
@@ -164,7 +162,7 @@ internal sealed class SettingsForm : Form
 
     private static GradientPanel BuildSidebar()
     {
-        var panel = new GradientPanel { Dock = DockStyle.Left, Width = 236 };
+        var panel = new GradientPanel { Name = "settingsSidebar" };
         var mark = NabiraTheme.Label("A│Я", 30, 34, 76, 48, 21, FontStyle.Bold, Color.White);
         var name = NabiraTheme.Label("Nabira", 30, 92, 170, 40, 20, FontStyle.Bold, Color.White);
         var tag = NabiraTheme.Label("Печатайте мысль,\nа не раскладку.", 30, 133, 180, 62, 11,

@@ -30,10 +30,8 @@ internal sealed class AccountForm : Form
         try { Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath); } catch { }
 
         var brandPanel = BuildBrandPanel();
-        var content = new Panel { Dock = DockStyle.Fill, BackColor = NabiraTheme.Cloud };
-        Controls.Add(content);
-        Controls.Add(brandPanel);
-        brandPanel.BringToFront();
+        var content = new Panel { Name = "accountContent", BackColor = NabiraTheme.Cloud };
+        Controls.Add(NabiraTheme.SplitShell(brandPanel, content, 330));
 
         content.Controls.Add(NabiraTheme.Label("Аккаунт Nabira", 44, 34, 440, 42, 22, FontStyle.Bold));
         content.Controls.Add(NabiraTheme.Label(
@@ -84,7 +82,7 @@ internal sealed class AccountForm : Form
 
     private static GradientPanel BuildBrandPanel()
     {
-        var panel = new GradientPanel { Dock = DockStyle.Left, Width = 330 };
+        var panel = new GradientPanel { Name = "accountSidebar" };
         panel.Controls.Add(NabiraTheme.Label("A│Я", 44, 56, 100, 55, 24, FontStyle.Bold, Color.White));
         panel.Controls.Add(NabiraTheme.Label("Nabira", 44, 146, 240, 50, 25, FontStyle.Bold, Color.White));
         panel.Controls.Add(NabiraTheme.Label("Печатайте мысль,\nа не раскладку.", 44, 204, 240, 76,

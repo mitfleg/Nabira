@@ -100,6 +100,32 @@ internal static class NabiraTheme
             ScrollBars = multiline ? ScrollBars.Vertical : ScrollBars.None,
         };
 
+    /// <summary>A deterministic two-column shell. Unlike sibling DockStyle.Left/Fill controls,
+    /// TableLayoutPanel keeps the content column outside the brand rail at every Windows DPI.</summary>
+    public static TableLayoutPanel SplitShell(Control sidebar, Control content, int sidebarWidth)
+    {
+        var shell = new TableLayoutPanel
+        {
+            Name = "nabiraSplitShell",
+            Dock = DockStyle.Fill,
+            ColumnCount = 2,
+            RowCount = 1,
+            Margin = Padding.Empty,
+            Padding = Padding.Empty,
+            BackColor = Cloud,
+        };
+        shell.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, sidebarWidth));
+        shell.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        shell.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        sidebar.Dock = DockStyle.Fill;
+        sidebar.Margin = Padding.Empty;
+        content.Dock = DockStyle.Fill;
+        content.Margin = Padding.Empty;
+        shell.Controls.Add(sidebar, 0, 0);
+        shell.Controls.Add(content, 1, 0);
+        return shell;
+    }
+
     public static GraphicsPath RoundedRectangle(Rectangle bounds, int radius)
     {
         int diameter = radius * 2;

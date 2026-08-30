@@ -24,7 +24,7 @@ internal sealed class NabiraApiClient
         _http = handler == null ? new HttpClient() : new HttpClient(handler);
         _http.BaseAddress = baseUri;
         _http.Timeout = TimeSpan.FromSeconds(15);
-        _http.DefaultRequestHeaders.UserAgent.ParseAdd("Nabira-Windows/0.10.1");
+        _http.DefaultRequestHeaders.UserAgent.ParseAdd("Nabira-Windows/0.10.2");
     }
 
     public async Task<AccountUser> RegisterAsync(string email, string password) =>

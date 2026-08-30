@@ -11,17 +11,6 @@ namespace Nabira.Win.Tray;
 /// </summary>
 internal sealed class TrayIcon : IDisposable
 {
-    private const uint ID_ENABLE = 1;
-    private const uint ID_QUIT = 2;
-    private const uint ID_TRIG_CTRL = 10;
-    private const uint ID_TRIG_SHIFT = 11;
-    private const uint ID_TRIG_PAUSE = 12;
-    private const uint ID_WHOLELINE = 13;
-    private const uint ID_SETTINGS = 14;
-    private const uint ID_AUTO = 15;
-    private const uint ID_UPDATE = 16;
-    private const uint ID_ACCOUNT = 17;
-
     private readonly WndProc _wndProc;
     private IntPtr _hwnd;
     private NOTIFYICONDATA _nid;
@@ -29,6 +18,7 @@ internal sealed class TrayIcon : IDisposable
     private bool _accessAllowed;
     private string _accountStatus = L10n.T("account.checking");
     private System.Drawing.Icon? _appIcon;
+    private UI.TrayMenuForm? _menu;
 
     public event Action<bool>? EnabledChanged;
     public event Action<TriggerKind>? TriggerChanged;
@@ -142,29 +132,6 @@ internal sealed class TrayIcon : IDisposable
                 ChangeCaseActivated?.Invoke();
                 return IntPtr.Zero;
 
-            case WM_COMMAND:
-                uint cmd = (uint)(wParam.ToInt64() & 0xFFFF);
-                switch (cmd)
-                {
-                    case ID_ENABLE when _accessAllowed: _enabled = !_enabled; EnabledChanged?.Invoke(_enabled); break;
-                    case ID_QUIT: QuitRequested?.Invoke(); PostQuitMessage(0); break;
-                    case ID_SETTINGS: SettingsRequested?.Invoke(); break;
-                    case ID_UPDATE: UpdateRequested?.Invoke(); break;
-                    case ID_ACCOUNT: AccountRequested?.Invoke(); break;
-                    case ID_TRIG_CTRL: SetTrigger(TriggerKind.CtrlDoubleTap); break;
-                    case ID_TRIG_SHIFT: SetTrigger(TriggerKind.ShiftDoubleTap); break;
-                    case ID_TRIG_PAUSE: SetTrigger(TriggerKind.PauseBreak); break;
-                    case ID_WHOLELINE:
-                        Settings.Current.ConvertWholeLine = !Settings.Current.ConvertWholeLine;
-                        Settings.Current.Save();
-                        break;
-                    case ID_AUTO:
-                        Settings.Current.AutoConvert = !Settings.Current.AutoConvert;
-                        Settings.Current.Save();
-                        break;
-                }
-                return IntPtr.Zero;
-
             case WM_DESTROY:
                 PostQuitMessage(0);
                 return IntPtr.Zero;
@@ -183,42 +150,37 @@ internal sealed class TrayIcon : IDisposable
     private void ShowMenu()
     {
         var s = Settings.Current;
-        IntPtr menu = CreatePopupMenu();
-
-        // Layout indicator (disabled header, issue #7): shows the current keyboard layout.
-        AppendMenuW(menu, MF_STRING | MF_DISABLED | MF_GRAYED, 0, $"⌨  {LayoutName(LayoutSwitcher.Current())}");
-        AppendMenuW(menu, MF_STRING | MF_DISABLED | MF_GRAYED, 0, $"●  {_accountStatus}");
-        AppendMenuW(menu, MF_STRING, ID_ACCOUNT, L10n.T("account.menu"));
-        AppendMenuW(menu, MF_SEPARATOR, 0, null);
-
-        uint enabledFlags = MF_STRING | (_enabled ? MF_CHECKED : MF_UNCHECKED);
-        if (!_accessAllowed) enabledFlags |= MF_DISABLED | MF_GRAYED;
-        AppendMenuW(menu, enabledFlags, ID_ENABLE, L10n.T("tray.enable"));
-
-        IntPtr sub = CreatePopupMenu();
-        AppendMenuW(sub, MF_STRING | Chk(s.Trigger == TriggerKind.CtrlDoubleTap), ID_TRIG_CTRL, TriggerName(TriggerKind.CtrlDoubleTap));
-        AppendMenuW(sub, MF_STRING | Chk(s.Trigger == TriggerKind.ShiftDoubleTap), ID_TRIG_SHIFT, TriggerName(TriggerKind.ShiftDoubleTap));
-        AppendMenuW(sub, MF_STRING | Chk(s.Trigger == TriggerKind.PauseBreak), ID_TRIG_PAUSE, TriggerName(TriggerKind.PauseBreak));
-        AppendSubMenuW(menu, MF_STRING | MF_POPUP, sub, L10n.T("tray.trigger", TriggerName(s.Trigger)));
-
-        AppendMenuW(menu, MF_STRING | Chk(s.ConvertWholeLine), ID_WHOLELINE, L10n.T("tray.wholeline"));
-        AppendMenuW(menu, MF_STRING | Chk(s.AutoConvert), ID_AUTO, L10n.T("tray.auto"));
-        AppendMenuW(menu, MF_STRING, ID_SETTINGS, L10n.T("tray.settings"));
-        AppendMenuW(menu, MF_STRING, ID_UPDATE, L10n.T("tray.update"));
-
-        AppendMenuW(menu, MF_SEPARATOR, 0, null);
-        AppendMenuW(menu, MF_STRING, ID_QUIT, L10n.T("tray.quit"));
-
+        _menu?.Close();
+        var popup = new UI.TrayMenuForm(
+            LayoutName(LayoutSwitcher.Current()),
+            _accountStatus,
+            _accessAllowed,
+            _enabled,
+            s.Trigger,
+            s.ConvertWholeLine,
+            s.AutoConvert,
+            on => { _enabled = on; EnabledChanged?.Invoke(on); },
+            SetTrigger,
+            on => { s.ConvertWholeLine = on; s.Save(); },
+            on => { s.AutoConvert = on; s.Save(); },
+            () => AccountRequested?.Invoke(),
+            () => SettingsRequested?.Invoke(),
+            () => UpdateRequested?.Invoke(),
+            () => { QuitRequested?.Invoke(); PostQuitMessage(0); });
+        popup.FormClosed += (_, _) =>
+        {
+            if (ReferenceEquals(_menu, popup)) _menu = null;
+            popup.Dispose();
+        };
+        _menu = popup;
         GetCursorPos(out POINT pt);
-        SetForegroundWindow(_hwnd); // so the menu dismisses correctly on outside click
-        TrackPopupMenu(menu, TPM_RIGHTBUTTON, pt.X, pt.Y, 0, _hwnd, IntPtr.Zero);
-        DestroyMenu(menu);
+        popup.ShowAt(new System.Drawing.Point(pt.X, pt.Y));
     }
-
-    private static uint Chk(bool on) => on ? MF_CHECKED : MF_UNCHECKED;
 
     public void Dispose()
     {
+        _menu?.Close();
+        _menu = null;
         if (_hwnd != IntPtr.Zero)
         {
             Shell_NotifyIconW(NIM_DELETE, ref _nid);
