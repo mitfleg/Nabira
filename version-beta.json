@@ -4,5 +4,9 @@
   "dev": "",
   "url": "https://nabira.site/downloads/beta/Nabira-macOS.dmg?version=3.4.2a",
   "notes": "Бета-канал Nabira для раннего тестирования обновлений macOS.",
-  "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  "sha256": "f716a12dcbac1c9a2ccaa37cbfd9bb028dca97626e70467f91d6ece2480f1017",
+  "signed_payload": "eyJzY2hlbWEiOjEsInBsYXRmb3JtIjoibWFjb3MiLCJ2ZXJzaW9uIjoiMy40LjJhIiwidXJsIjoiaHR0cHM6Ly9uYWJpcmEuc2l0ZS9kb3dubG9hZHMvYmV0YS9OYWJpcmEtbWFjT1MuZG1nP3ZlcnNpb249My40LjJhIiwibm90ZXMiOiLQkdC10YLQsC3QutCw0L3QsNC7IE5hYmlyYSDQtNC70Y8g0YDQsNC90L3QtdCz0L4g0YLQtdGB0YLQuNGA0L7QstCw0L3QuNGPINC+0LHQvdC+0LLQu9C10L3QuNC5IG1hY09TLiIsInNoYTI1NiI6ImY3MTZhMTJkY2JhYzFjOWEyY2NhYTM3Y2JmZDliYjAyOGRjYTk3NjI2ZTcwNDY3ZjkxZDZlY2UyNDgwZjEwMTcifQ==",
+  "signature": "MEYCIQCE8KzUxqpnLTGmJc3xJ/etTS+6xMWu4UUrONyAHmfrxgIhAL26B5RR1WyosuGhQlB66iqX+GFavBZPEyfdYU9UAim6",
+  "signature_algorithm": "ecdsa-p256-sha256",
+  "key_id": "01d93189e15525ff"
 }
