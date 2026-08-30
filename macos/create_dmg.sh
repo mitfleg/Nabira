@@ -281,6 +281,21 @@ PY
     fi
 fi
 
+# 12. Подписываем фид отдельным офлайн-ключом выпуска. Это обязательная защита
+#     автообновления при независимой дистрибуции без Apple Developer ID: веб-сервер
+#     хранит только публичный JSON и не может сам подписать подменённый DMG.
+UPDATE_SIGNING_KEY="${NABIRA_UPDATE_SIGNING_KEY:-$HOME/Library/Application Support/NabiraRelease/update-signing-private.pem}"
+UPDATE_PUBLIC_KEY="$SCRIPT_DIR/../shared/update-signing-public.pem"
+if [ ! -f "$UPDATE_SIGNING_KEY" ]; then
+    echo "ERROR: update signing key is missing: $UPDATE_SIGNING_KEY" >&2
+    exit 69
+fi
+echo "→ Signing update feed with the offline release key..."
+/usr/bin/python3 "$SCRIPT_DIR/../scripts/update_feed.py" sign \
+    --platform macos --key "$UPDATE_SIGNING_KEY" --feed "$VERSION_FILE"
+/usr/bin/python3 "$SCRIPT_DIR/../scripts/update_feed.py" verify \
+    --platform macos --public-key "$UPDATE_PUBLIC_KEY" --feed "$VERSION_FILE"
+
 echo ""
 echo "=== Done! ==="
 echo "DMG: $(pwd)/$DMG_NAME ($(du -h "$DMG_NAME" | cut -f1))"

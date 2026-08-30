@@ -1,8 +1,12 @@
 {
-  "version": "3.3.1",
-  "build": "51",
+  "version": "3.4.0",
+  "build": "52",
   "dev": "",
-  "url": "https://nabira.site/downloads/Nabira-macOS.dmg?version=3.3.1",
-  "notes": "🇷🇺 Что нового в 3.3.1:\n• Исправленный брендированный установщик Nabira без старого имени RuSwitcher.\n• Приложение подключено к production API на api.nabira.site.\n• Устранено ошибочное сообщение о локальном backend на пользовательских Mac.\n• Загрузки и обновления перенесены на nabira.site.\n\n🇬🇧 What's new in 3.3.1:\n• Rebuilt Nabira installer with no legacy RuSwitcher branding.\n• Connected the app to the production API at api.nabira.site.\n• Removed the misleading local-backend message on customer Macs.\n• Downloads and updates now use nabira.site.",
-  "sha256": "65d576a1861ea9509832818915d0b14c8a3af8b7955613c048a07812a6755056"
+  "url": "https://nabira.site/downloads/Nabira-macOS.dmg?version=3.4.0",
+  "notes": "🇷🇺 Что нового в 3.4.0:\n• Безопасная установка обновлений прямо из Nabira с автоматическим перезапуском.\n• Фид и DMG защищены отдельной криптографической подписью и SHA-256.\n• Обновления продолжают работать без платной программы Apple Developer.\n\n🇬🇧 What's new in 3.4.0:\n• Secure in-app updates with automatic restart.\n• The feed and DMG are protected by an independent release signature and SHA-256.\n• Updates continue to work without the paid Apple Developer Program.",
+  "sha256": "cf4e0fbe100ff994bece1f74a874f98f0dae6f842ecbbd321619d41cf295f6ac",
+  "signed_payload": "eyJzY2hlbWEiOjEsInBsYXRmb3JtIjoibWFjb3MiLCJ2ZXJzaW9uIjoiMy40LjAiLCJ1cmwiOiJodHRwczovL25hYmlyYS5zaXRlL2Rvd25sb2Fkcy9OYWJpcmEtbWFjT1MuZG1nP3ZlcnNpb249My40LjAiLCJub3RlcyI6IvCfh7fwn4e6INCn0YLQviDQvdC+0LLQvtCz0L4g0LIgMy40LjA6XG7igKIg0JHQtdC30L7Qv9Cw0YHQvdCw0Y8g0YPRgdGC0LDQvdC+0LLQutCwINC+0LHQvdC+0LLQu9C10L3QuNC5INC/0YDRj9C80L4g0LjQtyBOYWJpcmEg0YEg0LDQstGC0L7QvNCw0YLQuNGH0LXRgdC60LjQvCDQv9C10YDQtdC30LDQv9GD0YHQutC+0LwuXG7igKIg0KTQuNC0INC4IERNRyDQt9Cw0YnQuNGJ0LXQvdGLINC+0YLQtNC10LvRjNC90L7QuSDQutGA0LjQv9GC0L7Qs9GA0LDRhNC40YfQtdGB0LrQvtC5INC/0L7QtNC/0LjRgdGM0Y4g0LggU0hBLTI1Ni5cbuKAoiDQntCx0L3QvtCy0LvQtdC90LjRjyDQv9GA0L7QtNC+0LvQttCw0Y7RgiDRgNCw0LHQvtGC0LDRgtGMINCx0LXQtyDQv9C70LDRgtC90L7QuSDQv9GA0L7Qs9GA0LDQvNC80YsgQXBwbGUgRGV2ZWxvcGVyLlxuXG7wn4es8J+HpyBXaGF0J3MgbmV3IGluIDMuNC4wOlxu4oCiIFNlY3VyZSBpbi1hcHAgdXBkYXRlcyB3aXRoIGF1dG9tYXRpYyByZXN0YXJ0Llxu4oCiIFRoZSBmZWVkIGFuZCBETUcgYXJlIHByb3RlY3RlZCBieSBhbiBpbmRlcGVuZGVudCByZWxlYXNlIHNpZ25hdHVyZSBhbmQgU0hBLTI1Ni5cbuKAoiBVcGRhdGVzIGNvbnRpbnVlIHRvIHdvcmsgd2l0aG91dCB0aGUgcGFpZCBBcHBsZSBEZXZlbG9wZXIgUHJvZ3JhbS4iLCJzaGEyNTYiOiJjZjRlMGZiZTEwMGZmOTk0YmVjZTFmNzRhODc0Zjk4ZjBkYWU2Zjg0MmVjYmJkMzIxNjE5ZDQxY2YyOTVmNmFjIn0=",
+  "signature": "MEYCIQD+FENhFnToqPOSzk9IPU63IDwElfL+2r9NsBz42U21GAIhAMrPys4gxCQmqtJIHsyG+ogZdMRir8s0tY8CP50mSZ2d",
+  "signature_algorithm": "ecdsa-p256-sha256",
+  "key_id": "01d93189e15525ff"
 }

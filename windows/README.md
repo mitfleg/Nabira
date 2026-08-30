@@ -25,7 +25,7 @@ Windows-клиент поддерживает вход и регистрацию
 - **Layout-switch hotkey** (issue #14) — a separate hotkey that only switches the layout.
 - **Per-app layout memory** — remembers and restores each application's last-used layout.
 - **Layout sound** (issue #7) and a **layout indicator** in the tray menu.
-- **Launch at startup**, **auto-update check**, and a settings window.
+- **Launch at startup**, **signed one-click updates with automatic restart**, and a settings window.
 - **Русский интерфейс** — окна настроек, аккаунта, исключений, меню и установщик.
 
 ## Engine mapping
@@ -62,8 +62,9 @@ P/Invoke code cannot *run* off Windows.
   a GitHub release (pre-release for `0.x`). Code signing runs automatically **if** the
   `WINDOWS_CERT_PFX_BASE64` + `WINDOWS_CERT_PASSWORD` secrets are set; otherwise it ships unsigned.
 - **Update feed:** `windows/version.json` (separate from the repository-root `version.json`, which is
-  the **macOS** feed and must stay where it is). The app checks it once a day and offers to open the
-  download page.
+  the **macOS** feed and must stay where it is). The app checks it once a day, verifies the offline
+  release signature, downloads the x64 EXE from `nabira.site`, verifies SHA-256, replaces the
+  installed or portable executable atomically, restarts it, and rolls back if startup fails.
 - **Installer:** [`installer/Nabira.iss`](installer/Nabira.iss) (Inno Setup, per-user).
 - **winget:** manifest templates in [`winget/`](winget/) — see its README for the submission steps.
 

@@ -147,6 +147,33 @@ jobs:
           $lines | Out-File -Encoding ascii assets\SHA256SUMS.txt
           Get-Content assets\SHA256SUMS.txt
 
+      - name: Create signed update feed
+        shell: pwsh
+        env:
+          UPDATE_SIGNING_KEY: ${{ secrets.NABIRA_UPDATE_SIGNING_KEY_PEM }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:UPDATE_SIGNING_KEY)) {
+            throw 'NABIRA_UPDATE_SIGNING_KEY_PEM is required for a releasable Windows build'
+          }
+          $v = '${{ steps.ver.outputs.version }}'
+          $key = Join-Path $env:RUNNER_TEMP 'nabira-update-signing-private.pem'
+          [IO.File]::WriteAllText($key, $env:UPDATE_SIGNING_KEY, [Text.UTF8Encoding]::new($false))
+          try {
+            $feedPath = 'assets\windows-version.json'
+            $feed = Get-Content windows\version.json -Raw | ConvertFrom-Json
+            $feed.version = $v
+            $feed.url = "https://nabira.site/downloads/Nabira-Windows-x64.exe?version=$v"
+            $feed.sha256 = (Get-FileHash publish\x64\Nabira.exe -Algorithm SHA256).Hash.ToLower()
+            $feed | ConvertTo-Json -Depth 5 | Set-Content -Encoding utf8 $feedPath
+            python scripts\update_feed.py sign --platform windows --key $key --feed $feedPath
+            python scripts\update_feed.py verify --platform windows `
+              --public-key shared\update-signing-public.pem --feed $feedPath
+            $feedHash = (Get-FileHash $feedPath -Algorithm SHA256).Hash.ToLower()
+            "$feedHash  windows-version.json" | Out-File -Append -Encoding ascii assets\SHA256SUMS.txt
+          } finally {
+            Remove-Item $key -Force -ErrorAction SilentlyContinue
+          }
+
       - name: Create GitHub release
         shell: pwsh
         env:

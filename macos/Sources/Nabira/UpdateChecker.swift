@@ -10,14 +10,6 @@ enum UpdateChecker {
     // Может отсутствовать (404) — тогда бета-клиент просто остаётся на стабильном фиде.
     private static var betaVersionURL: String { SettingsManager.betaUpdateFeedURL }
 
-    /// Структура JSON версии
-    private struct VersionInfo: Decodable {
-        let version: String
-        let url: String
-        let notes: String?
-        let sha256: String?
-    }
-
     /// Проверить при запуске (с задержкой 5 сек, не чаще раза в сутки).
     /// Отключается через настройку `checkUpdatesEnabled`. Ручная проверка (`checkNow`) работает всегда.
     static func checkOnLaunch() {
@@ -77,7 +69,7 @@ enum UpdateChecker {
     /// читает фид пред-релизов и возвращает более СВЕЖУЮ из двух версий (по semver). Так
     /// бета-тестер получает беты, но автоматически «сходит» на финальный стабильный релиз,
     /// когда тот обгонит бету. Отсутствие/ошибка бета-фида не мешает стабильному.
-    private static func fetchApplicableInfo() async -> VersionInfo? {
+    private static func fetchApplicableInfo() async -> NabiraUpdateInfo? {
         guard let stable = await fetchInfo(from: versionURL) else { return nil }
         guard SettingsManager.shared.betaChannelEnabled else { return stable }
         guard let beta = await fetchInfo(from: betaVersionURL) else { return stable }
@@ -92,24 +84,24 @@ enum UpdateChecker {
 
     /// Скачивает и декодирует VersionInfo из фида. nil при сетевой ошибке или не-200
     /// (напр. бета-фида ещё нет — тогда вызывающий остаётся на стабильном).
-    private static func fetchInfo(from urlString: String) async -> VersionInfo? {
+    private static func fetchInfo(from urlString: String) async -> NabiraUpdateInfo? {
         guard let url = URL(string: urlString) else { return nil }
         do {
             let (data, response) = try await URLSession.shared.data(from: url)
             if let http = response as? HTTPURLResponse, http.statusCode != 200 { return nil }
-            return try JSONDecoder().decode(VersionInfo.self, from: data)
+            return try UpdateManifest.verify(data: data)
         } catch {
             nabiraLog("UpdateChecker fetch \(urlString): \(error)")
             return nil
         }
     }
 
-    private static func showUpdateAlert(info: VersionInfo) async {
+    private static func showUpdateAlert(info: NabiraUpdateInfo) async {
         let isBeta = info.version.last?.isLetter ?? false   // «3.2.0a» — пред-релиз
         let alert = NSAlert()
         alert.alertStyle = .informational
         alert.messageText = L10n.updateAvailable + (isBeta ? " " + L10n.updateBeta : "")
-        alert.informativeText = "\(L10n.updateNewVersion) \(info.version)\n\(info.notes ?? "")"
+        alert.informativeText = "\(L10n.updateNewVersion) \(info.version)\n\(info.notes)"
         alert.addButton(withTitle: L10n.updateInstallRestart)  // 1st
         alert.addButton(withTitle: L10n.updateDownload)         // 2nd
         alert.addButton(withTitle: L10n.updateSkip)             // 3rd
@@ -132,7 +124,7 @@ enum UpdateChecker {
 
     // MARK: - Install & Restart
 
-    private static func installAndRestart(info: VersionInfo) async {
+    private static func installAndRestart(info: NabiraUpdateInfo) async {
         let version = info.version
 
         // 0. Версия приходит из сети — не доверяем вслепую (попадёт в URL и в сравнение).
@@ -149,23 +141,18 @@ enum UpdateChecker {
         // 0a. sha256 обязателен для установки на месте: молча подменять приложение
         //     keylogger-класса без проверки нельзя. Нет хэша — откат на загрузку
         //     в браузере, где работает Gatekeeper/нотаризация.
-        guard let expectedSHA = info.sha256, !expectedSHA.isEmpty else {
-            nabiraLog("Update: no sha256 in version.json — falling back to browser download")
-            // URL строим локально, а не из фида: фиду установщик не доверяет нигде.
-            if let url = URL(string: "\(SettingsManager.siteURL)/#downloads") {
-                NSWorkspace.shared.open(url)
-            }
-            return
-        }
+        let expectedSHA = info.sha256
 
-        guard let dmgURL = URL(string: SettingsManager.releaseDMGURL(version: version)) else {
+        // The URL comes from the already verified signed payload and is restricted by
+        // UpdateManifest to the official Nabira endpoint.
+        guard let dmgURL = URL(string: info.url) else {
             await showInstallError(L10n.updateDownloadFailed)
             return
         }
 
         // Приватная temp-директория пользователя вместо общего /tmp (аудит: предсказуемый
         // путь в shared /tmp — окно для symlink-подмены между проверкой и установкой).
-        let tmpPath = NSTemporaryDirectory() + "Nabira-update.dmg"
+        let tmpPath = NSTemporaryDirectory() + "Nabira-update-\(UUID().uuidString).dmg"
         let tmpURL = URL(fileURLWithPath: tmpPath)
 
         // 1. Скачать
@@ -241,11 +228,11 @@ enum UpdateChecker {
         let sourceApp = URL(fileURLWithPath: mountPoint).appendingPathComponent(appName)
         let currentApp = URL(fileURLWithPath: Bundle.main.bundlePath)
 
-        // 5. ПРОВЕРКА ПОДПИСИ: единственная реальная защита от подмены кода.
-        //    sha256 защищает лишь от битой загрузки — если подменить и DMG, и хэш,
-        //    спасает только пиннинг Developer ID нашей команды.
-        guard verifyNotarizedSignature(at: sourceApp.path) else {
-            nabiraLog("Update: signature/notarization check FAILED — aborting")
+        // 5. Фид и SHA уже подтверждены отдельным офлайн-ключом выпуска. Системная
+        //    подпись здесь проверяет внутреннюю целостность распакованного .app. Если
+        //    появится Developer ID, дополнительно пинним его Team ID.
+        guard verifyBundleSignature(at: sourceApp.path) else {
+            nabiraLog("Update: bundle signature check FAILED — aborting")
             await showInstallError(L10n.updateIntegrityFailed)
             return
         }
@@ -325,17 +312,18 @@ enum UpdateChecker {
         detach.waitUntilExit()
     }
 
-    /// Проверяет, что бандл подписан Developer ID нашей команды и проходит строгую
-    /// проверку целостности (codesign --verify с пиннингом Team ID).
-    private static func verifyNotarizedSignature(at path: String) -> Bool {
-        guard !SettingsManager.developerTeamID.isEmpty else {
-            nabiraLog("Update: Developer Team ID is not configured — automatic install disabled")
-            return false
-        }
-        let requirement = "anchor apple generic and certificate leaf[subject.OU] = \"\(SettingsManager.developerTeamID)\""
+    /// Проверяет внутреннюю целостность code-signature. Подлинность самого релиза
+    /// обеспечивает подписанный update payload; Developer ID усиливает проверку, когда доступен.
+    private static func verifyBundleSignature(at path: String) -> Bool {
         let process = Process()
         process.launchPath = "/usr/bin/codesign"
-        process.arguments = ["--verify", "--deep", "--strict", "-R=\(requirement)", path]
+        var arguments = ["--verify", "--deep", "--strict"]
+        if !SettingsManager.developerTeamID.isEmpty {
+            let requirement = "anchor apple generic and certificate leaf[subject.OU] = \"\(SettingsManager.developerTeamID)\""
+            arguments.append("-R=\(requirement)")
+        }
+        arguments.append(path)
+        process.arguments = arguments
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
         do {

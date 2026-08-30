@@ -13,10 +13,12 @@ namespace Nabira.Win;
 internal static class Program
 {
     [STAThread]  // required for WinForms clipboard / dialogs
-    private static void Main()
+    private static void Main(string[] args)
     {
         System.Windows.Forms.Application.EnableVisualStyles();
         System.Windows.Forms.Application.SetCompatibleTextRenderingDefault(false);
+        if (UpdateInstaller.TryRunApplyMode(args)) return;
+        UpdateInstaller.CleanupStaleDownloads();
         string logDir = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Nabira");
         Directory.CreateDirectory(logDir);
@@ -139,7 +141,8 @@ internal static class Program
         tray.SetAccessStatus(L10n.T("account.checking"), false);
         _ = access.RefreshAsync();
 
-        tray.UpdateRequested += () => Updater.CheckNow(ui);
+        void RequestExit() => ui.Post(_ => PostQuitMessage(0), null);
+        tray.UpdateRequested += () => Updater.CheckNow(ui, RequestExit);
 
         using var hook = new KeyboardHook();
         hook.KeyDown += (vk, sc) =>
@@ -227,7 +230,7 @@ internal static class Program
         using var appTracker = new AppLayoutTracker();
         appTracker.Install();
 
-        Updater.CheckOnLaunch(ui);   // silent, throttled once-a-day, off the startup path
+        Updater.StartAutomaticChecks(ui, RequestExit); // daily, including long-running sessions
 
         Log($"Nabira.Win started — hook + tray up, trigger={settings.Trigger}");
 
