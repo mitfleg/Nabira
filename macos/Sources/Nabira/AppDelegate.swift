@@ -626,12 +626,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
 
         monitoringActive = true
-        keyboardMonitor.onWordBoundary = { [weak self] in
-            self?.handleAutoConvert()
-        }
-        keyboardMonitor.onSubmitBoundary = { [weak self] keyCode, flags in
+        keyboardMonitor.onWordBoundary = { [weak self] boundary, keyCode, flags in
             guard let self else { return }
-            self.handleAutoConvert()
+            self.handleAutoConvert(boundary: boundary)
+            if !boundary.boundaryAlreadyDelivered {
+                self.textConverter.forwardKeyAfterPendingOperations(keyCode: keyCode, flags: flags)
+            }
+        }
+        keyboardMonitor.onSubmitBoundary = { [weak self] boundary, keyCode, flags in
+            guard let self else { return }
+            self.handleAutoConvert(boundary: boundary)
             self.textConverter.forwardKeyAfterPendingOperations(keyCode: keyCode, flags: flags)
             self.keyboardMonitor.finishSubmitBoundary()
         }
@@ -1052,7 +1056,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// Обработка слова на границе: контекст одиночной буквы, консервативный ёфикатор,
     /// авто-конвертация неправильной раскладки, затем корректор опечаток.
     /// При неуверенности ничего не меняем.
-    private func handleAutoConvert() {
+    private func handleAutoConvert(boundary: CompletedWordBoundary) {
         nabiraLog("auto: fired")
         let settings = SettingsManager.shared
         guard settings.autoSwitchEnabled else { nabiraLog("auto: bail master-off"); return }
@@ -1065,15 +1069,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // «не той раскладке» переключаем СВОЮ раскладку (конверсию делает инстанс на той стороне).
         let deferToRemote = SettingsManager.shared.remoteDesktopMode && AutoSwitchPolicy.isRemoteDesktopClient(frontID)
         if AutoSwitchPolicy.isDeniedApp(frontID) { nabiraLog("auto: bail denied-app \(frontID ?? "?")"); return }
-        if let captured = keyboardMonitor.prevWordBundleID, captured != frontID {
+        if let captured = boundary.bundleID, captured != frontID {
             nabiraLog("auto: bail focus-changed"); return  // фокус уехал между пробелом и сейчас
         }
 
-        let allKeys = keyboardMonitor.prevWordKeys
-        let bc = keyboardMonitor.boundaryCount
+        let allKeys = boundary.wordKeys
+        let bc = boundary.boundaryCount
         guard !allKeys.isEmpty else { nabiraLog("auto: bail empty-keys"); return }  // курсор уехал — небезопасно
         let typedText = DynamicKeyMapping.lineString(from: allKeys)
-        let lineContext = DynamicKeyMapping.lineString(from: keyboardMonitor.lineKeys)
+        let lineContext = DynamicKeyMapping.lineString(from: boundary.lineKeys)
         guard let fullPair = DynamicKeyMapping.convertKeys(allKeys) else {
             if let typedText {
                 let split = LayoutDetector.splitTrailingPunctuation(typedText)

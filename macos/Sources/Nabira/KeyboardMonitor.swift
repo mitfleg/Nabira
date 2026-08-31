@@ -16,6 +16,31 @@ struct TypedKey {
     var char: Character? = nil
 }
 
+/// Неизменяемый снимок завершённого слова. Обработчик границы выполняется асинхронно,
+/// поэтому читать общий буфер KeyboardMonitor позднее нельзя: пользователь уже мог начать
+/// следующее слово, а prevWordKeys успел очиститься.
+struct CompletedWordBoundary {
+    let wordKeys: [TypedKey]
+    let lineKeys: [TypedKey]
+    let bundleID: String?
+    /// Число границ, уже находящихся в поле. Для перехваченных Space/Enter всегда 0:
+    /// сама граница отправляется только после возможной замены.
+    let boundaryCount: Int
+    /// Screen Sharing уже доставил пробел удалённому приложению, поэтому повторно
+    /// инжектить его после обработки нельзя.
+    let boundaryAlreadyDelivered: Bool
+}
+
+enum AutomaticBoundaryPolicy {
+    private static let shortcutModifiers: CGEventFlags = [
+        .maskCommand, .maskControl, .maskAlternate, .maskSecondaryFn,
+    ]
+
+    static func isBareSpace(keyCode: UInt16, flags: CGEventFlags) -> Bool {
+        keyCode == KC.space && flags.intersection(shortcutModifiers).isEmpty
+    }
+}
+
 /// Обычный Enter завершает ввод/отправляет сообщение, поэтому его можно задерживать
 /// только без модификаторов. Shift+Enter и командные сочетания принадлежат приложению.
 enum SubmitBoundaryPolicy {
@@ -157,10 +182,11 @@ final class KeyboardMonitor: @unchecked Sendable {
     private var onAltTap: (() -> Void)?
     private var onAltReconvert: (() -> Void)?
     /// Обработка завершённого слова: авто-конвертация раскладки и/или ёфикатор.
-    var onWordBoundary: (() -> Void)?
+    /// Физический пробел задержан; обработчик обязан вернуть его через TextConverter.
+    var onWordBoundary: ((_ boundary: CompletedWordBoundary, _ keyCode: UInt16, _ flags: CGEventFlags) -> Void)?
     /// Обычный Enter надо доставить приложению только после возможной замены слова.
     /// Колбэк ставит исправление и сам Enter в одну последовательную очередь инжекта.
-    var onSubmitBoundary: ((_ keyCode: UInt16, _ flags: CGEventFlags) -> Void)?
+    var onSubmitBoundary: ((_ boundary: CompletedWordBoundary, _ keyCode: UInt16, _ flags: CGEventFlags) -> Void)?
     /// Физическое удаление пользователя. Наши синтетические Backspace отсекаются маркером
     /// ещё в callback, поэтому сигнал пригоден для безопасного самообучения.
     var onUserDeletion: ((_ deletesWholeWord: Bool) -> Void)?
@@ -191,9 +217,9 @@ final class KeyboardMonitor: @unchecked Sendable {
     /// Глобальная вставка без форматирования. Событие Cmd+Shift+V съедается активным tap,
     /// затем обработчик сам отправляет приложению безопасный Cmd+V или исходный хоткей.
     var onPlainTextPaste: (() -> Void)?
-    /// Если keyDown обычного Enter задержан, его физический keyUp тоже нельзя отдавать
-    /// приложению раньше синтетической пары Enter из очереди.
-    private var delayedSubmitKeyUp: UInt16?
+    /// Если keyDown пробела/Enter задержан, его физический keyUp тоже нельзя отдавать
+    /// приложению раньше синтетической пары из очереди.
+    private var delayedBoundaryKeyUp: UInt16?
 
     // Детект соло-тапа модификатора
     private var triggerArmed = false
@@ -319,14 +345,22 @@ final class KeyboardMonitor: @unchecked Sendable {
         lineKeys = []
     }
 
-    /// Завершилось слово на пробеле — если включена хотя бы одна авто-функция,
-    /// дёргаем общий путь обработки
-    /// (async, чтобы не блокировать доставку текущего события).
-    private func fireWordBoundary() {
+    /// Проброшенный Screen Sharing пробел уже ушёл удалённому приложению и не может быть
+    /// перехвачен локально. Передаём снимок в тот же обработчик, но помечаем границу как
+    /// уже доставленную, чтобы AppDelegate не добавил второй пробел.
+    private func fireForwardedWordBoundary() {
         let settings = SettingsManager.shared
-        guard settings.autoConvert || settings.typoCorrectionEnabled || settings.yoficatorEnabled else { return }
-        let cb = onWordBoundary
-        DispatchQueue.main.async { cb?() }
+        guard settings.autoSwitchEnabled,
+              settings.autoConvert || settings.typoCorrectionEnabled || settings.yoficatorEnabled,
+              let callback = onWordBoundary else { return }
+        let boundary = CompletedWordBoundary(
+            wordKeys: prevWordKeys,
+            lineKeys: lineKeys,
+            bundleID: prevWordBundleID,
+            boundaryCount: boundaryCount,
+            boundaryAlreadyDelivered: true
+        )
+        DispatchQueue.main.async { callback(boundary, KC.space, []) }
     }
 
     /// Сброс буфера при клике мышью — иначе backspace перепечатки сотрёт не то
@@ -392,20 +426,43 @@ final class KeyboardMonitor: @unchecked Sendable {
         // «грязный» модификатор (stale .maskAlternate и т.п.) — иначе счётчик
         // слова не сбрасывается и конвертация захватывает лишние символы.
 
-        // Пробел — единственная граница через которую можно вернуться
+        // Пробел — единственная граница через которую можно вернуться. Когда включены
+        // автоматические исправления, задерживаем его до решения по неизменяемому снимку
+        // слова. Иначе быстрый Space→Enter/следующая буква очищал общий буфер раньше
+        // асинхронного обработчика и одно и то же слово исправлялось через раз.
         if keyCode == KC.space {
+            let settings = SettingsManager.shared
+            let frontID = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+            let shouldDelay = currentWordLength > 0
+                && settings.autoSwitchEnabled
+                && (settings.autoConvert || settings.typoCorrectionEnabled || settings.yoficatorEnabled)
+                && AutomaticBoundaryPolicy.isBareSpace(keyCode: keyCode, flags: flags)
+                && !AutoSwitchPolicy.secureInputActive
+                && !AutoSwitchPolicy.isDeniedApp(frontID)
+                && onWordBoundary != nil
             if currentWordLength > 0 {
                 wordBeforeBoundaryLength = currentWordLength
                 boundaryCount = 1
                 prevWordKeys = currentWordKeys
-                prevWordBundleID = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
-                fireWordBoundary()
+                prevWordBundleID = frontID
             } else {
                 boundaryCount += 1
             }
             currentWordLength = 0
             currentWordKeys = []
             if !lineKeys.isEmpty { lineKeys.append(TypedKey(keyCode: KC.space, shift: false, caps: false, char: " ")) }  // #24: пробел в буфер строки (не ведущий)
+            if shouldDelay, let callback = onWordBoundary {
+                let boundary = CompletedWordBoundary(
+                    wordKeys: prevWordKeys,
+                    lineKeys: lineKeys,
+                    bundleID: prevWordBundleID,
+                    boundaryCount: 0,
+                    boundaryAlreadyDelivered: false
+                )
+                delayedBoundaryKeyUp = keyCode
+                DispatchQueue.main.async { callback(boundary, keyCode, flags) }
+                return true
+            }
             return false
         }
 
@@ -427,10 +484,17 @@ final class KeyboardMonitor: @unchecked Sendable {
                 boundaryCount = 0
                 prevWordKeys = currentWordKeys
                 prevWordBundleID = frontID
+                let boundary = CompletedWordBoundary(
+                    wordKeys: currentWordKeys,
+                    lineKeys: lineKeys,
+                    bundleID: frontID,
+                    boundaryCount: 0,
+                    boundaryAlreadyDelivered: false
+                )
                 currentWordLength = 0
                 currentWordKeys = []
-                delayedSubmitKeyUp = keyCode
-                DispatchQueue.main.async { callback(keyCode, flags) }
+                delayedBoundaryKeyUp = keyCode
+                DispatchQueue.main.async { callback(boundary, keyCode, flags) }
                 return true
             }
         }
@@ -490,8 +554,8 @@ final class KeyboardMonitor: @unchecked Sendable {
     }
 
     fileprivate func shouldSuppressKeyUp(keyCode: UInt16) -> Bool {
-        guard delayedSubmitKeyUp == keyCode else { return false }
-        delayedSubmitKeyUp = nil
+        guard delayedBoundaryKeyUp == keyCode else { return false }
+        delayedBoundaryKeyUp = nil
         return true
     }
 
@@ -501,18 +565,19 @@ final class KeyboardMonitor: @unchecked Sendable {
     private func handleForwardedChar(_ ch: Character) {
         // Пробел — граница слова (как локальный keyCode space)
         if ch == " " {
+            let hasCompletedWord = currentWordLength > 0
             if currentWordLength > 0 {
                 wordBeforeBoundaryLength = currentWordLength
                 boundaryCount = 1
                 prevWordKeys = currentWordKeys
                 prevWordBundleID = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
-                fireWordBoundary()
             } else {
                 boundaryCount += 1
             }
             currentWordLength = 0
             currentWordKeys = []
             if !lineKeys.isEmpty { lineKeys.append(TypedKey(keyCode: KC.space, shift: false, caps: false, char: " ")) }  // #24
+            if hasCompletedWord { fireForwardedWordBoundary() }
             return
         }
         // Перенос строки / таб — полный сброс

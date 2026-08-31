@@ -3,6 +3,15 @@ import XCTest
 @testable import Nabira
 
 final class SubmitBoundaryTests: XCTestCase {
+    func testBareSpaceIsDelayedButApplicationShortcutsAreNot() {
+        XCTAssertTrue(AutomaticBoundaryPolicy.isBareSpace(keyCode: KC.space, flags: []))
+        XCTAssertTrue(AutomaticBoundaryPolicy.isBareSpace(keyCode: KC.space, flags: .maskShift))
+        XCTAssertFalse(AutomaticBoundaryPolicy.isBareSpace(keyCode: KC.space, flags: .maskCommand))
+        XCTAssertFalse(AutomaticBoundaryPolicy.isBareSpace(keyCode: KC.space, flags: .maskControl))
+        XCTAssertFalse(AutomaticBoundaryPolicy.isBareSpace(keyCode: KC.space, flags: .maskAlternate))
+        XCTAssertFalse(AutomaticBoundaryPolicy.isBareSpace(keyCode: KC.enter, flags: []))
+    }
+
     func testBareReturnAndKeypadEnterAreDelayed() {
         XCTAssertTrue(SubmitBoundaryPolicy.isBareSubmitKey(keyCode: KC.enter, flags: []))
         XCTAssertTrue(SubmitBoundaryPolicy.isBareSubmitKey(keyCode: KC.keypadEnter, flags: .maskNumericPad))
@@ -74,5 +83,25 @@ final class SubmitBoundaryTests: XCTestCase {
     func testLaughterAllowsARealisticRepeatedKeyButNotAnArbitraryRun() {
         XCTAssertTrue(LayoutDetector.isLaughter("хахахааах"))
         XCTAssertFalse(LayoutDetector.isLaughter("ааааах"))
+    }
+
+    @MainActor
+    func testAllReportedWrongLayoutLaughterVariantsAreConverted() {
+        let samples = ["[f[f[f[f[f[f[", "[f[f[f[f[f[f[f", "f[f[f[f[f["]
+        for typed in samples {
+            let converted = KeyMapping.convert(typed)
+            XCTAssertTrue(LayoutDetector.isLaughter(converted), "Не распознан результат для \(typed)")
+            XCTAssertEqual(
+                LayoutDetector.decide(
+                    typed: typed,
+                    converted: converted,
+                    currentLang: "en",
+                    otherLang: "ru",
+                    capsLock: false
+                ),
+                .switchToConverted,
+                "Не конвертирован пример \(typed)"
+            )
+        }
     }
 }
