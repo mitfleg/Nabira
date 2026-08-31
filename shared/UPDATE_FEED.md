@@ -1,8 +1,11 @@
 # Nabira signed update feed v1
 
-Every update feed keeps the legacy top-level `version`, `url`, `notes`, and `sha256` fields so an
-older client can discover the transition release. New clients ignore those fields until they have
-verified the signed payload.
+Every update feed keeps the legacy top-level `version`, `url`, and `notes` fields so an older client
+can discover the transition release. The stable macOS feed deliberately omits the unsigned legacy
+`sha256` and sets `legacy_manual_install: true`: Nabira 3.3.1 then uses its existing browser-download
+fallback instead of attempting an installation that requires Apple Developer ID. This is a one-time
+bootstrap into the independently signed updater. New clients ignore those compatibility fields until
+they have verified the signed payload, including its mandatory SHA-256.
 
 The trusted fields are stored as compact UTF-8 JSON, then standard Base64 encoded in
 `signed_payload`. The decoded object contains exactly:

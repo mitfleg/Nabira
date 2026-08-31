@@ -157,9 +157,17 @@ def verify_feed(
     if result.returncode != 0:
         fail("update feed signature verification failed")
 
-    for field in ("version", "url", "notes", "sha256"):
+    for field in ("version", "url", "notes"):
         if feed.get(field) != payload[field]:
             fail(f"legacy field {field} differs from the signed payload")
+    legacy_manual_install = (
+        platform == "macos"
+        and channel == "stable"
+        and feed.get("legacy_manual_install") is True
+        and "sha256" not in feed
+    )
+    if not legacy_manual_install and feed.get("sha256") != payload["sha256"]:
+        fail("legacy field sha256 differs from the signed payload")
     return payload
 
 
@@ -197,6 +205,16 @@ def sign_feed(
                 "key_id": key_id(public_key),
             }
         )
+        # Nabira 3.3.1 still requires Apple Developer ID for in-place installation.
+        # The independent release signature was introduced in the next client, so that
+        # legacy version must make one manual browser-assisted transition. Omitting only
+        # the unsigned legacy hash triggers its existing safe browser fallback. New
+        # clients ignore these top-level compatibility fields and use signed_payload.
+        if platform == "macos" and channel == "stable":
+            feed["legacy_manual_install"] = True
+            feed.pop("sha256", None)
+        else:
+            feed.pop("legacy_manual_install", None)
         output_path.parent.mkdir(parents=True, exist_ok=True)
         temporary = output_path.with_name(f".{output_path.name}.{os.getpid()}.tmp")
         temporary.write_text(
