@@ -1,12 +1,12 @@
 {
-  "version": "3.4.1",
-  "build": "53",
+  "version": "3.4.2",
+  "build": "55",
   "dev": "",
-  "url": "https://nabira.site/downloads/Nabira-macOS.dmg?version=3.4.1",
-  "notes": "Что нового в 3.4.1:\n• Отдельный подписанный beta-канал для раннего тестирования.\n• Stable остаётся каналом по умолчанию и безопасным fallback.\n• Некорректный beta-фид больше не может заблокировать стабильное обновление.",
+  "url": "https://nabira.site/downloads/Nabira-macOS.dmg?version=3.4.2",
+  "notes": "Что нового в 3.4.2:\n• Смех, набранный в неверной раскладке, теперь автоматически исправляется: [f[f[f → хахаха.\n• Уже правильные ахаха/хахаха остаются без изменений.\n• Обработаны повторные буквы в длинном смехе.",
   "legacy_manual_install": true,
-  "signed_payload": "eyJzY2hlbWEiOjEsInBsYXRmb3JtIjoibWFjb3MiLCJ2ZXJzaW9uIjoiMy40LjEiLCJ1cmwiOiJodHRwczovL25hYmlyYS5zaXRlL2Rvd25sb2Fkcy9OYWJpcmEtbWFjT1MuZG1nP3ZlcnNpb249My40LjEiLCJub3RlcyI6ItCn0YLQviDQvdC+0LLQvtCz0L4g0LIgMy40LjE6XG7igKIg0J7RgtC00LXQu9GM0L3Ri9C5INC/0L7QtNC/0LjRgdCw0L3QvdGL0LkgYmV0YS3QutCw0L3QsNC7INC00LvRjyDRgNCw0L3QvdC10LPQviDRgtC10YHRgtC40YDQvtCy0LDQvdC40Y8uXG7igKIgU3RhYmxlINC+0YHRgtCw0ZHRgtGB0Y8g0LrQsNC90LDQu9C+0Lwg0L/QviDRg9C80L7Qu9GH0LDQvdC40Y4g0Lgg0LHQtdC30L7Qv9Cw0YHQvdGL0LwgZmFsbGJhY2suXG7igKIg0J3QtdC60L7RgNGA0LXQutGC0L3Ri9C5IGJldGEt0YTQuNC0INCx0L7Qu9GM0YjQtSDQvdC1INC80L7QttC10YIg0LfQsNCx0LvQvtC60LjRgNC+0LLQsNGC0Ywg0YHRgtCw0LHQuNC70YzQvdC+0LUg0L7QsdC90L7QstC70LXQvdC40LUuIiwic2hhMjU2IjoiZThiMzliMzRlMTkxMTMwMjNjZGE4ZTg4ZmM0MzBjOWE0YzM2NTRlNjEwNGQ1NmE3MTc3ZjgxNDJhMzQ3NjkyZCJ9",
-  "signature": "MEYCIQD2z5yPVZLUfo4y8Z4h4FGlzhqz//HDztbe4Z9mpiKPSAIhALN0htIQcEPKH5l6BxuvamzV7RVvnM7rDrweCrce1HMR",
+  "signed_payload": "eyJzY2hlbWEiOjEsInBsYXRmb3JtIjoibWFjb3MiLCJ2ZXJzaW9uIjoiMy40LjIiLCJ1cmwiOiJodHRwczovL25hYmlyYS5zaXRlL2Rvd25sb2Fkcy9OYWJpcmEtbWFjT1MuZG1nP3ZlcnNpb249My40LjIiLCJub3RlcyI6ItCn0YLQviDQvdC+0LLQvtCz0L4g0LIgMy40LjI6XG7igKIg0KHQvNC10YUsINC90LDQsdGA0LDQvdC90YvQuSDQsiDQvdC10LLQtdGA0L3QvtC5INGA0LDRgdC60LvQsNC00LrQtSwg0YLQtdC/0LXRgNGMINCw0LLRgtC+0LzQsNGC0LjRh9C10YHQutC4INC40YHQv9GA0LDQstC70Y/QtdGC0YHRjzogW2ZbZltmIOKGkiDRhdCw0YXQsNGF0LAuXG7igKIg0KPQttC1INC/0YDQsNCy0LjQu9GM0L3Ri9C1INCw0YXQsNGF0LAv0YXQsNGF0LDRhdCwINC+0YHRgtCw0Y7RgtGB0Y8g0LHQtdC3INC40LfQvNC10L3QtdC90LjQuS5cbuKAoiDQntCx0YDQsNCx0L7RgtCw0L3RiyDQv9C+0LLRgtC+0YDQvdGL0LUg0LHRg9C60LLRiyDQsiDQtNC70LjQvdC90L7QvCDRgdC80LXRhdC1LiIsInNoYTI1NiI6IjRlNTY3OTM4ODQxZWJlZjdmZDBlZjM1NDNiOWY1MDQ3OTIzODMwYjNjNTM1YTYxZjQ4YmZlMDc4YjgxOTBiY2UifQ==",
+  "signature": "MEQCIEVea6DbMBDRpJ8Qze96sLNdHkQwquItxvefWD/ZXwo6AiBjXcjkbGDoRnThuwbrlBQyo55KLd0IZmPSPLVsPHjyIg==",
   "signature_algorithm": "ecdsa-p256-sha256",
   "key_id": "01d93189e15525ff"
 }
