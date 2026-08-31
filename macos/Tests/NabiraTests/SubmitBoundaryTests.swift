@@ -33,4 +33,46 @@ final class SubmitBoundaryTests: XCTestCase {
             .switchToConverted
         )
     }
+
+    @MainActor
+    func testWrongLayoutLaughterIsAConfidentAutomaticCorrection() {
+        XCTAssertEqual(
+            LayoutDetector.decide(
+                typed: "[f[f[f",
+                converted: "хахаха",
+                currentLang: "en",
+                otherLang: "ru",
+                capsLock: false
+            ),
+            .switchToConverted
+        )
+    }
+
+    @MainActor
+    func testCorrectLaughterIsPreserved() {
+        XCTAssertEqual(
+            LayoutDetector.decide(
+                typed: "ахахах",
+                converted: "f[f[f[",
+                currentLang: "ru",
+                otherLang: "en",
+                capsLock: false
+            ),
+            .keep
+        )
+    }
+
+    func testTrailingBracketRemainsPartOfWrongLayoutLaughter() {
+        let split = LayoutDetector.splitAutomaticToken(
+            typed: "[f[f[",
+            converted: "хахах"
+        )
+        XCTAssertEqual(split.coreLength, 5)
+        XCTAssertEqual(split.suffix, "")
+    }
+
+    func testLaughterAllowsARealisticRepeatedKeyButNotAnArbitraryRun() {
+        XCTAssertTrue(LayoutDetector.isLaughter("хахахааах"))
+        XCTAssertFalse(LayoutDetector.isLaughter("ааааах"))
+    }
 }

@@ -1111,7 +1111,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // «1 клавиша = 1 символ» обоих путей convertKeys; при слиянии графем не отщепляем.
         var keys = allKeys
         var suffix = ""
-        let split = LayoutDetector.splitTrailingPunctuation(fullPair.original)
+        let split = LayoutDetector.splitAutomaticToken(
+            typed: fullPair.original,
+            converted: fullPair.converted
+        )
         if !split.suffix.isEmpty, split.coreLength > 0, fullPair.original.count == allKeys.count {
             keys = Array(allKeys.prefix(split.coreLength))
             suffix = split.suffix
@@ -1140,6 +1143,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if AutoSwitchPolicy.isDeniedWord(rawPair.original, rawPair.converted)
             || AutoSwitchPolicy.isDeniedWord(pair.original, pair.converted) {
             nabiraLog("auto: bail denied-word"); return
+        }
+        if LayoutDetector.isLaughter(pair.original) {
+            nabiraLog("auto: keep conversational-laughter")
+            return
         }
 
         // Корректор и ёфикатор не зависят от определения второй раскладки.

@@ -61,9 +61,16 @@ internal static class AutoConverter
         if (always.Contains(convertedLc)) return true;
         if (never.Contains(typedLc)) return false;
 
+        // Conversational laughter is not a dictionary word, but its wrong-layout image often uses
+        // OEM punctuation keys: "[f[f[f" -> "хахаха". This is a strong and narrow
+        // positive signal. Correctly typed laughter is preserved and never flipped back.
+        if (WritingAssistant.IsLaughter(typed)) return false;
+        if (WritingAssistant.IsLaughter(converted)) return true;
+
         // --- soft vetoes (cheap, before the dictionary) ---
         if (typed.Length < 3) return false;                 // 1–2 letters: too many cross-layout collisions
-        if (!typed.All(char.IsLetter)) return false;        // digits / punctuation / URL / code / email
+        if (!typed.All(char.IsLetter) && !converted.All(char.IsLetter))
+            return false;                                  // digits / URL / code / email
         if (!caps)                                          // under Caps Lock these two aren't acronyms/camelCase
         {
             if (IsAllCaps(typed)) return false;             // acronyms

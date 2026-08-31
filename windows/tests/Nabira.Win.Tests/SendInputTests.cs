@@ -32,6 +32,18 @@ public class SendInputTests
     }
 
     [Fact]
+    public void Captured_enter_is_reinjected_after_the_replacement()
+    {
+        var inputs = TextInjector.BuildCapturedWordInputs(
+            wordKeyCount: 4, text: "хаха", boundaryVk: KeystrokeBuffer.VK_RETURN);
+
+        Assert.Equal(18, inputs.Length); // 4 backspaces + 4 Unicode chars + Enter, all down/up
+        Assert.Equal(KeystrokeBuffer.VK_RETURN, inputs[^2].U.ki.wVk);
+        Assert.Equal(Win32.InjectedMarker, inputs[^1].U.ki.dwExtraInfo);
+        Assert.Equal(Win32.KEYEVENTF_KEYUP, inputs[^1].U.ki.dwFlags);
+    }
+
+    [Fact]
     public void Input_struct_has_the_size_the_OS_expects()
     {
         int expected = IntPtr.Size == 8 ? 40 : 28;

@@ -34,7 +34,7 @@ internal static class Program
         var settings = Settings.Current;
         var buffer = new KeystrokeBuffer();
         bool userEnabled = true;
-        var pendingAutomatic = new Queue<CompletedWord>(); // snapshots handed to the message loop
+        var pendingAutomatic = new Queue<CompletedWord>(); // captured Space/Enter snapshots for the message loop
 
         // Force a WindowsFormsSynchronizationContext before starting network/account work.
         using var uiAnchor = new System.Windows.Forms.Control();
@@ -90,8 +90,8 @@ internal static class Program
         };
         tray.AutoConvertActivated += () =>
         {
-            // The physical Space was swallowed by the hook. One pipeline now injects correction
-            // and exactly one replacement Space as a single, ordered SendInput batch.
+            // The physical boundary was swallowed by the hook. One pipeline now injects correction
+            // and exactly one replacement Space/Enter as a single, ordered SendInput batch.
             if (pendingAutomatic.TryDequeue(out var word))
             {
                 try { WritingAssistant.TryProcessCaptured(word); }
@@ -185,10 +185,14 @@ internal static class Program
 
             if (KeystrokeBuffer.IsWordBoundary(vk))
             {
-                // Capture only Space: Enter and Tab are semantic actions (submit/focus) and must never
-                // race a deferred correction. Returning true keeps the physical Space away from the app;
-                // the message-loop handler restores it after checking the word.
-                if (vk == KeystrokeBuffer.VK_SPACE && WritingAssistant.Enabled && !buffer.IsEmpty)
+                // Capture Space and a bare Enter. Enter must be delayed so a chat application cannot
+                // submit the wrong-layout text before the message-loop correction is injected.
+                // Modified Enter and Tab keep their application-specific semantics.
+                bool hasSubmitModifier = commandModifier
+                    || (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0;
+                bool capturedBoundary = vk == KeystrokeBuffer.VK_SPACE
+                    || (vk == KeystrokeBuffer.VK_RETURN && !hasSubmitModifier);
+                if (capturedBoundary && WritingAssistant.Enabled && !buffer.IsEmpty)
                 {
                     pendingAutomatic.Enqueue(new CompletedWord(new List<TypedKey>(buffer.CurrentWord), vk));
                     tray.PostAutoConvert();

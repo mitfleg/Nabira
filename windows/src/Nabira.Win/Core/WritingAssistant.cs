@@ -14,13 +14,13 @@ internal static class WritingAssistant
         }
     }
 
-    /// <summary>Processes a word whose physical Space was swallowed by the keyboard hook.
-    /// Exactly one replacement Space is always injected, even when no correction is needed.</summary>
+    /// <summary>Processes a word whose physical Space or bare Enter was swallowed by the keyboard
+    /// hook. Exactly one replacement boundary is always injected, even when no correction is needed.</summary>
     public static bool TryProcessCaptured(CompletedWord completed)
     {
         if (completed.Keys.Count == 0 || ForegroundApp.IsAutomaticCorrectionDenied())
             return PassBoundary(completed.BoundaryVk);
-        if (completed.BoundaryVk != KeystrokeBuffer.VK_SPACE)
+        if (completed.BoundaryVk is not (KeystrokeBuffer.VK_SPACE or KeystrokeBuffer.VK_RETURN))
             return PassBoundary(completed.BoundaryVk);
 
         var settings = Settings.Current;
@@ -80,23 +80,24 @@ internal static class WritingAssistant
         return false;
     }
 
-    /// <summary>Repeated conversational laughter is intentional text, not a typo or a word typed in
-    /// the wrong layout. Preserve both Russian and Latin forms before any dictionary pipeline.</summary>
+    /// <summary>Repeated conversational laughter is intentional text. Preserve it when it is already
+    /// in the expected layout and use it as a strong positive signal after layout conversion.</summary>
     internal static bool IsLaughter(string word)
     {
         if (word.Length < 4) return false;
         string value = word.ToLowerInvariant();
-        bool cyrillic = value[0] is 'а' or 'х';
-        bool latin = value[0] is 'a' or 'h';
+        bool cyrillic = value.All(c => c is 'а' or 'х');
+        bool latin = value.All(c => c is 'a' or 'h');
         if (!cyrillic && !latin) return false;
 
-        char first = value[0];
-        char second = cyrillic ? (first == 'а' ? 'х' : 'а') : (first == 'a' ? 'h' : 'a');
-        for (int i = 0; i < value.Length; i++)
-        {
-            if (value[i] != (i % 2 == 0 ? first : second)) return false;
-        }
-        return true;
+        char first = cyrillic ? 'а' : 'a';
+        char second = cyrillic ? 'х' : 'h';
+        if (!value.Contains(first) || !value.Contains(second)) return false;
+
+        int transitions = 0;
+        for (int i = 1; i < value.Length; i++)
+            if (value[i] != value[i - 1]) transitions++;
+        return transitions >= 2;
     }
 
     internal static string? Language(string word)

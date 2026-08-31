@@ -9,6 +9,7 @@ public class WritingCorrectionsTests
     [InlineData("ахах")]
     [InlineData("ахахахахахах")]
     [InlineData("хахаха")]
+    [InlineData("хахахааах")]
     [InlineData("АХАХАХ")]
     [InlineData("hahaha")]
     public void Conversational_laughter_is_preserved(string word) =>
@@ -18,6 +19,7 @@ public class WritingCorrectionsTests
     [InlineData("ахота")]
     [InlineData("характер")]
     [InlineData("haha!")]
+    [InlineData("ааааах")]
     [InlineData("ах")]
     public void Ordinary_words_are_not_classified_as_laughter(string word) =>
         Assert.False(WritingAssistant.IsLaughter(word));

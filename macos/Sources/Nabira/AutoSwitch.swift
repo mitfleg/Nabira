@@ -50,6 +50,12 @@ enum LayoutDetector {
         // не даёт пинг-понг. Жёсткие гейты (secure/denied-app/never) проверены ДО decide.
         if AutoSwitchPolicy.isAlwaysConvert(converted) { return .switchToConverted }
 
+        // «хаха»/«haha» — intentional conversational text, not a dictionary word. Preserve
+        // it in the current layout, but treat its opposite-layout image ("[f[f" -> "хаха")
+        // as a narrow positive signal before punctuation and dictionary vetoes.
+        if isLaughter(typed) { return .keep }
+        if isLaughter(converted) { return .switchToConverted }
+
         // --- мягкие вето (дёшево, до словаря) ---
         // 1 буква — не трогаем никогда (неоднозначность запредельная). 2 буквы —
         // отдельная ветка ниже через частотный список (ShortWords), т.к. на такой длине
@@ -148,6 +154,31 @@ enum LayoutDetector {
         var core = s[...]
         while let last = core.last, punct.contains(last) { core = core.dropLast() }
         return (core.count, String(s.dropFirst(core.count)))
+    }
+
+    /// A trailing `[` is normally ambiguous punctuation, but in an EN image of Russian laughter it
+    /// is the final `х`. Keep the full token so the detector can use the converted laughter signal.
+    static func splitAutomaticToken(typed: String, converted: String) -> (coreLength: Int, suffix: String) {
+        if isLaughter(converted) { return (typed.count, "") }
+        return splitTrailingPunctuation(typed)
+    }
+
+    static func isLaughter(_ word: String) -> Bool {
+        guard word.count >= 4 else { return false }
+        let value = word.lowercased()
+        let chars = Array(value)
+        let cyrillic = chars.allSatisfy { $0 == "а" || $0 == "х" }
+        let latin = chars.allSatisfy { $0 == "a" || $0 == "h" }
+        guard cyrillic || latin else { return false }
+
+        let first: Character = cyrillic ? "а" : "a"
+        let second: Character = cyrillic ? "х" : "h"
+        guard chars.contains(first), chars.contains(second) else { return false }
+
+        let transitions = zip(chars, chars.dropFirst()).reduce(into: 0) { count, pair in
+            if pair.0 != pair.1 { count += 1 }
+        }
+        return transitions >= 2
     }
 
     /// Язык — иврит (BCP-47 `he` или устаревший `iw`). 3.0: гейт кросс-скрипт-детекта.

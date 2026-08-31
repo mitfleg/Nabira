@@ -27,6 +27,28 @@ public class AutoConverterTests
         Assert.True(r);
     }
 
+    [Theory]
+    [InlineData("[f[f[f", "хахаха")]
+    [InlineData("f[f[f[", "ахахах")]
+    [InlineData("[f[f[fff[", "хахахааах")]
+    public void Converts_wrong_layout_laughter_without_dictionary(string typed, string converted)
+    {
+        bool r = AutoConverter.ShouldConvertPure(typed, converted, "en", "ru",
+            caps: false, dictAvailable: true, Dict(), None, None);
+        Assert.True(r);
+    }
+
+    [Theory]
+    [InlineData("ахахах", "f[f[f[")]
+    [InlineData("хахаха", "[f[f[f")]
+    [InlineData("hahaha", "рфрфрф")]
+    public void Keeps_laughter_already_typed_in_the_current_layout(string typed, string converted)
+    {
+        bool r = AutoConverter.ShouldConvertPure(typed, converted, "ru", "en",
+            caps: false, dictAvailable: true, Dict(), None, None);
+        Assert.False(r);
+    }
+
     [Fact]
     public void Keeps_a_word_that_is_already_real_in_the_typed_layout()
     {
