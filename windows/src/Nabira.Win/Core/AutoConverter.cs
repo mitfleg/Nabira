@@ -69,8 +69,7 @@ internal static class AutoConverter
 
         // --- soft vetoes (cheap, before the dictionary) ---
         if (typed.Length < 3) return false;                 // 1–2 letters: too many cross-layout collisions
-        if (!typed.All(char.IsLetter) && !converted.All(char.IsLetter))
-            return false;                                  // digits / URL / code / email
+        if (!typed.All(char.IsLetter)) return false;        // digits / punctuation / URL / code / email
         if (!caps)                                          // under Caps Lock these two aren't acronyms/camelCase
         {
             if (IsAllCaps(typed)) return false;             // acronyms
