@@ -15,6 +15,7 @@
     <Company>Nabira</Company>
     <Description>Nabira — умный помощник для набора текста</Description>
     <Copyright>Copyright © 2025 Rashns; modifications © 2026 Ivan Golotik</Copyright>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
