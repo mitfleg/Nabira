@@ -30,6 +30,14 @@ jobs:
       - name: Test (pure-logic unit tests)
         run: dotnet test windows/tests/Nabira.Win.Tests/Nabira.Win.Tests.csproj -c Release --nologo
 
+      - name: Resolve project version
+        id: version
+        shell: pwsh
+        run: |
+          $version = (& dotnet msbuild windows/src/Nabira.Win/Nabira.Win.csproj -nologo -getProperty:Version).Trim()
+          if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "Invalid project version: $version" }
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
       # Self-contained single .exe — runs on any Windows x64 without installing .NET.
       # Download it from this run's "Artifacts" section to test on a real machine.
       - name: Publish single-file exe
@@ -38,6 +46,10 @@ jobs:
           -c Release -r win-x64 --self-contained true
           -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
           -p:EnableCompressionInSingleFile=true
+          -p:Version=${{ steps.version.outputs.version }}
+          -p:AssemblyVersion=${{ steps.version.outputs.version }}.0
+          -p:FileVersion=${{ steps.version.outputs.version }}.0
+          -p:InformationalVersion=${{ steps.version.outputs.version }}
           -o publish --nologo
 
       - name: Verify release metadata
@@ -47,8 +59,8 @@ jobs:
           $info = (Get-Item publish\Nabira.exe).VersionInfo
           if ($info.ProductName -ne 'Nabira') { throw "ProductName is '$($info.ProductName)'" }
           if ($info.CompanyName -ne 'Nabira') { throw "CompanyName is '$($info.CompanyName)'" }
-          if ([string]::IsNullOrWhiteSpace($info.ProductVersion)) { throw 'ProductVersion is empty' }
-          "version=$($info.ProductVersion)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          if ($info.ProductVersion -ne '${{ steps.version.outputs.version }}') { throw "ProductVersion is '$($info.ProductVersion)'" }
+          "version=${{ steps.version.outputs.version }}" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
           Write-Host "Nabira $($info.ProductVersion), file $($info.FileVersion)"
 
       - name: Build installer validation
