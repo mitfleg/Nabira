@@ -19,7 +19,8 @@ public sealed class ProductionCopyTests
     public void ReleaseAPIEndpointCannotBeOverriddenByEnvironment()
     {
         string windowsRoot = WindowsRoot();
-        string client = File.ReadAllText(Path.Combine(windowsRoot, "src", "Nabira.Win", "Core", "NabiraApiClient.cs"));
+        string client = File.ReadAllText(Path.Combine(windowsRoot, "src", "Nabira.Win", "Core", "NabiraApiClient.cs"))
+            .ReplaceLineEndings("\n");
 
         Assert.True(client.Contains("#if DEBUG", StringComparison.Ordinal));
         Assert.True(client.Contains("#else\n        Uri baseUri = new(\"https://api.nabira.site\");", StringComparison.Ordinal));
