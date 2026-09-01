@@ -40,6 +40,28 @@ jobs:
           -p:EnableCompressionInSingleFile=true
           -o publish --nologo
 
+      - name: Verify release metadata
+        id: metadata
+        shell: pwsh
+        run: |
+          $info = (Get-Item publish\Nabira.exe).VersionInfo
+          if ($info.ProductName -ne 'Nabira') { throw "ProductName is '$($info.ProductName)'" }
+          if ($info.CompanyName -ne 'Nabira') { throw "CompanyName is '$($info.CompanyName)'" }
+          if ([string]::IsNullOrWhiteSpace($info.ProductVersion)) { throw 'ProductVersion is empty' }
+          "version=$($info.ProductVersion)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          Write-Host "Nabira $($info.ProductVersion), file $($info.FileVersion)"
+
+      - name: Build installer validation
+        shell: pwsh
+        run: |
+          choco upgrade innosetup --no-progress -y
+          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          & $iscc "/DMyAppVersion=${{ steps.metadata.outputs.version }}" `
+                  "/DSourceExe=${{ github.workspace }}\publish\Nabira.exe" `
+                  windows\installer\Nabira.iss
+          if ($LASTEXITCODE -ne 0) { throw "ISCC failed with exit $LASTEXITCODE" }
+          if (-not (Test-Path windows\installer\dist\*.exe)) { throw 'installer was not built' }
+
       - name: Upload exe artifact
         uses: actions/upload-artifact@v4
         with:

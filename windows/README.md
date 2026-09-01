@@ -2,10 +2,10 @@
 
 [![Windows build](https://github.com/mitfleg/Nabira/actions/workflows/windows-build.yml/badge.svg)](https://github.com/mitfleg/Nabira/actions/workflows/windows-build.yml)
 
-**Статус: beta.** Приложение для панели задач с локальной обработкой текста, без телеметрии
+Стабильное приложение для панели задач с локальной обработкой текста, без телеметрии
 и внешних словарных сервисов. Сборка CI создаёт самостоятельный `Nabira.exe` для Windows x64.
 
-## Current beta features
+## Возможности
 
 Windows-клиент поддерживает вход и регистрацию, серверный семидневный пробный период и проверку
 доступа. Токены хранятся в Windows Credential Manager; `settings.json` содержит только обычные
@@ -59,8 +59,10 @@ P/Invoke code cannot *run* off Windows.
 
 - **Release track:** push a `win-vX.Y.Z` tag → the `windows-release` workflow builds, tests, publishes
   the single-file exe (x64 + arm64), compiles the Inno Setup installer, computes SHA-256, and creates
-  a GitHub release (pre-release for `0.x`). Code signing runs automatically **if** the
-  `WINDOWS_CERT_PFX_BASE64` + `WINDOWS_CERT_PASSWORD` secrets are set; otherwise it ships unsigned.
+  a GitHub release (pre-release for `0.x`). The preferred trusted signer is SignPath Foundation;
+  a conventional `WINDOWS_CERT_PFX_BASE64` + `WINDOWS_CERT_PASSWORD` certificate remains supported
+  as a fallback. Stable releases fail closed when neither trusted signer is configured. See the
+  repository [Code signing policy](../CODE_SIGNING_POLICY.md).
 - **Update feed:** `windows/version.json` (separate from the repository-root `version.json`, which is
   the **macOS** feed and must stay where it is). The app checks it once a day, verifies the offline
   release signature, downloads the x64 EXE from `nabira.site`, verifies SHA-256, replaces the

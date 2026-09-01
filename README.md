@@ -5,12 +5,12 @@
 </p>
 
 <p align="center">
-  <b>Smart typing for macOS</b><br>
+  <b>Smart typing for macOS and Windows</b><br>
   Layout correction, typo fixing and local adaptive learning
 </p>
 
 <p align="center">
-  <sub>macOS app lives in <a href="macos/">macos/</a> · Windows version is <a href="windows/">planned</a> · cross-platform behaviour contract in <a href="shared/">shared/</a></sub>
+  <sub>macOS app lives in <a href="macos/">macos/</a> · Windows app lives in <a href="windows/">windows/</a> · cross-platform behaviour contract in <a href="shared/">shared/</a></sub>
 </p>
 
 <p align="center">
@@ -25,9 +25,9 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/mitfleg/Nabira/releases/latest"><b>⬇️ Download for macOS</b></a>
+  <a href="https://nabira.site/#downloads"><b>⬇️ Download Nabira</b></a>
   &nbsp;·&nbsp;
-  <a href="https://github.com/mitfleg/Nabira/releases/latest">Скачать для macOS</a>
+  <a href="https://nabira.site/#downloads">Скачать для macOS и Windows</a>
 </p>
 
 ---
@@ -170,6 +170,11 @@ Questions and feedback: **mitfleg@icloud.com** · Telegram: **[@mitfleg](https:/
 ### License
 
 [MIT](LICENSE) — free to use, modify, and distribute.
+
+### Code signing policy
+
+Windows releases are built on GitHub-hosted runners and signed according to the
+[Nabira code signing policy](CODE_SIGNING_POLICY.md).
 
 ---
 

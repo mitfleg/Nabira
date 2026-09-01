@@ -1,12 +1,12 @@
 name: windows-release
 
-# Builds, packages, (optionally) signs and publishes a Windows release.
+# Builds, packages, signs when a trusted provider is configured, and publishes a Windows release.
 # Triggered by pushing a tag like `win-v0.9.0` (the Windows track is versioned separately from the
 # macOS `vX.Y.Z` tags). Publishing is therefore an explicit, human action: pushing the tag.
 #
-# Code signing is OPTIONAL and gated on a certificate secret being present (mirrors how the macOS
-# build only notarizes when credentials exist). Without a cert the release still ships, unsigned;
-# SmartScreen will warn until a cert is added (secrets WINDOWS_CERT_PFX_BASE64 + WINDOWS_CERT_PASSWORD).
+# SignPath Foundation is the preferred provider for the open-source build. A conventional PFX
+# certificate remains supported as a fallback. Until either provider is configured the workflow
+# can still produce an unsigned beta build. Stable releases fail closed without a trusted signer.
 on:
   push:
     tags:
@@ -26,15 +26,17 @@ on:
           - beta
 
 permissions:
+  actions: read
   contents: write
 
 jobs:
   release:
     runs-on: windows-latest
     # `secrets` is NOT available in a step-level `if:` (it errors the whole run at parse time), but a
-    # job-level `env` MAY read secrets — so we hoist the "is a cert configured?" test here.
+    # job-level `env` MAY read secrets — so provider selection is hoisted here.
     env:
-      HAS_CERT: ${{ secrets.WINDOWS_CERT_PFX_BASE64 != '' }}
+      HAS_SIGNPATH: ${{ secrets.SIGNPATH_API_TOKEN != '' && vars.SIGNPATH_ORGANIZATION_ID != '' && vars.SIGNPATH_PROJECT_SLUG != '' && vars.SIGNPATH_SIGNING_POLICY_SLUG != '' && vars.SIGNPATH_APP_ARTIFACT_CONFIGURATION_SLUG != '' && vars.SIGNPATH_INSTALLER_ARTIFACT_CONFIGURATION_SLUG != '' }}
+      HAS_PFX_CERT: ${{ secrets.WINDOWS_CERT_PFX_BASE64 != '' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -63,6 +65,29 @@ jobs:
           "prerelease=$pre" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
           Write-Host "version=$v channel=$channel prerelease=$pre"
 
+      - name: Resolve signing provider
+        id: signing
+        shell: pwsh
+        run: |
+          if ($env:HAS_SIGNPATH -eq 'true') {
+            $provider = 'SignPath Foundation'
+            $trusted = 'true'
+          } elseif ($env:HAS_PFX_CERT -eq 'true') {
+            $provider = 'PFX certificate'
+            $trusted = 'true'
+          } else {
+            $provider = 'unsigned'
+            $trusted = 'false'
+          }
+          "provider=$provider" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "trusted=$trusted" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          Write-Host "Windows release signing provider: $provider"
+
+      - name: Require a trusted signer for stable releases
+        if: steps.ver.outputs.channel == 'stable' && steps.signing.outputs.trusted != 'true'
+        shell: pwsh
+        run: throw 'Stable Windows releases require SignPath Foundation or a trusted PFX certificate.'
+
       - name: Test
         run: dotnet test windows/tests/Nabira.Win.Tests/Nabira.Win.Tests.csproj -c Release --nologo
 
@@ -73,6 +98,9 @@ jobs:
           -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
           -p:EnableCompressionInSingleFile=true
           -p:Version=${{ steps.ver.outputs.version }}
+          -p:AssemblyVersion=${{ steps.ver.outputs.version }}.0
+          -p:FileVersion=${{ steps.ver.outputs.version }}.0
+          -p:InformationalVersion=${{ steps.ver.outputs.version }}
           -o publish/x64 --nologo
 
       - name: Publish single-file exe (arm64)
@@ -82,12 +110,70 @@ jobs:
           -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
           -p:EnableCompressionInSingleFile=true
           -p:Version=${{ steps.ver.outputs.version }}
+          -p:AssemblyVersion=${{ steps.ver.outputs.version }}.0
+          -p:FileVersion=${{ steps.ver.outputs.version }}.0
+          -p:InformationalVersion=${{ steps.ver.outputs.version }}
           -o publish/arm64 --nologo
 
-      # --- optional code signing (only if a cert secret is configured) ---
+      - name: Verify executable metadata
+        shell: pwsh
+        run: |
+          $version = '${{ steps.ver.outputs.version }}'
+          foreach ($exe in @('publish\x64\Nabira.exe', 'publish\arm64\Nabira.exe')) {
+            $info = (Get-Item $exe).VersionInfo
+            if ($info.ProductName -ne 'Nabira') { throw "$exe ProductName is '$($info.ProductName)'" }
+            if ($info.CompanyName -ne 'Nabira') { throw "$exe CompanyName is '$($info.CompanyName)'" }
+            if ($info.ProductVersion -ne $version) { throw "$exe ProductVersion is '$($info.ProductVersion)'" }
+            if ($info.FileVersion -ne "$version.0") { throw "$exe FileVersion is '$($info.FileVersion)'" }
+            Write-Host "$exe metadata verified: product $($info.ProductVersion), file $($info.FileVersion)"
+          }
+
+      # --- SignPath Foundation (preferred trusted signer) ---
+      - name: Stage application executables for SignPath
+        if: env.HAS_SIGNPATH == 'true'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path signpath\apps | Out-Null
+          Copy-Item publish\x64\Nabira.exe signpath\apps\Nabira-win-x64.exe
+          Copy-Item publish\arm64\Nabira.exe signpath\apps\Nabira-win-arm64.exe
+
+      - name: Upload unsigned application executables
+        id: signpath-apps-upload
+        if: env.HAS_SIGNPATH == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: nabira-windows-apps-unsigned
+          path: signpath/apps/*.exe
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Sign application executables with SignPath
+        if: env.HAS_SIGNPATH == 'true'
+        uses: signpath/github-action-submit-signing-request@c92b958760219087e01f8d67a1669ed57afe2627 # v2
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          artifact-configuration-slug: ${{ vars.SIGNPATH_APP_ARTIFACT_CONFIGURATION_SLUG }}
+          github-artifact-id: ${{ steps.signpath-apps-upload.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 1800
+          output-artifact-directory: signpath/apps-signed
+          parameters: |
+            version: "${{ steps.ver.outputs.version }}"
+
+      - name: Install SignPath-signed application executables
+        if: env.HAS_SIGNPATH == 'true'
+        shell: pwsh
+        run: |
+          Copy-Item signpath\apps-signed\Nabira-win-x64.exe publish\x64\Nabira.exe -Force
+          Copy-Item signpath\apps-signed\Nabira-win-arm64.exe publish\arm64\Nabira.exe -Force
+
+      # --- conventional PFX fallback ---
       - name: Import signing certificate
         id: cert
-        if: env.HAS_CERT == 'true'
+        if: env.HAS_SIGNPATH != 'true' && env.HAS_PFX_CERT == 'true'
         shell: pwsh
         run: |
           $pfx = "$env:RUNNER_TEMP\cert.pfx"
@@ -97,7 +183,7 @@ jobs:
           CERT_B64: ${{ secrets.WINDOWS_CERT_PFX_BASE64 }}
 
       - name: Sign exes
-        if: ${{ steps.cert.outputs.pfx != '' }}
+        if: env.HAS_SIGNPATH != 'true' && steps.cert.outputs.pfx != ''
         shell: pwsh
         run: |
           # The SDK bin dir holds both versioned dirs (10.0.22621.0) AND legacy arch dirs (x64/x86/arm);
@@ -129,8 +215,42 @@ jobs:
           # ISCC writes to windows\installer\dist\
           Get-ChildItem windows\installer\dist
 
+      - name: Upload unsigned installer
+        id: signpath-installer-upload
+        if: env.HAS_SIGNPATH == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: nabira-windows-installer-unsigned
+          path: windows/installer/dist/*.exe
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Sign installer with SignPath
+        if: env.HAS_SIGNPATH == 'true'
+        uses: signpath/github-action-submit-signing-request@c92b958760219087e01f8d67a1669ed57afe2627 # v2
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          artifact-configuration-slug: ${{ vars.SIGNPATH_INSTALLER_ARTIFACT_CONFIGURATION_SLUG }}
+          github-artifact-id: ${{ steps.signpath-installer-upload.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 1800
+          output-artifact-directory: signpath/installer-signed
+          parameters: |
+            version: "${{ steps.ver.outputs.version }}"
+
+      - name: Install SignPath-signed installer
+        if: env.HAS_SIGNPATH == 'true'
+        shell: pwsh
+        run: |
+          $signed = Get-ChildItem signpath\installer-signed\*.exe
+          if ($signed.Count -ne 1) { throw "Expected one signed installer, got $($signed.Count)" }
+          Copy-Item $signed[0].FullName windows\installer\dist\ -Force
+
       - name: Sign installer
-        if: ${{ steps.cert.outputs.pfx != '' }}
+        if: env.HAS_SIGNPATH != 'true' && steps.cert.outputs.pfx != ''
         shell: pwsh
         run: |
           $sdk = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin" -Directory |
@@ -143,6 +263,20 @@ jobs:
           }
         env:
           CERT_PW: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+
+      - name: Verify trusted Authenticode signatures
+        if: steps.signing.outputs.trusted == 'true'
+        shell: pwsh
+        run: |
+          $targets = @('publish\x64\Nabira.exe', 'publish\arm64\Nabira.exe')
+          $targets += (Get-ChildItem windows\installer\dist\*.exe | ForEach-Object { $_.FullName })
+          foreach ($target in $targets) {
+            $signature = Get-AuthenticodeSignature $target
+            if ($signature.Status -ne 'Valid') {
+              throw "$target has invalid Authenticode status: $($signature.Status)"
+            }
+            Write-Host "$target signed by $($signature.SignerCertificate.Subject)"
+          }
 
       - name: Stage assets + checksums
         id: assets
@@ -201,7 +335,9 @@ jobs:
           $v = '${{ steps.ver.outputs.version }}'
           $channel = '${{ steps.ver.outputs.channel }}'
           $label = if ($channel -eq 'beta') { ' beta' } else { '' }
-          $notes = "Nabira for Windows $v$label`n`nAssets: portable single-file exe (x64/arm64) and an installer.`n`nSHA256:`n" + (Get-Content assets\SHA256SUMS.txt -Raw)
+          $signing = '${{ steps.signing.outputs.provider }}'
+          $policy = 'https://github.com/mitfleg/Nabira/blob/main/CODE_SIGNING_POLICY.md'
+          $notes = "Nabira for Windows $v$label`n`nAssets: portable single-file exe (x64/arm64) and an installer.`nSigning: $signing.`nCode signing policy: $policy`n`nSHA256:`n" + (Get-Content assets\SHA256SUMS.txt -Raw)
           $notes | Out-File -Encoding utf8 notes.md
           # Build the arg list explicitly: an empty '$pre' would otherwise reach gh as an empty
           # positional (a bogus asset path) and fail the first stable release. --target pins the tag to

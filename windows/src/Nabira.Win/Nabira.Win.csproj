@@ -10,6 +10,11 @@
     <TargetFramework>net8.0-windows</TargetFramework>
     <RootNamespace>Nabira.Win</RootNamespace>
     <AssemblyName>Nabira</AssemblyName>
+    <AssemblyTitle>Nabira</AssemblyTitle>
+    <Product>Nabira</Product>
+    <Company>Nabira</Company>
+    <Description>Nabira — умный помощник для набора текста</Description>
+    <Copyright>Copyright © 2025 Rashns; modifications © 2026 Ivan Golotik</Copyright>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>

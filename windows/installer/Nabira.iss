@@ -29,6 +29,14 @@ AppPublisher={#MyAppPublisher}
 AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}
 AppUpdatesURL={#MyAppURL}/releases
+VersionInfoCompany={#MyAppPublisher}
+VersionInfoDescription=Nabira — умный помощник для набора текста
+VersionInfoProductName={#MyAppName}
+VersionInfoProductTextVersion={#MyAppVersion}
+VersionInfoProductVersion={#MyAppVersion}.0
+VersionInfoTextVersion={#MyAppVersion}
+VersionInfoVersion={#MyAppVersion}.0
+InfoBeforeFile=PRIVACY-RU.txt
 DefaultDirName={autopf}\{#MyAppName}
 DisableProgramGroupPage=yes
 ; Per-user install → no UAC elevation needed (matches a menu-bar utility's footprint).

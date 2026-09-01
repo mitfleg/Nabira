@@ -11,6 +11,7 @@ DerivedData/
 *.zip
 .vscode/
 .claude/
+__pycache__/
 *.certSigningRequest
 
 # Локальная резервная копия ключа подписи update-фидов. Никогда не добавлять в Git.

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
+  <parameters>
+    <parameter name="version" required="true" />
+  </parameters>
+  <zip-file>
+    <pe-file-set product-name="Nabira" product-version="${version}"
+                 file-version="${version}.0" company-name="Nabira">
+      <include path="Nabira-win-x64.exe" />
+      <include path="Nabira-win-arm64.exe" />
+      <for-each>
+        <authenticode-sign description="Nabira"
+                           description-url="https://nabira.site" />
+      </for-each>
+    </pe-file-set>
+  </zip-file>
+</artifact-configuration>
