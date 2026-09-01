@@ -273,11 +273,13 @@ actor NabiraAPIClient {
         }
     }
 
-    private static func configuredBaseURL() -> URL {
+    static func configuredBaseURL() -> URL {
+#if DEBUG
         if let value = UserDefaults.standard.string(forKey: "com.mitfleg.nabira.api.baseURL"),
            let url = URL(string: value), url.scheme != nil {
             return url
         }
+#endif
         return URL(string: "https://api.nabira.site")!
     }
 }

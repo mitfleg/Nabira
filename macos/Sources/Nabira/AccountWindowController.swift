@@ -258,8 +258,8 @@ struct NabiraAccountWindowView: View {
                 .font(.system(size: 27, weight: .bold, design: .rounded))
                 .foregroundStyle(NabiraPalette.ink)
             Text(NabiraCopy.text(
-                "Вход работает через Nabira Backend, а токены защищены в Keychain этого Mac.",
-                "Sign-in uses Nabira Backend, with tokens protected in this Mac's Keychain."
+                "Один аккаунт для Nabira на Mac и Windows.",
+                "One account for Nabira on Mac and Windows."
             ))
             .font(.system(size: 12.5))
             .foregroundStyle(NabiraPalette.secondary)
@@ -406,12 +406,10 @@ struct NabiraAccountWindowView: View {
             Spacer()
 
             Button {
-                errorMessage = NabiraCopy.text(
-                    "Подписку подключим на следующем этапе разработки.",
-                    "Subscriptions will be connected in the next development stage."
-                )
+                guard let url = URL(string: "\(SettingsManager.siteURL)/account#subscription") else { return }
+                NSWorkspace.shared.open(url)
             } label: {
-                Text(NabiraCopy.text("Выбрать подписку", "Choose a plan"))
+                Text(NabiraCopy.text("Оформить подписку", "Get a subscription"))
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
@@ -450,7 +448,7 @@ struct NabiraAccountWindowView: View {
                     .foregroundStyle(NabiraPalette.ink)
                 Text(accessManager.snapshot.isTrialActive
                      ? NabiraCopy.text("Осталось \(accessManager.snapshot.trialDaysRemaining) дн.", "\(accessManager.snapshot.trialDaysRemaining) days remaining")
-                     : NabiraCopy.text("Тариф пока не подключён", "No plan is connected yet"))
+                     : NabiraCopy.text("Подписка не активна", "Subscription is not active"))
                     .font(.system(size: 11.5))
                     .foregroundStyle(NabiraPalette.secondary)
             }

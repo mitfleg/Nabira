@@ -633,8 +633,8 @@ private struct NabiraAccountSettingsView: View {
         NabiraPage(
             title: NabiraCopy.text("Аккаунт", "Account"),
             subtitle: NabiraCopy.text(
-                "Пробный период, вход и будущая подписка Nabira.",
-                "Your free trial, sign-in, and future Nabira subscription."
+                "Пробный период, аккаунт и подписка Nabira.",
+                "Your Nabira trial, account, and subscription."
             )
         ) {
             NabiraCard {
@@ -723,12 +723,6 @@ private struct NabiraAccountSettingsView: View {
                 authenticationCard
             }
 
-            Text(NabiraCopy.text(
-                "Аккаунт работает через локальный Nabira Backend. Токены сессии защищены в Keychain этого Mac.",
-                "Your account uses the local Nabira Backend. Session tokens are protected in this Mac's Keychain."
-            ))
-            .font(.system(size: 11))
-            .foregroundStyle(NabiraPalette.secondary)
         }
         .onAppear { accessManager.refresh() }
     }

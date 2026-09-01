@@ -18,13 +18,18 @@ internal sealed class NabiraApiClient
 
     public NabiraApiClient(HttpMessageHandler? handler = null)
     {
+#if DEBUG
         string configured = Environment.GetEnvironmentVariable("NABIRA_API_URL")?.Trim() ?? "";
         if (!Uri.TryCreate(configured, UriKind.Absolute, out Uri? baseUri))
             baseUri = new Uri("https://api.nabira.site");
+#else
+        Uri baseUri = new("https://api.nabira.site");
+#endif
         _http = handler == null ? new HttpClient() : new HttpClient(handler);
         _http.BaseAddress = baseUri;
         _http.Timeout = TimeSpan.FromSeconds(15);
-        _http.DefaultRequestHeaders.UserAgent.ParseAdd("Nabira-Windows/0.10.2");
+        string version = typeof(NabiraApiClient).Assembly.GetName().Version?.ToString(3) ?? "unknown";
+        _http.DefaultRequestHeaders.UserAgent.ParseAdd($"Nabira-Windows/{version}");
     }
 
     public async Task<AccountUser> RegisterAsync(string email, string password) =>
