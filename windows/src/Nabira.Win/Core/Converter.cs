@@ -125,7 +125,7 @@ internal static class Converter
     public static bool CycleCaseSelection()
     {
         _caseWord = null;
-        string? saved = SafeGetText();
+        IDataObject? saved = SnapshotClipboard();
         SafeClear();
         TextInjector.SendCtrl(VK_C);
         Thread.Sleep(60);
@@ -199,16 +199,23 @@ internal static class Converter
     /// layout → Ctrl+V, restoring the user's clipboard afterwards. One-way flip by the current
     /// layout (smart per-word conversion is a later parity step). No selection / no-op → false.
     /// MUST run on the message loop (STA), never inside the hook callback.</summary>
-    public static bool ConvertSelection(bool smart)
+    public static bool ConvertSelection(bool smart, bool quickProbe = false)
     {
         IntPtr sourceHkl = LayoutSwitcher.Current();
         if (LayoutSwitcher.Opposite() is not { } targetHkl) return false;
 
-        string? saved = SafeGetText();
-        SafeClear();
-        TextInjector.SendCtrl(VK_C);
-        Thread.Sleep(60);                       // let the focused app place the selection on the clipboard
-        string sel = SafeGetText() ?? "";
+        IDataObject? saved = SnapshotClipboard();
+        string sel = "";
+        int attempts = quickProbe ? 1 : 3;
+        for (int attempt = 0; attempt < attempts; attempt++)
+        {
+            SafeClear();
+            TextInjector.SendCtrl(VK_C);
+            Thread.Sleep(attempt == 0 ? 70 : 120); // Electron/WebView can publish the copy later
+            sel = SafeGetText() ?? "";
+            if (sel.Length > 0) break;
+            if (attempt + 1 < attempts) Thread.Sleep(40);
+        }
         if (sel.Length == 0) { RestoreClipboard(saved); return false; }   // nothing selected
 
         string converted = smart
@@ -220,6 +227,11 @@ internal static class Converter
         TextInjector.SendCtrl(VK_V);
         Thread.Sleep(60);                       // let the paste happen before we restore the clipboard
         RestoreClipboard(saved);
+
+        LayoutSwitcher.SwitchTo(targetHkl);
+        _aText = converted; _aHkl = targetHkl;
+        _bText = sel;       _bHkl = sourceHkl;
+        _lastWasAuto = false;
         return true;
     }
 
@@ -257,8 +269,44 @@ internal static class Converter
     {
         for (int i = 0; i < 6; i++) { try { Clipboard.Clear(); return; } catch { Thread.Sleep(15); } }
     }
-    private static void RestoreClipboard(string? saved)
+    /// <summary>Snapshot every clipboard format. Selection probing now runs before the word buffer,
+    /// so preserving only text would destroy a copied image/file even when there is no selection.</summary>
+    private static IDataObject? SnapshotClipboard()
     {
-        if (string.IsNullOrEmpty(saved)) SafeClear(); else SafeSetText(saved);
+        for (int attempt = 0; attempt < 6; attempt++)
+        {
+            try
+            {
+                IDataObject? original = Clipboard.GetDataObject();
+                if (original == null) return null;
+                var snapshot = new DataObject();
+                foreach (string format in original.GetFormats(autoConvert: false))
+                {
+                    try
+                    {
+                        object? value = original.GetData(format, autoConvert: false);
+                        if (value != null) snapshot.SetData(format, value);
+                    }
+                    catch { }
+                }
+                return snapshot;
+            }
+            catch { Thread.Sleep(15); }
+        }
+        return null;
+    }
+
+    private static void RestoreClipboard(IDataObject? saved)
+    {
+        for (int attempt = 0; attempt < 6; attempt++)
+        {
+            try
+            {
+                if (saved == null) Clipboard.Clear();
+                else Clipboard.SetDataObject(saved, copy: true);
+                return;
+            }
+            catch { Thread.Sleep(15); }
+        }
     }
 }

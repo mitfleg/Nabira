@@ -43,8 +43,9 @@ internal static class WritingAssistant
             if (AutoConverter.ShouldConvertPure(original, converted, srcTag, tgtTag, caps,
                     Dict.Available, Dict.IsValidWord, settings.NeverConvert, settings.AlwaysConvert))
             {
-                replacement = TechnicalAbbreviations.AutomaticReplacement(
-                    original, converted, srcTag, tgtTag) ?? converted;
+                replacement = TechnicalAbbreviations.AutomaticTechnicalReplacement(
+                    original, converted, srcTag, tgtTag,
+                    Dict.Available, Dict.IsValidWord) ?? converted;
                 resultHkl = targetHkl;
             }
         }

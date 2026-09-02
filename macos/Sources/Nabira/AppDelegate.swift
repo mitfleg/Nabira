@@ -535,6 +535,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     }
                     return
                 }
+
+                let keys = self.keyboardMonitor.currentWordKeys
+                let prevKeys = self.keyboardMonitor.prevWordKeys
+                let bc = self.keyboardMonitor.boundaryCount
+                let hasBufferedWord = !keys.isEmpty || (!prevKeys.isEmpty && bc > 0)
+
+                // Явное пользовательское выделение всегда важнее старого буфера слова
+                // и режима «вся строка». Раньше Windows выбирал буфер первым, а macOS
+                // whole-line мог сам перевыделить строку и затереть намерение пользователя.
+                if self.textConverter.convertSelectionIfPresent(
+                    fastProbe: hasBufferedWord || SettingsManager.shared.convertWholeLine
+                ) {
+                    self.keyboardMonitor.markConverted()
+                    LayoutSwitcher.switchToOpposite()
+                    self.updateStatusIcon()
+                    self.lastAutoConverted = nil
+                    return
+                }
+
                 // issue #24: режим «вся строка».
                 if SettingsManager.shared.convertWholeLine {
                     let frontID = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
@@ -564,9 +583,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                         return   // whole-line в обычной проге — всегда завершаем (не last-word)
                     }
                 }
-                let keys = self.keyboardMonitor.currentWordKeys
-                let prevKeys = self.keyboardMonitor.prevWordKeys
-                let bc = self.keyboardMonitor.boundaryCount
+                guard hasBufferedWord else { return }
                 let learningKeys = !keys.isEmpty ? keys : (bc > 0 ? prevKeys : [])
                 let manualPair = DynamicKeyMapping.convertKeys(learningKeys)
                 if self.textConverter.convert(wordKeys: keys, prevWordKeys: prevKeys, boundaryCount: bc) {
@@ -1297,11 +1314,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             return
         }
 
-        let convertedWithCanonicalCase = TechnicalAbbreviations.automaticReplacement(
+        let convertedWithCanonicalCase = LayoutDetector.automaticTechnicalReplacement(
             typed: pair.original,
             converted: pair.converted,
-            currentLanguage: langs.current,
-            otherLanguage: langs.opposite
+            currentLang: langs.current,
+            otherLang: langs.opposite
         ) ?? pair.converted
 
         if deferToRemote {

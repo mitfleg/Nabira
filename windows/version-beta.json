@@ -1,10 +1,6 @@
 {
-  "version": "0.11.5",
-  "url": "https://nabira.site/downloads/beta/Nabira-Windows-x64.exe?version=0.11.5",
-  "notes": "Что нового в 0.11.5 beta:\n• Технические сокращения распознаются до проверки опечаток.\n• мзт и МЗТ в русской раскладке превращаются в VPN.\n• vpn автоматически получает правильный регистр VPN.",
-  "sha256": "9e0b38706497b6c5e479777d64ad7aef1538031ad3fcd9c5cd61b374b0abed76",
-  "signed_payload": "eyJzY2hlbWEiOjEsInBsYXRmb3JtIjoid2luZG93cyIsInZlcnNpb24iOiIwLjExLjUiLCJ1cmwiOiJodHRwczovL25hYmlyYS5zaXRlL2Rvd25sb2Fkcy9iZXRhL05hYmlyYS1XaW5kb3dzLXg2NC5leGU/dmVyc2lvbj0wLjExLjUiLCJub3RlcyI6ItCn0YLQviDQvdC+0LLQvtCz0L4g0LIgMC4xMS41IGJldGE6XG7igKIg0KLQtdGF0L3QuNGH0LXRgdC60LjQtSDRgdC+0LrRgNCw0YnQtdC90LjRjyDRgNCw0YHQv9C+0LfQvdCw0Y7RgtGB0Y8g0LTQviDQv9GA0L7QstC10YDQutC4INC+0L/QtdGH0LDRgtC+0LouXG7igKIg0LzQt9GCINC4INCc0JfQoiDQsiDRgNGD0YHRgdC60L7QuSDRgNCw0YHQutC70LDQtNC60LUg0L/RgNC10LLRgNCw0YnQsNGO0YLRgdGPINCyIFZQTi5cbuKAoiB2cG4g0LDQstGC0L7QvNCw0YLQuNGH0LXRgdC60Lgg0L/QvtC70YPRh9Cw0LXRgiDQv9GA0LDQstC40LvRjNC90YvQuSDRgNC10LPQuNGB0YLRgCBWUE4uIiwic2hhMjU2IjoiOWUwYjM4NzA2NDk3YjZjNWU0Nzk3NzdkNjRhZDdhZWYxNTM4MDMxYWQzZmNkOWM1Y2Q2MWIzNzRiMGFiZWQ3NiJ9",
-  "signature": "MEYCIQDFbO9ewmQCIei+zdrmGmJyQPqWfXQ2LotPkl9Myi3XiwIhAOGI0s01lN8SKkrY2k44b4pI8Zu/oTku6H4zLZedjnIj",
-  "signature_algorithm": "ecdsa-p256-sha256",
-  "key_id": "01d93189e15525ff"
+  "version": "0.11.6",
+  "url": "https://nabira.site/downloads/beta/Nabira-Windows-x64.exe?version=0.11.6",
+  "notes": "Что нового в 0.11.6 beta:\n• Автоконверсия понимает безопасные технические snake_case-имена, например internal_crm.\n• Выделенный текст теперь всегда конвертируется первым по главному триггеру.\n• При проверке выделения полностью сохраняются текст, файлы и изображения из буфера обмена.",
+  "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
 }

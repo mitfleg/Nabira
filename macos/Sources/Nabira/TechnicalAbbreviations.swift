@@ -49,4 +49,48 @@ enum TechnicalAbbreviations {
         }
         return canonicalForm(for: converted, language: other)
     }
+
+    /// Безопасный RU→EN-сигнал для технических `snake_case`-идентификаторов.
+    /// Общий запрет на пунктуацию остаётся в силе для URL, почты и произвольного кода;
+    /// здесь разрешаем только 2–4 непустых сегмента из букв, причём хотя бы один
+    /// сегмент обязан быть известным техническим сокращением, а остальные — словами
+    /// английского словаря. Регистр результата сохраняется: `internal_crm`, не `internal_CRM`.
+    static func automaticSnakeCaseReplacement(
+        typed: String,
+        converted: String,
+        currentLanguage: String,
+        otherLanguage: String,
+        isValidEnglishWord: (String) -> Bool
+    ) -> String? {
+        let current = String(currentLanguage.lowercased().prefix(2))
+        let other = String(otherLanguage.lowercased().prefix(2))
+        guard current == "ru", other == "en",
+              typed.count == converted.count,
+              typed.unicodeScalars.allSatisfy({
+                  $0.value == 0x5F || (0x0400...0x052F).contains($0.value)
+              }),
+              converted.unicodeScalars.allSatisfy({
+                  $0.value == 0x5F
+                      || (0x41...0x5A).contains($0.value)
+                      || (0x61...0x7A).contains($0.value)
+              }) else { return nil }
+
+        let typedParts = typed.split(separator: "_", omittingEmptySubsequences: false)
+        let convertedParts = converted.split(separator: "_", omittingEmptySubsequences: false)
+        guard typedParts.count == convertedParts.count,
+              (2...4).contains(convertedParts.count),
+              !typedParts.contains(where: \.isEmpty),
+              !convertedParts.contains(where: \.isEmpty) else { return nil }
+
+        var hasTechnicalSegment = false
+        for part in convertedParts {
+            let value = String(part)
+            if canonicalForm(for: value, language: other) != nil {
+                hasTechnicalSegment = true
+                continue
+            }
+            guard value.count >= 3, isValidEnglishWord(value.lowercased()) else { return nil }
+        }
+        return hasTechnicalSegment ? converted : nil
+    }
 }

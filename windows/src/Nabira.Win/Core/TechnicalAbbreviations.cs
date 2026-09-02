@@ -39,4 +39,46 @@ internal static class TechnicalAbbreviations
             return null;
         return CanonicalForm(converted, otherLanguage);
     }
+
+    /// <summary>Safe RU→EN signal for technical snake_case identifiers. Arbitrary punctuation,
+    /// URLs and email stay blocked: only 2–4 non-empty letter segments are accepted, at least one
+    /// segment must be a known technical abbreviation, and every other segment must be a real
+    /// English dictionary word. The converted casing is preserved (<c>internal_crm</c>).</summary>
+    internal static string? AutomaticSnakeCaseReplacement(
+        string typed, string converted, string currentLanguage, string otherLanguage,
+        bool dictionaryAvailable, Func<string, string, bool> isValidWord)
+    {
+        if (!currentLanguage.StartsWith("ru", StringComparison.OrdinalIgnoreCase) ||
+            !otherLanguage.StartsWith("en", StringComparison.OrdinalIgnoreCase) ||
+            !dictionaryAvailable ||
+            typed.Length != converted.Length ||
+            !typed.All(c => c == '_' || c is >= '\u0400' and <= '\u052F') ||
+            !converted.All(c => c == '_' || c is >= 'A' and <= 'Z' or >= 'a' and <= 'z'))
+            return null;
+
+        string[] typedParts = typed.Split('_');
+        string[] convertedParts = converted.Split('_');
+        if (typedParts.Length != convertedParts.Length || convertedParts.Length is < 2 or > 4 ||
+            typedParts.Any(string.IsNullOrEmpty) || convertedParts.Any(string.IsNullOrEmpty))
+            return null;
+
+        bool hasTechnicalSegment = false;
+        foreach (string part in convertedParts)
+        {
+            if (CanonicalForm(part, otherLanguage) != null)
+            {
+                hasTechnicalSegment = true;
+                continue;
+            }
+            if (part.Length < 3 || !isValidWord(part.ToLowerInvariant(), "en")) return null;
+        }
+        return hasTechnicalSegment ? converted : null;
+    }
+
+    internal static string? AutomaticTechnicalReplacement(
+        string typed, string converted, string currentLanguage, string otherLanguage,
+        bool dictionaryAvailable, Func<string, string, bool> isValidWord) =>
+        AutomaticReplacement(typed, converted, currentLanguage, otherLanguage)
+        ?? AutomaticSnakeCaseReplacement(
+            typed, converted, currentLanguage, otherLanguage, dictionaryAvailable, isValidWord);
 }

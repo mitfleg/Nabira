@@ -79,13 +79,20 @@ internal static class Program
         tray.TriggerActivated += () =>
         {
             if (!EffectiveEnabled()) return;
-            // Trigger again with nothing typed since = reverse the last conversion (toggle);
-            // else whole-line mode → convert the line; else convert the typed word; else the selection.
+            // An explicit user selection always wins over the stale typed-word buffer and
+            // whole-line mode. With a buffered fallback one quick clipboard probe is enough;
+            // without one, retry slower applications before giving up.
             bool acted;
-            if (Converter.CanReconvert && buffer.IsEmpty) acted = Converter.Reconvert();
+            bool quickSelectionProbe = !buffer.IsEmpty || Converter.CanReconvert || settings.ConvertWholeLine;
+            if (Converter.ConvertSelection(settings.SmartConversion, quickSelectionProbe))
+            {
+                buffer.Reset();
+                acted = true;
+            }
+            else if (Converter.CanReconvert && buffer.IsEmpty) acted = Converter.Reconvert();
             else if (settings.ConvertWholeLine) { acted = Converter.ConvertLine(settings.SmartConversion); if (acted) buffer.Reset(); }
             else if (!buffer.IsEmpty) acted = Converter.ConvertLastWord(buffer);
-            else acted = Converter.ConvertSelection(settings.SmartConversion);
+            else acted = false;
             Log($"trigger: acted={acted}");
         };
         tray.AutoConvertActivated += () =>

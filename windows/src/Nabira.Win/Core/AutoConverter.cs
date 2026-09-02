@@ -34,8 +34,8 @@ internal static class AutoConverter
 
         if (!ShouldConvert(typed, converted, srcTag, tgtTag, caps)) return false;
 
-        converted = TechnicalAbbreviations.AutomaticReplacement(
-            typed, converted, srcTag, tgtTag) ?? converted;
+        converted = TechnicalAbbreviations.AutomaticTechnicalReplacement(
+            typed, converted, srcTag, tgtTag, Dict.Available, Dict.IsValidWord) ?? converted;
 
         TextInjector.Replace(backspaces: keys.Count + 1, text: converted + " ");
         LayoutSwitcher.SwitchTo(targetHkl);
@@ -72,12 +72,15 @@ internal static class AutoConverter
 
         // --- soft vetoes (cheap, before the dictionary) ---
         if (typed.Length < 3) return false;                 // 1–2 letters: too many cross-layout collisions
-        if (!typed.All(char.IsLetter)) return false;        // digits / punctuation / URL / code / email
 
-        // Dedicated positive RU→EN signal before the ALL-CAPS and dictionary vetoes.
-        // OS spell checkers often do not accept `vpn`, leaving `мзт` to the typo corrector.
-        if (TechnicalAbbreviations.AutomaticReplacement(typed, converted, srcTag, tgtTag) != null)
+        // Dedicated positive RU→EN signal before the punctuation, ALL-CAPS and dictionary vetoes.
+        // This permits only audited abbreviations and safe identifiers such as
+        // `штеуктфд_скь` → `internal_crm`; arbitrary code/URL/email remains blocked below.
+        if (TechnicalAbbreviations.AutomaticTechnicalReplacement(
+                typed, converted, srcTag, tgtTag, dictAvailable, isValidWord) != null)
             return true;
+
+        if (!typed.All(char.IsLetter)) return false;        // digits / punctuation / URL / code / email
 
         if (!caps)                                          // under Caps Lock these two aren't acronyms/camelCase
         {

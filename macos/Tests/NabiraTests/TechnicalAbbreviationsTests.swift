@@ -51,6 +51,44 @@ final class TechnicalAbbreviationsTests: XCTestCase {
     }
 
     @MainActor
+    func testSafeSnakeCaseTechnicalIdentifierConvertsBeforeCodeVeto() {
+        let replacement = TechnicalAbbreviations.automaticSnakeCaseReplacement(
+            typed: "штеуктфд_скь",
+            converted: "internal_crm",
+            currentLanguage: "ru",
+            otherLanguage: "en",
+            isValidEnglishWord: { $0 == "internal" }
+        )
+        XCTAssertEqual(replacement, "internal_crm")
+        XCTAssertEqual(
+            LayoutDetector.decide(
+                typed: "штеуктфд_скь",
+                converted: "internal_crm",
+                currentLang: "ru",
+                otherLang: "en",
+                capsLock: false
+            ),
+            .switchToConverted
+        )
+    }
+
+    func testSnakeCaseSignalRejectsArbitraryCodeAndMalformedIdentifiers() {
+        let dictionary: (String) -> Bool = { ["internal", "user", "name"].contains($0) }
+        XCTAssertNil(TechnicalAbbreviations.automaticSnakeCaseReplacement(
+            typed: "гыук_тфьу", converted: "user_name",
+            currentLanguage: "ru", otherLanguage: "en", isValidEnglishWord: dictionary
+        )) // no audited technical segment
+        XCTAssertNil(TechnicalAbbreviations.automaticSnakeCaseReplacement(
+            typed: "штеуктфд__скь", converted: "internal__crm",
+            currentLanguage: "ru", otherLanguage: "en", isValidEnglishWord: dictionary
+        ))
+        XCTAssertNil(TechnicalAbbreviations.automaticSnakeCaseReplacement(
+            typed: "штеуктфд_скь1", converted: "internal_crm1",
+            currentLanguage: "ru", otherLanguage: "en", isValidEnglishWord: dictionary
+        ))
+    }
+
+    @MainActor
     func testKnownAbbreviationWinsEvenWhenSourceWasTypedInUppercase() {
         for capsLock in [false, true] {
             XCTAssertEqual(

@@ -63,6 +63,29 @@ public class AutoConverterTests
     public void Normalizes_known_abbreviation_case(string input, string expected) =>
         Assert.Equal(expected, TechnicalAbbreviations.CanonicalForm(input, "en"));
 
+    [Fact]
+    public void Converts_safe_snake_case_technical_identifier_before_code_veto()
+    {
+        var dictionary = Dict(("internal", "en"));
+        bool verdict = AutoConverter.ShouldConvertPure(
+            "штеуктфд_скь", "internal_crm", "ru", "en",
+            caps: false, dictAvailable: true, dictionary, None, None);
+        Assert.True(verdict);
+        Assert.Equal("internal_crm", TechnicalAbbreviations.AutomaticTechnicalReplacement(
+            "штеуктфд_скь", "internal_crm", "ru", "en", true, dictionary));
+    }
+
+    [Theory]
+    [InlineData("гыук_тфьу", "user_name")]
+    [InlineData("штеуктфд__скь", "internal__crm")]
+    [InlineData("штеуктфд_скь1", "internal_crm1")]
+    public void Rejects_arbitrary_or_malformed_snake_case(string typed, string converted)
+    {
+        var dictionary = Dict(("internal", "en"), ("user", "en"), ("name", "en"));
+        Assert.Null(TechnicalAbbreviations.AutomaticTechnicalReplacement(
+            typed, converted, "ru", "en", true, dictionary));
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

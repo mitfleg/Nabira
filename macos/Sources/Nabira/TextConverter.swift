@@ -90,6 +90,23 @@ final class TextConverter {
 
     // MARK: - Public API
 
+    /// Конвертирует именно текущее пользовательское выделение. Вызывается раньше
+    /// буфера последнего слова и режима всей строки, поэтому выделение всегда имеет
+    /// приоритет. AX позволяет не трогать clipboard, когда достоверно известно, что
+    /// выделения нет; для приложений без AX остаётся короткая clipboard-проверка.
+    func convertSelectionIfPresent(fastProbe: Bool) -> Bool {
+        let presence = focusedSelectionPresence()
+        if presence == false { return false }
+        let attempts = presence == true ? 3 : (fastProbe ? 1 : 3)
+        return convertViaClipboard(
+            wordLength: 0,
+            prevWordLength: 0,
+            boundaryCount: 0,
+            selectionOnly: true,
+            selectionCopyAttempts: attempts
+        )
+    }
+
     /// Глобальный Cmd+Shift+V: временно оставляет в pasteboard только текстовый тип,
     /// вставляет обычным Cmd+V и возвращает пользователю исходный буфер со всеми форматами.
     /// Если безопасно обработать сочетание нельзя, пробрасывает оригинальный Cmd+Shift+V
@@ -264,17 +281,23 @@ final class TextConverter {
     /// атрибут недоступен) возвращаем false = «выделение есть» — безопасно для LTR: не пробуем вторую
     /// сторону и не переписываем текст «вперёд». RTL-фикс сработает лишь там, где AX надёжно отдаёт пусто.
     private func focusedSelectionIsEmpty() -> Bool {
-        guard let app = NSWorkspace.shared.frontmostApplication else { return false }
+        focusedSelectionPresence() == false
+    }
+
+    /// true/false — AX достоверно вернул непустое/пустое выделение; nil — приложение
+    /// не предоставляет атрибут, поэтому вызывающий может проверить clipboard.
+    private func focusedSelectionPresence() -> Bool? {
+        guard let app = NSWorkspace.shared.frontmostApplication else { return nil }
         let axApp = AXUIElementCreateApplication(app.processIdentifier)
         AXUIElementSetMessagingTimeout(axApp, 0.25)
         var focusedRaw: AnyObject?
         guard AXUIElementCopyAttributeValue(axApp, kAXFocusedUIElementAttribute as CFString, &focusedRaw) == .success,
-              let focused = focusedRaw else { return false }
+              let focused = focusedRaw else { return nil }
         let element = focused as! AXUIElement
         var selRaw: AnyObject?
         guard AXUIElementCopyAttributeValue(element, kAXSelectedTextAttribute as CFString, &selRaw) == .success,
-              let sel = selRaw as? String else { return false }
-        return sel.isEmpty
+              let sel = selRaw as? String else { return nil }
+        return !sel.isEmpty
     }
 
     /// issue #24 (терминал): конвертирует всю набранную строку по БУФЕРУ нажатий — backspace на
@@ -543,7 +566,8 @@ final class TextConverter {
 
     /// Конвертация через буфер обмена (фолбэк: выделенный мышью текст и т.п.).
     /// Сначала проверяет выделение, потом пробует слово по счётчику.
-    func convertViaClipboard(wordLength: Int, prevWordLength: Int, boundaryCount: Int) -> Bool {
+    func convertViaClipboard(wordLength: Int, prevWordLength: Int, boundaryCount: Int,
+                             selectionOnly: Bool = false, selectionCopyAttempts: Int = 3) -> Bool {
         guard !isConverting else {
             nabiraLog("convert: skipped — already converting")
             return false
@@ -569,7 +593,7 @@ final class TextConverter {
         }
 
         // --- Попытка 1: уже есть выделенный текст? ---
-        if let text = tryCopy(pasteboard) {
+        if let text = tryCopy(pasteboard, attempts: selectionCopyAttempts) {
             nabiraLog("convert: selection len=\(text.count)")
             // issue #22: A «по тексту» (тотальный флип) → B «умная» по-словная (по умолч.) →
             // классика (одностороннее по раскладке, если умная выключена).
@@ -604,6 +628,11 @@ final class TextConverter {
             conversionSucceeded = true
             scheduleClipboardRestore()
             return true
+        }
+
+        if selectionOnly {
+            nabiraLog("convert: no current selection")
+            return false
         }
 
         // RTL-пара: счётчиковый путь выделяет Shift+Left'ами, а в RTL «влево» —
@@ -829,8 +858,8 @@ final class TextConverter {
     }
 
     /// Копирует выделенный текст. Делает до 3 попыток (Cmd+C не всегда срабатывает с первого раза)
-    private func tryCopy(_ pasteboard: NSPasteboard) -> String? {
-        for attempt in 0..<3 {
+    private func tryCopy(_ pasteboard: NSPasteboard, attempts: Int = 3) -> String? {
+        for attempt in 0..<max(1, attempts) {
             // Очищаем буфер перед копированием — гарантирует что changeCount изменится
             pasteboard.clearContents()
             let oldCount = pasteboard.changeCount

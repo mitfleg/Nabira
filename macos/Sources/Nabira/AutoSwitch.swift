@@ -43,6 +43,34 @@ enum LayoutVerdict: Equatable { case switchToConverted, keep, undecided }
 /// Решает, набрано ли слово в неправильной раскладке. Точность важнее полноты:
 /// при любой неуверенности → .undecided (ничего не делаем). Ручной триггер остаётся.
 enum LayoutDetector {
+    /// Общий узкий позитивный сигнал для технических слов и безопасных snake_case-имён.
+    /// Детектор и фактическая замена обязаны использовать один и тот же результат.
+    @MainActor
+    static func automaticTechnicalReplacement(
+        typed: String,
+        converted: String,
+        currentLang: String,
+        otherLang: String
+    ) -> String? {
+        if let abbreviation = TechnicalAbbreviations.automaticReplacement(
+            typed: typed,
+            converted: converted,
+            currentLanguage: currentLang,
+            otherLanguage: otherLang
+        ) {
+            return abbreviation
+        }
+        let other = String(otherLang.lowercased().prefix(2))
+        guard Dict.isAvailable(other) else { return nil }
+        return TechnicalAbbreviations.automaticSnakeCaseReplacement(
+            typed: typed,
+            converted: converted,
+            currentLanguage: currentLang,
+            otherLanguage: otherLang,
+            isValidEnglishWord: { Dict.isValidWord($0, lang: other) }
+        )
+    }
+
     @MainActor
     static func decide(typed: String, converted: String, currentLang: String, otherLang: String, capsLock: Bool) -> LayoutVerdict {
         // always-convert — ЯВНЫЙ override: матчим по СКОНВЕРТИРОВАННОЙ (целевой) форме.
@@ -61,6 +89,18 @@ enum LayoutDetector {
         // отдельная ветка ниже через частотный список (ShortWords), т.к. на такой длине
         // системный словарь ненадёжен; 3+ — обычный путь через NSSpellChecker.
         guard typed.count >= 2 else { return .undecided }
+
+        // Узкий технический сигнал обязан идти до общего запрета пунктуации:
+        // подчёркивание в `штеуктфд_скь` — часть безопасного `internal_crm`, а не URL/почта.
+        if automaticTechnicalReplacement(
+            typed: typed,
+            converted: converted,
+            currentLang: currentLang,
+            otherLang: otherLang
+        ) != nil {
+            return .switchToConverted
+        }
+
         // Обычный путь — набранное целиком буквенное. Плюс (issue #22, п.3) случай «буквы
         // на клавишах-пунктуации»: ё/х/ъ/ж/э/б/ю в ЙЦУКЕН живут на ` [ ] ; ' , . — тогда
         // typed содержит эти знаки, но КОНВЕРСИЯ целиком буквенная, и решает словарь ниже.
@@ -72,18 +112,6 @@ enum LayoutDetector {
         }
         let cur = String(currentLang.prefix(2))
         let oth = String(otherLang.prefix(2))
-
-        // Системные словари часто не знают технические сокращения. Это узкий позитивный
-        // RU→EN-сигнал, проверенный на раскладочные коллизии; он обязан идти раньше
-        // ALL-CAPS/camelCase и словаря (`мзт` → `VPN`, а не опечатка `мат`).
-        if TechnicalAbbreviations.automaticReplacement(
-            typed: typed,
-            converted: converted,
-            currentLanguage: cur,
-            otherLanguage: oth
-        ) != nil {
-            return .switchToConverted
-        }
 
         // Под Caps Lock весь текст в ВЕРХНЕМ регистре — это НЕ акроним и НЕ camelCase,
         // поэтому эти два вето применяем только когда Caps Lock выключен.

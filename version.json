@@ -1,12 +1,12 @@
 {
-  "version": "3.4.5",
-  "build": "58",
+  "version": "3.4.6",
+  "build": "59",
   "dev": "",
-  "url": "https://nabira.site/downloads/Nabira-macOS.dmg?version=3.4.5",
-  "notes": "Что нового в 3.4.5:\n• Технические сокращения распознаются до проверки опечаток.\n• мзт и МЗТ в русской раскладке превращаются в VPN.\n• vpn автоматически получает правильный регистр VPN.",
+  "url": "https://nabira.site/downloads/Nabira-macOS.dmg?version=3.4.6",
+  "notes": "Что нового в 3.4.6:\n• Автоконверсия понимает безопасные технические snake_case-имена, например internal_crm.\n• Выделенный текст теперь всегда имеет приоритет перед последним словом и всей строкой.\n• Ручная конверсия надёжнее работает в приложениях на Electron и WebView.",
   "legacy_manual_install": true,
-  "signed_payload": "eyJzY2hlbWEiOjEsInBsYXRmb3JtIjoibWFjb3MiLCJ2ZXJzaW9uIjoiMy40LjUiLCJ1cmwiOiJodHRwczovL25hYmlyYS5zaXRlL2Rvd25sb2Fkcy9OYWJpcmEtbWFjT1MuZG1nP3ZlcnNpb249My40LjUiLCJub3RlcyI6ItCn0YLQviDQvdC+0LLQvtCz0L4g0LIgMy40LjU6XG7igKIg0KLQtdGF0L3QuNGH0LXRgdC60LjQtSDRgdC+0LrRgNCw0YnQtdC90LjRjyDRgNCw0YHQv9C+0LfQvdCw0Y7RgtGB0Y8g0LTQviDQv9GA0L7QstC10YDQutC4INC+0L/QtdGH0LDRgtC+0LouXG7igKIg0LzQt9GCINC4INCc0JfQoiDQsiDRgNGD0YHRgdC60L7QuSDRgNCw0YHQutC70LDQtNC60LUg0L/RgNC10LLRgNCw0YnQsNGO0YLRgdGPINCyIFZQTi5cbuKAoiB2cG4g0LDQstGC0L7QvNCw0YLQuNGH0LXRgdC60Lgg0L/QvtC70YPRh9Cw0LXRgiDQv9GA0LDQstC40LvRjNC90YvQuSDRgNC10LPQuNGB0YLRgCBWUE4uIiwic2hhMjU2IjoiNTM1NmRlMDk3Yjg0M2U1ZjBiNDExMzg5NGE0YTQ1MTdjNGVlMGI4MmVhZGQ4ODcwZDViNWUwZGJhN2MwOWJjOCJ9",
-  "signature": "MEQCIB/Yq3koJjdg8uouLJ1/ws5kKRf+3814o+Uq6lUwwaW+AiBmJCCt6P8oqeexJaeS+d64OMVZJI7GMBfHlrI7AoCYxw==",
+  "signed_payload": "eyJzY2hlbWEiOjEsInBsYXRmb3JtIjoibWFjb3MiLCJ2ZXJzaW9uIjoiMy40LjYiLCJ1cmwiOiJodHRwczovL25hYmlyYS5zaXRlL2Rvd25sb2Fkcy9OYWJpcmEtbWFjT1MuZG1nP3ZlcnNpb249My40LjYiLCJub3RlcyI6ItCn0YLQviDQvdC+0LLQvtCz0L4g0LIgMy40LjY6XG7igKIg0JDQstGC0L7QutC+0L3QstC10YDRgdC40Y8g0L/QvtC90LjQvNCw0LXRgiDQsdC10LfQvtC/0LDRgdC90YvQtSDRgtC10YXQvdC40YfQtdGB0LrQuNC1IHNuYWtlX2Nhc2Ut0LjQvNC10L3QsCwg0L3QsNC/0YDQuNC80LXRgCBpbnRlcm5hbF9jcm0uXG7igKIg0JLRi9C00LXQu9C10L3QvdGL0Lkg0YLQtdC60YHRgiDRgtC10L/QtdGA0Ywg0LLRgdC10LPQtNCwINC40LzQtdC10YIg0L/RgNC40L7RgNC40YLQtdGCINC/0LXRgNC10LQg0L/QvtGB0LvQtdC00L3QuNC8INGB0LvQvtCy0L7QvCDQuCDQstGB0LXQuSDRgdGC0YDQvtC60L7QuS5cbuKAoiDQoNGD0YfQvdCw0Y8g0LrQvtC90LLQtdGA0YHQuNGPINC90LDQtNGR0LbQvdC10LUg0YDQsNCx0L7RgtCw0LXRgiDQsiDQv9GA0LjQu9C+0LbQtdC90LjRj9GFINC90LAgRWxlY3Ryb24g0LggV2ViVmlldy4iLCJzaGEyNTYiOiIxODFkMjAzYWIyM2RhMTcwYzQ1YjE3ZGEwYTc1ZWFiYmY3NGVlZDQ0ZWI0OGVlYzJmNzNhZGQwZjc3NjVhYmRjIn0=",
+  "signature": "MEUCIQCNXX1BqpU3nwD0T3eQYprFQXhNfsoO7In4SH/L4aBrnQIgedBNSJMjl/UtZfhzLofakwaDVrB55oOt4YuMykJSrx4=",
   "signature_algorithm": "ecdsa-p256-sha256",
   "key_id": "01d93189e15525ff"
 }
