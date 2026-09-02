@@ -1,12 +1,12 @@
 {
-  "version": "3.4.4",
-  "build": "57",
+  "version": "3.4.5",
+  "build": "58",
   "dev": "",
-  "url": "https://nabira.site/downloads/Nabira-macOS.dmg?version=3.4.4",
-  "notes": "Что нового в 3.4.4:\n• Убраны служебные подписи со страницы аккаунта.\n• Кнопка подписки теперь открывает оплату в аккаунте Nabira.\n• Усилена защита подключения к сервису Nabira.",
+  "url": "https://nabira.site/downloads/Nabira-macOS.dmg?version=3.4.5",
+  "notes": "Что нового в 3.4.5:\n• Технические сокращения распознаются до проверки опечаток.\n• мзт и МЗТ в русской раскладке превращаются в VPN.\n• vpn автоматически получает правильный регистр VPN.",
   "legacy_manual_install": true,
-  "signed_payload": "eyJzY2hlbWEiOjEsInBsYXRmb3JtIjoibWFjb3MiLCJ2ZXJzaW9uIjoiMy40LjQiLCJ1cmwiOiJodHRwczovL25hYmlyYS5zaXRlL2Rvd25sb2Fkcy9OYWJpcmEtbWFjT1MuZG1nP3ZlcnNpb249My40LjQiLCJub3RlcyI6ItCn0YLQviDQvdC+0LLQvtCz0L4g0LIgMy40LjQ6XG7igKIg0KPQsdGA0LDQvdGLINGB0LvRg9C20LXQsdC90YvQtSDQv9C+0LTQv9C40YHQuCDRgdC+INGB0YLRgNCw0L3QuNGG0Ysg0LDQutC60LDRg9C90YLQsC5cbuKAoiDQmtC90L7Qv9C60LAg0L/QvtC00L/QuNGB0LrQuCDRgtC10L/QtdGA0Ywg0L7RgtC60YDRi9Cy0LDQtdGCINC+0L/Qu9Cw0YLRgyDQsiDQsNC60LrQsNGD0L3RgtC1IE5hYmlyYS5cbuKAoiDQo9GB0LjQu9C10L3QsCDQt9Cw0YnQuNGC0LAg0L/QvtC00LrQu9GO0YfQtdC90LjRjyDQuiDRgdC10YDQstC40YHRgyBOYWJpcmEuIiwic2hhMjU2IjoiNzRkNGY1NDUzNzgxNjhmODFjNWZhMWU0OWZlNzQ0YTBkMTdhMDJhZjNkNTNmN2I2YTk1YTdmNzI4YTg5ZmE1YiJ9",
-  "signature": "MEQCIGpGFYKInHPAVPKsa9iEvGrbB7W/ziPQm+rNmuBjJCrQAiAYSgxL8C8fp6fM7/xX5ITcOX6hfO0CZhQUQnkm5TBtnQ==",
+  "signed_payload": "eyJzY2hlbWEiOjEsInBsYXRmb3JtIjoibWFjb3MiLCJ2ZXJzaW9uIjoiMy40LjUiLCJ1cmwiOiJodHRwczovL25hYmlyYS5zaXRlL2Rvd25sb2Fkcy9OYWJpcmEtbWFjT1MuZG1nP3ZlcnNpb249My40LjUiLCJub3RlcyI6ItCn0YLQviDQvdC+0LLQvtCz0L4g0LIgMy40LjU6XG7igKIg0KLQtdGF0L3QuNGH0LXRgdC60LjQtSDRgdC+0LrRgNCw0YnQtdC90LjRjyDRgNCw0YHQv9C+0LfQvdCw0Y7RgtGB0Y8g0LTQviDQv9GA0L7QstC10YDQutC4INC+0L/QtdGH0LDRgtC+0LouXG7igKIg0LzQt9GCINC4INCc0JfQoiDQsiDRgNGD0YHRgdC60L7QuSDRgNCw0YHQutC70LDQtNC60LUg0L/RgNC10LLRgNCw0YnQsNGO0YLRgdGPINCyIFZQTi5cbuKAoiB2cG4g0LDQstGC0L7QvNCw0YLQuNGH0LXRgdC60Lgg0L/QvtC70YPRh9Cw0LXRgiDQv9GA0LDQstC40LvRjNC90YvQuSDRgNC10LPQuNGB0YLRgCBWUE4uIiwic2hhMjU2IjoiNTM1NmRlMDk3Yjg0M2U1ZjBiNDExMzg5NGE0YTQ1MTdjNGVlMGI4MmVhZGQ4ODcwZDViNWUwZGJhN2MwOWJjOCJ9",
+  "signature": "MEQCIB/Yq3koJjdg8uouLJ1/ws5kKRf+3814o+Uq6lUwwaW+AiBmJCCt6P8oqeexJaeS+d64OMVZJI7GMBfHlrI7AoCYxw==",
   "signature_algorithm": "ecdsa-p256-sha256",
   "key_id": "01d93189e15525ff"
 }

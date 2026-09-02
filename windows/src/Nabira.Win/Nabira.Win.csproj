@@ -25,7 +25,7 @@
     <LangVersion>latest</LangVersion>
     <Platforms>x64;ARM64</Platforms>
     <!-- Keep in sync with windows/version.json. -->
-    <Version>0.11.4</Version>
+    <Version>0.11.5</Version>
     <ApplicationIcon>Resources\Nabira.ico</ApplicationIcon>
   </PropertyGroup>
 
