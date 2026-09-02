@@ -34,6 +34,9 @@ internal static class AutoConverter
 
         if (!ShouldConvert(typed, converted, srcTag, tgtTag, caps)) return false;
 
+        converted = TechnicalAbbreviations.AutomaticReplacement(
+            typed, converted, srcTag, tgtTag) ?? converted;
+
         TextInjector.Replace(backspaces: keys.Count + 1, text: converted + " ");
         LayoutSwitcher.SwitchTo(targetHkl);
         Converter.NoteAutoConversion(converted + " ", typed + " ", targetHkl, sourceHkl);
@@ -70,6 +73,12 @@ internal static class AutoConverter
         // --- soft vetoes (cheap, before the dictionary) ---
         if (typed.Length < 3) return false;                 // 1–2 letters: too many cross-layout collisions
         if (!typed.All(char.IsLetter)) return false;        // digits / punctuation / URL / code / email
+
+        // Dedicated positive RU→EN signal before the ALL-CAPS and dictionary vetoes.
+        // OS spell checkers often do not accept `vpn`, leaving `мзт` to the typo corrector.
+        if (TechnicalAbbreviations.AutomaticReplacement(typed, converted, srcTag, tgtTag) != null)
+            return true;
+
         if (!caps)                                          // under Caps Lock these two aren't acronyms/camelCase
         {
             if (IsAllCaps(typed)) return false;             // acronyms

@@ -43,10 +43,17 @@ internal static class WritingAssistant
             if (AutoConverter.ShouldConvertPure(original, converted, srcTag, tgtTag, caps,
                     Dict.Available, Dict.IsValidWord, settings.NeverConvert, settings.AlwaysConvert))
             {
-                replacement = converted;
+                replacement = TechnicalAbbreviations.AutomaticReplacement(
+                    original, converted, srcTag, tgtTag) ?? converted;
                 resultHkl = targetHkl;
             }
         }
+
+        // Preserve known technical terms before the generic typo corrector and use their
+        // accepted case even when they were typed in the correct English layout.
+        if (settings.TypoCorrection && Language(replacement) is { } abbreviationLanguage)
+            replacement = TechnicalAbbreviations.CanonicalForm(
+                replacement, abbreviationLanguage) ?? replacement;
 
         if (settings.FixDoubleCapitals)
             replacement = WritingCorrections.FixDoubleCapitalization(replacement) ?? replacement;

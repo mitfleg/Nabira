@@ -953,6 +953,41 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         return true
     }
 
+    /// Нормализует уже правильно набранное техническое сокращение до принятого регистра.
+    /// Выполняется раньше AppleSpell, чтобы `vpn` не стало несвязанной опечаткой.
+    private func handleTechnicalAbbreviation(core: String, originalOnScreen: String,
+                                             suffix: String, boundaryCount: Int,
+                                             deferToRemote: Bool) -> Bool {
+        guard SettingsManager.shared.typoCorrectionEnabled,
+              let language = TypoCorrector.language(for: core),
+              let replacement = TechnicalAbbreviations.canonicalForm(
+                  for: core,
+                  language: language
+              ),
+              replacement != originalOnScreen,
+              !AutoSwitchPolicy.isDeniedWord(originalOnScreen, replacement) else { return false }
+        if deferToRemote {
+            nabiraLog("abbreviation: deferred to controlled instance")
+            return true
+        }
+        guard !SpotlightAX.isActive() else { return true }
+        if textConverter.replaceCompletedWord(
+            original: originalOnScreen,
+            replacement: replacement,
+            boundaryCount: boundaryCount,
+            passthroughSuffix: suffix
+        ) {
+            keyboardMonitor.markConverted()
+            recordAutomaticCorrection(
+                original: originalOnScreen,
+                replacement: replacement,
+                kind: .capitalization
+            )
+            nabiraLog("abbreviation: normalized len=\(core.count)")
+        }
+        return true
+    }
+
     /// Исправляет знак препинания, набранный буквой русской раскладки.
     /// Словарный гейт обязателен: без него `дуб` превратился бы в `ду,`.
     private func handlePunctuationCorrection(core: String, originalOnScreen: String,
@@ -1022,6 +1057,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func handleWritingCorrections(core: String, originalOnScreen: String,
                                           suffix: String, boundaryCount: Int,
                                           context: String?, deferToRemote: Bool) -> Bool {
+        if handleTechnicalAbbreviation(
+            core: core,
+            originalOnScreen: originalOnScreen,
+            suffix: suffix,
+            boundaryCount: boundaryCount,
+            deferToRemote: deferToRemote
+        ) { return true }
         if handlePunctuationCorrection(
             core: core,
             originalOnScreen: originalOnScreen,
@@ -1255,12 +1297,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             return
         }
 
+        let convertedWithCanonicalCase = TechnicalAbbreviations.automaticReplacement(
+            typed: pair.original,
+            converted: pair.converted,
+            currentLanguage: langs.current,
+            otherLanguage: langs.opposite
+        ) ?? pair.converted
+
         if deferToRemote {
             // Удалёнка: текст конвертит офисный инстанс по реальным проброшенным символам.
             // Здесь меняем СВОЮ раскладку — чтобы дальнейший ввод пошёл уже в правильной.
             LayoutSwitcher.switchToOpposite()
             updateStatusIcon()
-            observeContextWord(pair.converted, language: langs.opposite, bundleID: frontID)
+            observeContextWord(convertedWithCanonicalCase, language: langs.opposite, bundleID: frontID)
             nabiraLog("auto: local layout switched, conversion handled by controlled instance")
             return
         }
@@ -1271,24 +1320,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // Backspace. Суффикс-случай (#15) в Spotlight редок и фиддловат — его не трогаем.
         if SpotlightAX.isActive() {
             if suffix.isEmpty,
-               textConverter.convertSpotlightWord(converted: pair.converted, boundaryCount: bc) {
+               textConverter.convertSpotlightWord(converted: convertedWithCanonicalCase, boundaryCount: bc) {
                 keyboardMonitor.markConverted()
                 LayoutSwitcher.switchToOpposite()
                 updateStatusIcon()
                 recordAutomaticCorrection(
                     original: rawPair.original,
-                    replacement: pair.converted,
+                    replacement: convertedWithCanonicalCase,
                     kind: .layout
                 )
-                observeContextWord(pair.converted, language: langs.opposite, bundleID: frontID)
+                observeContextWord(convertedWithCanonicalCase, language: langs.opposite, bundleID: frontID)
             }
             return   // Spotlight: обычный count-путь неприменим
         }
 
         nabiraLog("auto: convert \(keys.count) keys (+\(suffix.count) punct, +\(bc) sp)")
         let converted = settings.yoficatorEnabled
-            ? (Yoficator.replacement(for: pair.converted) ?? pair.converted)
-            : pair.converted
+            ? (Yoficator.replacement(for: convertedWithCanonicalCase) ?? convertedWithCanonicalCase)
+            : convertedWithCanonicalCase
         // Вычисленный текст уже учитывает и раскладку, и две случайные заглавные,
         // поэтому единый replace-путь надёжнее повторной конвертации сырых кейкодов.
         let didConvert = textConverter.replaceCompletedWord(

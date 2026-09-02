@@ -18,6 +18,9 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Nabira.Win\Nabira.Win.csproj" />
+    <None Include="..\..\..\shared\testdata\technical-abbreviations.json"
+          Link="TestData\technical-abbreviations.json"
+          CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

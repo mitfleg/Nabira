@@ -1,5 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Text.Json;
 using Nabira.Win.Core;
 using Xunit;
 
@@ -25,6 +28,61 @@ public class AutoConverterTests
         bool r = AutoConverter.ShouldConvertPure("ghbdtn", "привет", "en", "ru",
             caps: false, dictAvailable: true, Dict(("привет", "ru")), None, None);
         Assert.True(r);
+    }
+
+    [Theory]
+    [InlineData("мзт", "vpn", "VPN")]
+    [InlineData("фзш", "api", "API")]
+    [InlineData("вты", "dns", "DNS")]
+    [InlineData("реез", "http", "HTTP")]
+    [InlineData("оыщт", "json", "JSON")]
+    [InlineData("щфгер", "oauth", "OAuth")]
+    public void Converts_known_technical_abbreviations_before_the_dictionary(
+        string typed, string converted, string expected)
+    {
+        bool verdict = AutoConverter.ShouldConvertPure(typed, converted, "ru", "en",
+            caps: false, dictAvailable: true, Dict(), None, None);
+        Assert.True(verdict);
+        Assert.Equal(expected,
+            TechnicalAbbreviations.AutomaticReplacement(typed, converted, "ru", "en"));
+    }
+
+    [Theory]
+    [InlineData("учу", "exe")]
+    [InlineData("еды", "tls")]
+    public void Does_not_treat_audited_russian_collisions_as_abbreviations(
+        string typed, string converted)
+    {
+        Assert.Null(TechnicalAbbreviations.AutomaticReplacement(typed, converted, "ru", "en"));
+    }
+
+    [Theory]
+    [InlineData("vpn", "VPN")]
+    [InlineData("Vpn", "VPN")]
+    [InlineData("oauth", "OAuth")]
+    public void Normalizes_known_abbreviation_case(string input, string expected) =>
+        Assert.Equal(expected, TechnicalAbbreviations.CanonicalForm(input, "en"));
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Known_abbreviation_wins_even_when_source_was_typed_in_uppercase(bool caps)
+    {
+        bool verdict = AutoConverter.ShouldConvertPure("МЗТ", "VPN", "ru", "en",
+            caps, dictAvailable: true, Dict(), None, None);
+        Assert.True(verdict);
+        Assert.Equal("VPN",
+            TechnicalAbbreviations.AutomaticReplacement("МЗТ", "VPN", "ru", "en"));
+    }
+
+    [Fact]
+    public void Implementation_matches_the_shared_canonical_contract()
+    {
+        string path = Path.Combine(AppContext.BaseDirectory, "TestData", "technical-abbreviations.json");
+        using JsonDocument contract = JsonDocument.Parse(File.ReadAllText(path));
+        var expected = contract.RootElement.GetProperty("canonical")
+            .EnumerateArray().Select(value => value.GetString()!).ToHashSet();
+        Assert.True(expected.SetEquals(TechnicalAbbreviations.CanonicalForms));
     }
 
     [Theory]

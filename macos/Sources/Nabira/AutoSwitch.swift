@@ -70,15 +70,27 @@ enum LayoutDetector {
         guard typed.allSatisfy({ $0.isLetter }) || converted.allSatisfy({ $0.isLetter }) else {
             return .undecided // цифры/URL/код/почта/эмодзи
         }
+        let cur = String(currentLang.prefix(2))
+        let oth = String(otherLang.prefix(2))
+
+        // Системные словари часто не знают технические сокращения. Это узкий позитивный
+        // RU→EN-сигнал, проверенный на раскладочные коллизии; он обязан идти раньше
+        // ALL-CAPS/camelCase и словаря (`мзт` → `VPN`, а не опечатка `мат`).
+        if TechnicalAbbreviations.automaticReplacement(
+            typed: typed,
+            converted: converted,
+            currentLanguage: cur,
+            otherLanguage: oth
+        ) != nil {
+            return .switchToConverted
+        }
+
         // Под Caps Lock весь текст в ВЕРХНЕМ регистре — это НЕ акроним и НЕ camelCase,
         // поэтому эти два вето применяем только когда Caps Lock выключен.
         if !capsLock {
             if isAllCaps(typed) { return .undecided }                      // акронимы
             if looksLikeCodeIdentifier(typed) { return .undecided }        // camelCase / смешанные алфавиты
         }
-
-        let cur = String(currentLang.prefix(2))
-        let oth = String(otherLang.prefix(2))
 
         // --- Кросс-скрипт пары с ивритом (3.0) ---
         // Системный ивритский словарь macOS для детекта БЕСПОЛЕЗЕН: он принимает любой

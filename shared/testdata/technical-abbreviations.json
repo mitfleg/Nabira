@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "canonical": [
+    "API", "ASCII", "AWS", "BIOS", "CDN", "CLI", "CPU", "CRM", "CSS", "CSV",
+    "DLL", "DMG", "DNS", "DPI", "FAQ", "FPS", "FTP", "GCP", "GIF", "GPU",
+    "GPT", "GUI", "HDD", "HTML", "HTTP", "HTTPS", "IDE", "IMAP", "JPEG", "JPG",
+    "JSON", "JWT", "LAN", "LDAP", "LLM", "LTE", "MSI", "NAT", "NFC", "NLP",
+    "OAuth", "OCR", "PDF", "PNG", "RDP", "RFID", "SaaS", "SDK", "SFTP", "SMTP",
+    "SQL", "SSH", "SSD", "SSL", "TCP", "TSV", "UDP", "URL", "USB", "UUID",
+    "VDS", "VPN", "VPS", "WLAN", "XML", "YAML"
+  ],
+  "wrong_layout": [
+    { "typed": "мзт", "converted": "vpn", "expected": "VPN" },
+    { "typed": "фзш", "converted": "api", "expected": "API" },
+    { "typed": "вты", "converted": "dns", "expected": "DNS" },
+    { "typed": "реез", "converted": "http", "expected": "HTTP" },
+    { "typed": "оыщт", "converted": "json", "expected": "JSON" },
+    { "typed": "щфгер", "converted": "oauth", "expected": "OAuth" }
+  ],
+  "excluded_collisions": [
+    { "typed": "учу", "converted": "exe" },
+    { "typed": "еды", "converted": "tls" }
+  ]
+}
