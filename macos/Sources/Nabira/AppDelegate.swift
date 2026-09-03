@@ -770,7 +770,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             return
         }
         guard let edit = textConverter.captureSelectionOrCurrentLineForSage() else {
-            NSSound.beep()
+            showSageNotice(
+                title: NabiraCopy.text("Не удалось получить текст", "Could not read the text"),
+                message: NabiraCopy.text(
+                    "Выделите текст в редактируемом поле или поставьте курсор в нужную строку и повторите.",
+                    "Select text in an editable field or place the cursor in the required line and try again."
+                ),
+                warning: true
+            )
             return
         }
 
@@ -785,12 +792,46 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 let applied = self.textConverter.applySageCorrection(corrected, to: edit)
                 if applied { self.keyboardMonitor.markConverted() }
                 nabiraLog("sage: applied=\(applied) result_chars=\(corrected.count)")
-                if !applied { NSSound.beep() }
+                if !applied {
+                    self.showSageNotice(
+                        title: NabiraCopy.text("Текст уже изменился", "The text has changed"),
+                        message: NabiraCopy.text(
+                            "Nabira не стала перезаписывать поле. Выделите текст заново и повторите.",
+                            "Nabira did not overwrite the field. Select the text again and retry."
+                        ),
+                        warning: true
+                    )
+                } else if corrected == edit.original {
+                    self.showSageNotice(
+                        title: NabiraCopy.text("Исправлений не найдено", "No corrections found"),
+                        message: NabiraCopy.text(
+                            "Локальная модель проверила текст и не нашла изменений.",
+                            "The local model checked the text and found no changes."
+                        )
+                    )
+                }
             } catch {
                 nabiraLog("sage failed: \(String(describing: type(of: error)))")
-                NSSound.beep()
+                self.showSageNotice(
+                    title: NabiraCopy.text("ИИ-коррекция не запустилась", "AI correction did not start"),
+                    message: NabiraCopy.text(
+                        "Проверьте модель в настройках Nabira. Если ошибка повторится, удалите модель и подключите её заново.",
+                        "Check the model in Nabira settings. If the error repeats, remove the model and connect it again."
+                    ),
+                    warning: true
+                )
             }
         }
+    }
+
+    private func showSageNotice(title: String, message: String, warning: Bool = false) {
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.alertStyle = warning ? .warning : .informational
+        alert.messageText = title
+        alert.informativeText = message
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
     }
 
     /// Положительный словарный сигнал для контекста одиночной буквы. Для двухбуквенных

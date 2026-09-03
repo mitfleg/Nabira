@@ -130,13 +130,37 @@ else
 fi
 
 echo "→ Code signing with: $SIGN_ID"
+# Hardened Runtime validates that every loaded library belongs to the same Apple
+# development team. Ad-hoc and our self-signed local identity do not have a Team ID,
+# so enabling it makes the separately launched SAGE helper reject ONNX Runtime at
+# startup. Keep Hardened Runtime for real Apple identities, and use ordinary code
+# signing for local development builds.
+SIGN_OPTIONS=()
+if [ "$SIGN_ID" != "-" ] && [ "$SIGN_ID" != "$LOCAL_SIGN_ID" ]; then
+    SIGN_OPTIONS=(--options runtime)
+fi
 # Sign nested code first, then seal the outer bundle.
-codesign --force --sign "$SIGN_ID" --options runtime "$APP_BUNDLE/Contents/Frameworks/libonnxruntime.1.23.2.dylib"
-codesign --force --sign "$SIGN_ID" --options runtime "$APP_BUNDLE/Contents/Helpers/NabiraSageHelper"
+codesign --force --sign "$SIGN_ID" "${SIGN_OPTIONS[@]}" "$APP_BUNDLE/Contents/Frameworks/libonnxruntime.1.23.2.dylib"
+codesign --force --sign "$SIGN_ID" "${SIGN_OPTIONS[@]}" "$APP_BUNDLE/Contents/Helpers/NabiraSageHelper"
 codesign --force --deep --sign "$SIGN_ID" \
-    --options runtime \
+    "${SIGN_OPTIONS[@]}" \
     --entitlements "$PROJECT_DIR/Nabira.entitlements" \
     "$APP_BUNDLE"
+
+codesign --verify --deep --strict "$APP_BUNDLE"
+
+# No arguments is the helper's documented usage error (64). Any other status here
+# means it could not even start, most commonly because its bundled ONNX Runtime was
+# rejected by dyld or signed incorrectly.
+set +e
+"$APP_BUNDLE/Contents/Helpers/NabiraSageHelper" >/dev/null 2>&1
+SAGE_SMOKE_STATUS=$?
+set -e
+if [ "$SAGE_SMOKE_STATUS" -ne 64 ]; then
+    echo "ERROR: local AI helper failed its startup smoke test (status $SAGE_SMOKE_STATUS)." >&2
+    exit 1
+fi
+echo "→ Local AI helper startup smoke test passed"
 
 echo ""
 echo "=== Done! ==="
