@@ -54,6 +54,23 @@ enum SubmitBoundaryPolicy {
     }
 }
 
+enum SageShortcutPolicy {
+    private static let actionModifiers: CGEventFlags = [
+        .maskCommand, .maskControl, .maskAlternate, .maskShift,
+    ]
+    private static let shortcutModifiers: CGEventFlags = [.maskControl, .maskAlternate]
+
+    static func matches(keyCode: UInt16, flags: CGEventFlags) -> Bool {
+        keyCode == KC.space && flags.intersection(actionModifiers) == shortcutModifiers
+    }
+
+    /// Synthetic Cmd+C must be sent only after the physical shortcut modifiers are released.
+    /// Otherwise WebView/Electron editors may see Ctrl+Option+Cmd+C and ignore Copy.
+    static func isStillHeld(flags: CGEventFlags) -> Bool {
+        !flags.intersection(shortcutModifiers).isEmpty
+    }
+}
+
 /// Выделенная очередь для файлового I/O лога — чтобы запись на диск не блокировала
 /// поток обработки событий (event tap висит на главном run loop, а лог пишется
 /// для каждого нажатия при включённом debug).
@@ -399,9 +416,7 @@ final class KeyboardMonitor: @unchecked Sendable {
             return true
         }
 
-        let actionModifiers = flags.intersection([.maskCommand, .maskControl, .maskAlternate, .maskShift])
-        if SageModelFiles.isInstalled, keyCode == KC.space,
-           actionModifiers == [.maskControl, .maskAlternate] {
+        if SageModelFiles.isInstalled, SageShortcutPolicy.matches(keyCode: keyCode, flags: flags) {
             fullReset()
             let callback = onSageCorrection
             DispatchQueue.main.async { callback?() }

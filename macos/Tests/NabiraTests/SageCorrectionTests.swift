@@ -2,6 +2,57 @@ import XCTest
 @testable import Nabira
 
 final class SageCorrectionTests: XCTestCase {
+    func testSageShortcutWaitsForPhysicalModifiersToBeReleased() {
+        XCTAssertTrue(SageShortcutPolicy.matches(
+            keyCode: KC.space,
+            flags: [.maskControl, .maskAlternate]
+        ))
+        XCTAssertFalse(SageShortcutPolicy.matches(
+            keyCode: KC.space,
+            flags: [.maskControl, .maskAlternate, .maskShift]
+        ))
+        XCTAssertTrue(SageShortcutPolicy.isStillHeld(flags: .maskControl))
+        XCTAssertTrue(SageShortcutPolicy.isStillHeld(flags: .maskAlternate))
+        XCTAssertFalse(SageShortcutPolicy.isStillHeld(flags: []))
+    }
+
+    func testSageCaptureAcceptsCopiedSelectionFromEditorWithoutAccessibilityMetadata() {
+        XCTAssertTrue(TextConverter.sageCopyIsExplicitSelection(
+            selectionPresence: nil,
+            copiedSelectionAvailable: true
+        ))
+        XCTAssertFalse(TextConverter.sageMaySelectCurrentLine(
+            selectionPresence: nil,
+            copiedSelectionAvailable: true,
+            editable: false
+        ))
+    }
+
+    func testSageCaptureDoesNotSendLineSelectionToUnknownNonEditableApplication() {
+        XCTAssertFalse(TextConverter.sageCopyIsExplicitSelection(
+            selectionPresence: nil,
+            copiedSelectionAvailable: false
+        ))
+        XCTAssertFalse(TextConverter.sageMaySelectCurrentLine(
+            selectionPresence: nil,
+            copiedSelectionAvailable: false,
+            editable: false
+        ))
+    }
+
+    func testSageCaptureSelectsCurrentLineOnlyInKnownEditableFieldWithoutSelection() {
+        XCTAssertTrue(TextConverter.sageMaySelectCurrentLine(
+            selectionPresence: false,
+            copiedSelectionAvailable: false,
+            editable: true
+        ))
+        XCTAssertFalse(TextConverter.sageMaySelectCurrentLine(
+            selectionPresence: true,
+            copiedSelectionAvailable: false,
+            editable: true
+        ))
+    }
+
     func testMixedTextPolicyProtectsLatinCodeLinksAndEmail() {
         let input = "исправь VPN и internal_crm на https://nabira.site для test@example.com пожалуйста"
         let segments = SageTextPolicy.split(input)

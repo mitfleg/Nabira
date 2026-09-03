@@ -760,7 +760,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         offerAutoConvertIfNeeded()
     }
 
-    private func runSageCorrection() {
+    private func runSageCorrection(releaseAttempt: Int = 0) {
+        let physicalFlags = CGEventSource.flagsState(.combinedSessionState)
+        if SageShortcutPolicy.isStillHeld(flags: physicalFlags) {
+            guard releaseAttempt < 40 else {
+                showSageNotice(
+                    title: NabiraCopy.text("Отпустите клавиши", "Release the keys"),
+                    message: NabiraCopy.text(
+                        "Отпустите Control и Option, затем повторите исправление.",
+                        "Release Control and Option, then try the correction again."
+                    ),
+                    warning: true
+                )
+                return
+            }
+            if releaseAttempt == 0 { nabiraLog("sage: waiting for shortcut release") }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+                self?.runSageCorrection(releaseAttempt: releaseAttempt + 1)
+            }
+            return
+        }
+
         guard accessManager.hasAccess, SageModelFiles.isInstalled else {
             settingsController.showWindow(section: .localAI)
             return

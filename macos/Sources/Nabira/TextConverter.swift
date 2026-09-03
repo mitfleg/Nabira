@@ -15,6 +15,7 @@ final class TextConverter {
     private var savedClipboardItems: [NSPasteboardItem]?
     private var clipboardRestoreWork: DispatchWorkItem?
     private var isConverting = false
+    private var manualAccessibilityAttemptedPIDs = Set<pid_t>()
     /// Очередь для инжекта нажатий буферного движка — чтобы usleep не блокировал
     /// main-поток, на котором висит event tap (иначе тап голодает → лаги/потери нажатий).
     nonisolated private let injectQueue = DispatchQueue(label: "com.mitfleg.nabira.inject", qos: .userInteractive)
@@ -31,6 +32,22 @@ final class TextConverter {
     private(set) var reconvertShouldSwitchLayout = true
     /// Последняя clipboard-конверсия содержала RTL — реконверт стрелками небезопасен.
     private var lastClipboardRTL = false
+
+    /// Capture policy is kept pure so custom WebView editors cannot regress to the AX-only path.
+    nonisolated static func sageCopyIsExplicitSelection(
+        selectionPresence: Bool?,
+        copiedSelectionAvailable: Bool
+    ) -> Bool {
+        copiedSelectionAvailable && selectionPresence != false
+    }
+
+    nonisolated static func sageMaySelectCurrentLine(
+        selectionPresence: Bool?,
+        copiedSelectionAvailable: Bool,
+        editable: Bool
+    ) -> Bool {
+        selectionPresence != true && !copiedSelectionAvailable && editable
+    }
 
     /// RTL-скаляры: иврит, арабский + презентационные формы (копипаста из PDF).
     nonisolated static func containsRTL(_ s: String) -> Bool {
@@ -55,23 +72,70 @@ final class TextConverter {
         return source
     }
 
-    /// Проверяет, что текущий фокусированный элемент — редактируемое текстовое поле
-    private func isFocusedElementEditable() -> Bool {
-        guard let app = NSWorkspace.shared.frontmostApplication else { return false }
-        let axApp = AXUIElementCreateApplication(app.processIdentifier)
-        // Занятое приложение (Electron в GC, IDE в индексации) без таймаута держит main
-        // до 6с (дефолт AX) — это и есть «фризы». 0.2с хватает живому ответу; SpotlightAX
-        // такой же таймаут уже ставит.
-        AXUIElementSetMessagingTimeout(axApp, 0.2)
+    /// Возвращает настоящий элемент, принимающий клавиатурный ввод. System-wide AX надёжнее
+    /// NSWorkspace.frontmostApplication для приложений с отдельным UI/renderer-процессом.
+    /// Electron может держать accessibility-дерево выключенным до AXManualAccessibility=true.
+    private func focusedAXElement() -> AXUIElement? {
+        let system = AXUIElementCreateSystemWide()
+        AXUIElementSetMessagingTimeout(system, 0.2)
 
-        var focusedRaw: AnyObject?
-        let err = AXUIElementCopyAttributeValue(axApp, kAXFocusedUIElementAttribute as CFString, &focusedRaw)
-        guard err == .success, let focused = focusedRaw else {
-            nabiraLog("editable: no focused element")
-            return false
+        var applicationRaw: AnyObject?
+        let systemError = AXUIElementCopyAttributeValue(
+            system,
+            kAXFocusedApplicationAttribute as CFString,
+            &applicationRaw
+        )
+
+        let axApp: AXUIElement
+        if systemError == .success, let applicationRaw {
+            axApp = applicationRaw as! AXUIElement
+        } else if let app = NSWorkspace.shared.frontmostApplication {
+            axApp = AXUIElementCreateApplication(app.processIdentifier)
+        } else {
+            nabiraLog("ax focus: no focused application error=\(systemError.rawValue)")
+            return nil
+        }
+        AXUIElementSetMessagingTimeout(axApp, 0.25)
+
+        func readFocusedElement() -> (AXError, AXUIElement?) {
+            var focusedRaw: AnyObject?
+            let error = AXUIElementCopyAttributeValue(
+                axApp,
+                kAXFocusedUIElementAttribute as CFString,
+                &focusedRaw
+            )
+            return (error, focusedRaw.map { $0 as! AXUIElement })
         }
 
-        let element = focused as! AXUIElement
+        var (error, element) = readFocusedElement()
+        if element == nil {
+            var pid: pid_t = 0
+            AXUIElementGetPid(axApp, &pid)
+            if pid > 0, manualAccessibilityAttemptedPIDs.insert(pid).inserted {
+                let manualError = AXUIElementSetAttributeValue(
+                    axApp,
+                    "AXManualAccessibility" as CFString,
+                    kCFBooleanTrue
+                )
+                nabiraLog("ax focus: enabled manual accessibility pid=\(pid) error=\(manualError.rawValue)")
+                if manualError == .success {
+                    for _ in 0..<3 where element == nil {
+                        usleep(50_000)
+                        (error, element) = readFocusedElement()
+                    }
+                }
+            }
+        }
+        guard let element else {
+            nabiraLog("ax focus: no focused element error=\(error.rawValue)")
+            return nil
+        }
+        return element
+    }
+
+    /// Проверяет, что текущий фокусированный элемент — редактируемое текстовое поле
+    private func isFocusedElementEditable() -> Bool {
+        guard let element = focusedAXElement() else { return false }
 
         // Проверяем роль
         var roleRaw: AnyObject?
@@ -316,29 +380,57 @@ final class TextConverter {
     /// Captures an explicit selection or selects the complete current line. Clipboard contents are
     /// restored immediately; the target selection remains active while SAGE runs asynchronously.
     func captureSelectionOrCurrentLineForSage() -> SageTextEdit? {
-        guard !isConverting, isFocusedElementEditable(),
+        guard !isConverting,
               let app = NSWorkspace.shared.frontmostApplication else { return nil }
 
         let pasteboard = NSPasteboard.general
         let clipboard = snapshotPasteboard(pasteboard)
-        let selectionPresence = focusedSelectionPresence()
-        let hadExplicitSelection = selectionPresence == true
-        var text = hadExplicitSelection || selectionPresence == nil
-            ? tryCopy(pasteboard, attempts: hadExplicitSelection ? 3 : 1)
-            : nil
+        let axSelectedText = focusedSelectedText()
+        let selectionPresence = axSelectedText.map { !$0.isEmpty }
+        let editable = isFocusedElementEditable()
 
-        if !hadExplicitSelection && (selectionPresence == false || text == nil) {
+        // Electron/WebView editors (including the Codex composer) may accept text input and
+        // Cmd+C while exposing neither a focused AX element nor AXSelectedText. In that case an
+        // already selected string is still safe to capture: tryCopy clears the pasteboard first,
+        // so stale clipboard contents cannot be mistaken for a selection.
+        var text = axSelectedText.flatMap { $0.isEmpty ? nil : $0 }
+        if text == nil, selectionPresence != false {
+            text = tryCopy(
+                pasteboard,
+                attempts: 3,
+                processIdentifier: app.processIdentifier
+            )
+        }
+        let hadExplicitSelection = Self.sageCopyIsExplicitSelection(
+            selectionPresence: selectionPresence,
+            copiedSelectionAvailable: text != nil
+        )
+
+        if Self.sageMaySelectCurrentLine(
+            selectionPresence: selectionPresence,
+            copiedSelectionAvailable: hadExplicitSelection,
+            editable: editable
+        ) {
             // Select the complete logical line, not merely the already typed prefix.
-            simKey(keyCode: KC.left, flags: .maskCommand)
+            simKey(keyCode: KC.left, flags: .maskCommand, processIdentifier: app.processIdentifier)
             usleep(30_000)
-            simKey(keyCode: KC.right, flags: [.maskShift, .maskCommand])
+            simKey(
+                keyCode: KC.right,
+                flags: [.maskShift, .maskCommand],
+                processIdentifier: app.processIdentifier
+            )
             usleep(60_000)
-            text = tryCopy(pasteboard)
+            text = focusedSelectedText().flatMap { $0.isEmpty ? nil : $0 }
+                ?? tryCopy(pasteboard, processIdentifier: app.processIdentifier)
         }
 
         pasteboard.clearContents()
         if !clipboard.isEmpty { pasteboard.writeObjects(clipboard) }
-        guard let text, !text.isEmpty else { return nil }
+        guard let text, !text.isEmpty else {
+            nabiraLog("sage capture: no selection (ax=\(String(describing: selectionPresence)) editable=\(editable))")
+            return nil
+        }
+        nabiraLog("sage capture: chars=\(text.count) explicit=\(hadExplicitSelection) ax=\(String(describing: selectionPresence)) editable=\(editable)")
         return SageTextEdit(
             original: text,
             processIdentifier: app.processIdentifier,
@@ -354,7 +446,13 @@ final class TextConverter {
 
         let pasteboard = NSPasteboard.general
         let clipboard = snapshotPasteboard(pasteboard)
-        guard let selected = tryCopy(pasteboard, attempts: 2), selected == edit.original else {
+        let selected = focusedSelectedText().flatMap { $0.isEmpty ? nil : $0 }
+            ?? tryCopy(
+                pasteboard,
+                attempts: 2,
+                processIdentifier: edit.processIdentifier
+            )
+        guard selected == edit.original else {
             pasteboard.clearContents()
             if !clipboard.isEmpty { pasteboard.writeObjects(clipboard) }
             return false
@@ -363,12 +461,18 @@ final class TextConverter {
         if replacement == edit.original {
             pasteboard.clearContents()
             if !clipboard.isEmpty { pasteboard.writeObjects(clipboard) }
-            if !edit.explicitSelection { simKey(keyCode: KC.right, flags: []) }
+            if !edit.explicitSelection {
+                simKey(keyCode: KC.right, flags: [], processIdentifier: edit.processIdentifier)
+            }
             return true
         }
 
         isConverting = true
-        pasteText(Self.normalizedForInsert(replacement), pasteboard: pasteboard)
+        pasteText(
+            Self.normalizedForInsert(replacement),
+            pasteboard: pasteboard,
+            processIdentifier: edit.processIdentifier
+        )
         pasteboard.clearContents()
         if !clipboard.isEmpty { pasteboard.writeObjects(clipboard) }
         clearState()
@@ -386,17 +490,25 @@ final class TextConverter {
     /// true/false — AX достоверно вернул непустое/пустое выделение; nil — приложение
     /// не предоставляет атрибут, поэтому вызывающий может проверить clipboard.
     private func focusedSelectionPresence() -> Bool? {
-        guard let app = NSWorkspace.shared.frontmostApplication else { return nil }
-        let axApp = AXUIElementCreateApplication(app.processIdentifier)
-        AXUIElementSetMessagingTimeout(axApp, 0.25)
-        var focusedRaw: AnyObject?
-        guard AXUIElementCopyAttributeValue(axApp, kAXFocusedUIElementAttribute as CFString, &focusedRaw) == .success,
-              let focused = focusedRaw else { return nil }
-        let element = focused as! AXUIElement
+        focusedSelectedText().map { !$0.isEmpty }
+    }
+
+    private func focusedSelectedText() -> String? {
+        guard let element = focusedAXElement() else { return nil }
         var selRaw: AnyObject?
-        guard AXUIElementCopyAttributeValue(element, kAXSelectedTextAttribute as CFString, &selRaw) == .success,
-              let sel = selRaw as? String else { return nil }
-        return !sel.isEmpty
+        let error = AXUIElementCopyAttributeValue(
+            element,
+            kAXSelectedTextAttribute as CFString,
+            &selRaw
+        )
+        guard error == .success, let selRaw else {
+            nabiraLog("ax selection: unavailable error=\(error.rawValue)")
+            return nil
+        }
+        if let text = selRaw as? String { return text }
+        if let attributed = selRaw as? NSAttributedString { return attributed.string }
+        nabiraLog("ax selection: unsupported value type")
+        return nil
     }
 
     /// issue #24 (терминал): конвертирует всю набранную строку по БУФЕРУ нажатий — backspace на
@@ -891,10 +1003,18 @@ final class TextConverter {
     }
 
     /// Вставляет текст через Cmd+V и ждёт завершения
-    private func pasteText(_ text: String, pasteboard: NSPasteboard) {
+    private func pasteText(
+        _ text: String,
+        pasteboard: NSPasteboard,
+        processIdentifier: pid_t? = nil
+    ) {
         pasteboard.clearContents()
         pasteboard.setString(text, forType: .string)
-        simKey(keyCode: KC.letterV, flags: .maskCommand) // Cmd+V
+        simKey(
+            keyCode: KC.letterV,
+            flags: .maskCommand,
+            processIdentifier: processIdentifier
+        ) // Cmd+V
         usleep(150_000) // 150мс — дать приложению вставить текст и обновить курсор
     }
 
@@ -957,13 +1077,21 @@ final class TextConverter {
     }
 
     /// Копирует выделенный текст. Делает до 3 попыток (Cmd+C не всегда срабатывает с первого раза)
-    private func tryCopy(_ pasteboard: NSPasteboard, attempts: Int = 3) -> String? {
+    private func tryCopy(
+        _ pasteboard: NSPasteboard,
+        attempts: Int = 3,
+        processIdentifier: pid_t? = nil
+    ) -> String? {
         for attempt in 0..<max(1, attempts) {
             // Очищаем буфер перед копированием — гарантирует что changeCount изменится
             pasteboard.clearContents()
             let oldCount = pasteboard.changeCount
 
-            simKey(keyCode: KC.letterC, flags: .maskCommand) // Cmd+C
+            simKey(
+                keyCode: KC.letterC,
+                flags: .maskCommand,
+                processIdentifier: processIdentifier
+            ) // Cmd+C
             usleep(attempt == 0 ? 80_000 : 120_000)
 
             if pasteboard.changeCount != oldCount,
@@ -1001,7 +1129,11 @@ final class TextConverter {
     }
 
     /// Симулирует нажатие клавиши с маркером (чтобы наш monitor игнорировал)
-    nonisolated private func simKey(keyCode: UInt16, flags: CGEventFlags) {
+    nonisolated private func simKey(
+        keyCode: UInt16,
+        flags: CGEventFlags,
+        processIdentifier: pid_t? = nil
+    ) {
         guard let source = makeSource() else { return }
 
         guard let keyDown = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: true),
@@ -1011,7 +1143,12 @@ final class TextConverter {
         keyDown.flags = flags
         keyUp.flags = flags
 
-        keyDown.post(tap: .cghidEventTap)
-        keyUp.post(tap: .cghidEventTap)
+        if let processIdentifier {
+            keyDown.postToPid(processIdentifier)
+            keyUp.postToPid(processIdentifier)
+        } else {
+            keyDown.post(tap: .cghidEventTap)
+            keyUp.post(tap: .cghidEventTap)
+        }
     }
 }
