@@ -76,6 +76,22 @@ final class SubmitBoundaryTests: XCTestCase {
     }
 
     @MainActor
+    func testLayoutDecisionAcceptsCorrectedOppositeLayoutCandidate() {
+        let corrected = TypoCorrector.replacementForLayoutCandidate("Тепрь", language: "ru")
+        XCTAssertEqual(corrected, "Теперь")
+        XCTAssertEqual(
+            LayoutDetector.decide(
+                typed: "Ntghm",
+                converted: corrected!,
+                currentLang: "en",
+                otherLang: "ru",
+                capsLock: false
+            ),
+            .switchToConverted
+        )
+    }
+
+    @MainActor
     func testWrongLayoutLaughterIsAConfidentAutomaticCorrection() {
         XCTAssertEqual(
             LayoutDetector.decide(

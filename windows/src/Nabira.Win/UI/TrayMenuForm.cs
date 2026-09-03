@@ -24,6 +24,8 @@ internal sealed class TrayMenuForm : Form
         Action<TriggerKind> triggerChanged,
         Action<bool> wholeLineChanged,
         Action<bool> autoConvertChanged,
+        bool sageInstalled,
+        Action sageCorrectionRequested,
         Action accountRequested,
         Action settingsRequested,
         Action updateRequested,
@@ -38,7 +40,7 @@ internal sealed class TrayMenuForm : Form
         ShowInTaskbar = false;
         TopMost = true;
         StartPosition = FormStartPosition.Manual;
-        ClientSize = new Size(374, 548);
+        ClientSize = new Size(374, 608);
         BackColor = NabiraTheme.Surface;
         Font = NabiraTheme.Font(9.5f);
         AutoScaleMode = AutoScaleMode.Dpi;
@@ -93,17 +95,23 @@ internal sealed class TrayMenuForm : Form
             autoConvertChanged(_autoConvert);
         };
 
-        var accountRow = Row(342, "●", "Аккаунт", accountStatus, trailing: "Открыть");
+        var sageRow = Row(330, "ИИ", "Исправить выделение или строку",
+            sageInstalled ? "Локальная модель · Ctrl+Alt+Space" : "Подключается в настройках",
+            trailing: sageInstalled ? "Запустить" : "");
+        sageRow.Enabled = sageInstalled;
+        sageRow.Click += (_, _) => InvokeAndClose(sageCorrectionRequested);
+
+        var accountRow = Row(402, "●", "Аккаунт", accountStatus, trailing: "Открыть");
         accountRow.Click += (_, _) => InvokeAndClose(accountRequested);
-        var settingsRow = Row(402, "⚙", "Настройки", "Все функции Nabira", trailing: "Открыть");
+        var settingsRow = Row(462, "⚙", "Настройки", "Все функции Nabira", trailing: "Открыть");
         settingsRow.Click += (_, _) => InvokeAndClose(settingsRequested);
-        var updateRow = Row(462, "↓", "Проверить обновления", "Установлена текущая версия");
+        var updateRow = Row(522, "↓", "Проверить обновления", "Установлена текущая версия");
         updateRow.Click += (_, _) => InvokeAndClose(updateRequested);
 
         var quit = new TrayMenuRow
         {
             Left = 10,
-            Top = 516,
+            Top = 576,
             Width = 354,
             Height = 28,
             Glyph = "×",
@@ -115,8 +123,8 @@ internal sealed class TrayMenuForm : Form
 
         Controls.AddRange(new Control[]
         {
-            enableRow, Divider(142), triggerRow, wholeLineRow, autoRow, Divider(332),
-            accountRow, settingsRow, updateRow, Divider(510), quit,
+            enableRow, Divider(142), triggerRow, wholeLineRow, autoRow, sageRow, Divider(392),
+            accountRow, settingsRow, updateRow, Divider(570), quit,
         });
 
         Deactivate += (_, _) => Close();

@@ -5,6 +5,11 @@ import CoreGraphics
 /// Конвертация текста между раскладками
 @MainActor
 final class TextConverter {
+    struct SageTextEdit {
+        let original: String
+        let processIdentifier: pid_t
+        let explicitSelection: Bool
+    }
     private var lastConvertedCount = 0
     private var lastBoundaryCount = 0
     private var savedClipboardItems: [NSPasteboardItem]?
@@ -306,6 +311,69 @@ final class TextConverter {
             return ok
         }
         return false   // пусто в обе стороны — пустая строка; каретка не двигалась
+    }
+
+    /// Captures an explicit selection or selects the complete current line. Clipboard contents are
+    /// restored immediately; the target selection remains active while SAGE runs asynchronously.
+    func captureSelectionOrCurrentLineForSage() -> SageTextEdit? {
+        guard !isConverting, isFocusedElementEditable(),
+              let app = NSWorkspace.shared.frontmostApplication else { return nil }
+
+        let pasteboard = NSPasteboard.general
+        let clipboard = snapshotPasteboard(pasteboard)
+        let selectionPresence = focusedSelectionPresence()
+        let hadExplicitSelection = selectionPresence == true
+        var text = hadExplicitSelection || selectionPresence == nil
+            ? tryCopy(pasteboard, attempts: hadExplicitSelection ? 3 : 1)
+            : nil
+
+        if !hadExplicitSelection && (selectionPresence == false || text == nil) {
+            // Select the complete logical line, not merely the already typed prefix.
+            simKey(keyCode: KC.left, flags: .maskCommand)
+            usleep(30_000)
+            simKey(keyCode: KC.right, flags: [.maskShift, .maskCommand])
+            usleep(60_000)
+            text = tryCopy(pasteboard)
+        }
+
+        pasteboard.clearContents()
+        if !clipboard.isEmpty { pasteboard.writeObjects(clipboard) }
+        guard let text, !text.isEmpty else { return nil }
+        return SageTextEdit(
+            original: text,
+            processIdentifier: app.processIdentifier,
+            explicitSelection: hadExplicitSelection
+        )
+    }
+
+    /// Applies a SAGE result only if the same text is still selected in the same application.
+    /// This prevents a slow first model load from overwriting text after the user moved focus.
+    func applySageCorrection(_ replacement: String, to edit: SageTextEdit) -> Bool {
+        guard !isConverting,
+              NSWorkspace.shared.frontmostApplication?.processIdentifier == edit.processIdentifier else { return false }
+
+        let pasteboard = NSPasteboard.general
+        let clipboard = snapshotPasteboard(pasteboard)
+        guard let selected = tryCopy(pasteboard, attempts: 2), selected == edit.original else {
+            pasteboard.clearContents()
+            if !clipboard.isEmpty { pasteboard.writeObjects(clipboard) }
+            return false
+        }
+
+        if replacement == edit.original {
+            pasteboard.clearContents()
+            if !clipboard.isEmpty { pasteboard.writeObjects(clipboard) }
+            if !edit.explicitSelection { simKey(keyCode: KC.right, flags: []) }
+            return true
+        }
+
+        isConverting = true
+        pasteText(Self.normalizedForInsert(replacement), pasteboard: pasteboard)
+        pasteboard.clearContents()
+        if !clipboard.isEmpty { pasteboard.writeObjects(clipboard) }
+        clearState()
+        isConverting = false
+        return true
     }
 
     /// true — текущее выделение фокус-элемента ПУСТО (по AX). На любой неопределённости (нет фокуса,

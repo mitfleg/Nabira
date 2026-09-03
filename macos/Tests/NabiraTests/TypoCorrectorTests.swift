@@ -18,6 +18,15 @@ final class TypoCorrectorTests: XCTestCase {
         XCTAssertNil(TypoCorrector.replacement(for: "I", language: "en"))
     }
 
+    @MainActor
+    func testCorrectsTypoAfterLayoutConversion() {
+        XCTAssertEqual(
+            TypoCorrector.replacementForLayoutCandidate("Тепрь", language: "ru"),
+            "Теперь"
+        )
+        XCTAssertNil(TypoCorrector.replacementForLayoutCandidate("iphone", language: "en"))
+    }
+
     func testCaseOnlyProductCorrectionWinsOverAWordChangingGuess() {
         let selected = TypoCorrector.selectCandidate(
             typed: "iphone",

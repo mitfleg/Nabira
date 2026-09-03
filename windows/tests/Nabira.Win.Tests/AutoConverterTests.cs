@@ -39,6 +39,15 @@ public class AutoConverterTests
         Assert.True(r);
     }
 
+    [Fact]
+    public void Converts_layout_candidate_after_a_typo_was_corrected()
+    {
+        bool r = AutoConverter.ShouldConvertPure("Ntghm", "Теперь", "en", "ru",
+            caps: false, dictAvailable: true, Dict(), None, None,
+            Dict(("теперь", "ru")));
+        Assert.True(r);
+    }
+
     [Theory]
     [InlineData("мзт", "vpn", "VPN")]
     [InlineData("фзш", "api", "API")]

@@ -684,6 +684,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 allowPlainText: !AutoSwitchPolicy.secureInputActive
             )
         }
+        keyboardMonitor.onSageCorrection = { [weak self] in
+            self?.runSageCorrection()
+        }
         keyboardMonitor.onUserInput = { [weak self] in self?.caretIndicator?.userTyped() }  // issue #10
         // issue #14: хоткей чистого переключения раскладки (без конверсии). Буфер после
         // явной смены раскладки неактуален — тот же паттерн, что per-app restore и меню.
@@ -757,6 +760,39 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         offerAutoConvertIfNeeded()
     }
 
+    private func runSageCorrection() {
+        guard accessManager.hasAccess, SageModelFiles.isInstalled else {
+            settingsController.showWindow(section: .localAI)
+            return
+        }
+        guard !AutoSwitchPolicy.secureInputActive else {
+            notifySecureInputPaused()
+            return
+        }
+        guard let edit = textConverter.captureSelectionOrCurrentLineForSage() else {
+            NSSound.beep()
+            return
+        }
+
+        // Deterministic layout normalization goes first. The SAGE policy then protects English,
+        // URLs, email addresses and code identifiers, and sends only Russian spans to the model.
+        let normalized = SmartConvert.selection(edit.original)
+        nabiraLog("sage: captured chars=\(edit.original.count)")
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                let corrected = try await SageCorrectionService.shared.correct(normalized)
+                let applied = self.textConverter.applySageCorrection(corrected, to: edit)
+                if applied { self.keyboardMonitor.markConverted() }
+                nabiraLog("sage: applied=\(applied) result_chars=\(corrected.count)")
+                if !applied { NSSound.beep() }
+            } catch {
+                nabiraLog("sage failed: \(String(describing: type(of: error)))")
+                NSSound.beep()
+            }
+        }
+    }
+
     /// Положительный словарный сигнал для контекста одиночной буквы. Для двухбуквенных
     /// слов используем частотные списки, как основной LayoutDetector; для 3+ — AppleSpell.
     private func isStrongContextWord(_ word: String, lang: String) -> Bool {
@@ -816,7 +852,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// Проверяет, что отложенная буква всё ещё непосредственно перед текущим словом,
     /// и возвращает фактическое число пробелов между ними. Это защищает от устаревшего
     /// контекста после Enter, клика, стрелки или ручной смены раскладки.
-    private func spacesBeforeCurrentWord(pending: String, current: String,
+    private func spacesBeforeCurrentWord(pending: PendingSingleLetter, current: String,
                                          finalSpaces: Int) -> Int? {
         guard finalSpaces >= 0,
               let line = DynamicKeyMapping.lineString(from: keyboardMonitor.lineKeys),
@@ -827,7 +863,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let spaces = beforeCurrent.reversed().prefix { $0 == " " }.count
         guard spaces > 0 else { return nil }
         let beforeSpaces = beforeCurrent.dropLast(spaces)
-        return beforeSpaces.hasSuffix(pending) ? spaces : nil
+        return beforeSpaces.hasSuffix(pending.original) || beforeSpaces.hasSuffix(pending.converted)
+            ? spaces : nil
     }
 
     /// Пытается заменить отложенную одиночную букву вместе с текущим контекстным словом.
@@ -855,7 +892,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         let currentOriginal = pair.original + suffix
         guard let spaces = spacesBeforeCurrentWord(
-            pending: pending.original,
+            pending: pending,
             current: currentOriginal,
             finalSpaces: boundaryCount
         ) else {
@@ -1249,10 +1286,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             nabiraLog("auto: bail langs-nil"); return
         }
 
+        // The opposite-layout image may itself contain a normal typing mistake.
+        // Correct that candidate before asking the layout detector: `Ntghm` first
+        // becomes `Тепрь`, then `Теперь`. This is intentionally done only after the
+        // target language is known and only with the conservative typo corrector.
+        let technicalLayoutReplacement = LayoutDetector.automaticTechnicalReplacement(
+            typed: pair.original,
+            converted: pair.converted,
+            currentLang: langs.current,
+            otherLang: langs.opposite
+        )
+        let correctedLayoutReplacement = settings.typoCorrectionEnabled
+            ? TypoCorrector.replacementForLayoutCandidate(
+                pair.converted,
+                language: String(langs.opposite.prefix(2))
+            )
+            : nil
+        let layoutCandidate = technicalLayoutReplacement
+            ?? correctedLayoutReplacement
+            ?? pair.converted
+        let detectionPair = (original: pair.original, converted: layoutCandidate)
+
         // Однобуквенное слово не меняем вслепую. Если это уже второе слово, сначала
         // разрешаем предыдущую букву по сильному сигналу текущего слова.
         if settings.autoConvert,
-           resolvePendingSingleLetter(pair: pair, suffix: suffix, langs: langs,
+           resolvePendingSingleLetter(pair: detectionPair, suffix: suffix, langs: langs,
                                       boundaryCount: bc, deferToRemote: deferToRemote) {
             return
         }
@@ -1292,17 +1350,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
 
         let capsLock = keys.contains { $0.caps }
-        let baseVerdict = LayoutDetector.decide(
-            typed: pair.original,
-            converted: pair.converted,
-            currentLang: langs.current,
-            otherLang: langs.opposite,
-            capsLock: capsLock
-        )
+        let baseVerdict: LayoutVerdict = technicalLayoutReplacement != nil
+            ? .switchToConverted
+            : LayoutDetector.decide(
+                typed: pair.original,
+                converted: layoutCandidate,
+                currentLang: langs.current,
+                otherLang: langs.opposite,
+                capsLock: capsLock
+            )
         let verdict = contextualLayoutVerdict(
             base: baseVerdict,
             typed: pair.original,
-            converted: pair.converted,
+            converted: layoutCandidate,
             langs: langs,
             bundleID: frontID
         )
@@ -1320,12 +1380,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             return
         }
 
-        let convertedWithCanonicalCase = LayoutDetector.automaticTechnicalReplacement(
-            typed: pair.original,
-            converted: pair.converted,
-            currentLang: langs.current,
-            otherLang: langs.opposite
-        ) ?? pair.converted
+        let convertedWithCanonicalCase = layoutCandidate
 
         if deferToRemote {
             // Удалёнка: текст конвертит офисный инстанс по реальным проброшенным символам.
@@ -1452,7 +1507,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func systemInputSourceChanged() {
         updateStatusIcon()
         keyboardMonitor.soundArmed = true  // issue #7: следующая буква даст звук раскладки
-        keyboardMonitor.resetLineBuffer()  // скептик 3.2.0: не декодировать строку старой раскладкой
+        // Keep the short line buffer while a one-letter word is waiting for its
+        // neighbour. It can be decoded as either stored form, so `ш need` remains
+        // verifiable even when the user switches layout between the two words.
+        if pendingSingleLetter == nil {
+            keyboardMonitor.resetLineBuffer()  // не декодировать строку старой раскладкой
+        }
     }
 
     /// Собирает меню статус-бара. Вызывается заново при смене языка интерфейса,
@@ -1494,6 +1554,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         autoConvertItem.state = SettingsManager.shared.autoConvert ? .on : .off
         autoConvertItem.isEnabled = accessManager.hasAccess
         menu.addItem(autoConvertItem)
+
+        let sageInstalled = SageModelFiles.isInstalled
+        let sageItem = NSMenuItem(
+            title: sageInstalled
+                ? NabiraCopy.text("Исправить выделение или строку", "Correct selection or line")
+                : NabiraCopy.text("Подключить локальную ИИ-коррекцию…", "Connect local AI correction…"),
+            action: sageInstalled ? #selector(runSageFromMenu) : #selector(openSageSettings),
+            keyEquivalent: ""
+        )
+        sageItem.target = self
+        sageItem.tag = Self.sageItemTag
+        sageItem.image = NSImage(systemSymbolName: "sparkles", accessibilityDescription: nil)
+        sageItem.isEnabled = accessManager.hasAccess
+        menu.addItem(sageItem)
 
         // Положительная формулировка + галочка показывают СОСТОЯНИЕ. Это не выглядит как
         // команда «не исправлять», которую легко принять за уже включённое исключение.
@@ -1606,6 +1680,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private static let layoutItemTag = 741
     private static let currentAppCorrectionItemTag = 742
     private static let accountItemTag = 743
+    private static let sageItemTag = 744
 
     private func configureCurrentAppCorrectionItem(_ item: NSMenuItem) {
         guard let application = lastExternalApplication else {
@@ -1687,6 +1762,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         accessManager.refresh()
         if let accountItem = menu.items.first(where: { $0.tag == Self.accountItemTag }) {
             accountItem.title = accessManager.menuTitle()
+        }
+        if let sageItem = menu.items.first(where: { $0.tag == Self.sageItemTag }) {
+            let installed = SageModelFiles.isInstalled
+            sageItem.title = installed
+                ? NabiraCopy.text("Исправить выделение или строку", "Correct selection or line")
+                : NabiraCopy.text("Подключить локальную ИИ-коррекцию…", "Connect local AI correction…")
+            sageItem.action = installed ? #selector(runSageFromMenu) : #selector(openSageSettings)
         }
         let insertAt = menu.items.firstIndex { $0.tag == Self.layoutItemTag } ?? 2
         for old in menu.items where old.tag == Self.layoutItemTag { menu.removeItem(old) }
@@ -1881,6 +1963,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func openSettings() {
         settingsController.showWindow()
+    }
+
+    @objc private func openSageSettings() {
+        settingsController.showWindow(section: .localAI)
+    }
+
+    @objc private func runSageFromMenu() {
+        // The menu can briefly make Nabira active. Return focus to the last regular application
+        // before capturing its selection.
+        guard let application = lastExternalApplication,
+              let running = NSRunningApplication.runningApplications(
+                withBundleIdentifier: application.bundleID
+              ).first else {
+            NSSound.beep()
+            return
+        }
+        running.activate(options: [.activateIgnoringOtherApps])
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { [weak self] in
+            self?.runSageCorrection()
+        }
     }
 
     @objc private func openAccount() {

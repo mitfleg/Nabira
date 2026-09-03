@@ -96,6 +96,17 @@ enum TypoCorrector {
         return preserveCapitalization(of: normalized, in: selected)
     }
 
+    /// A converted layout candidate is already known to come from the opposite
+    /// alphabet, so sentence capitalization is not evidence of a name. Correct the
+    /// lowercase form and restore the original capitalization afterwards.
+    @MainActor
+    static func replacementForLayoutCandidate(_ input: String, language: String) -> String? {
+        let normalized = input.precomposedStringWithCanonicalMapping
+        let lowercase = normalized.lowercased()
+        guard let replacement = replacement(for: lowercase, language: language) else { return nil }
+        return preserveCapitalization(of: normalized, in: replacement)
+    }
+
     /// Detects the correction language from the actual script, not the active layout.
     static func language(for word: String) -> String? {
         var hasLatin = false

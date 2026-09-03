@@ -11,6 +11,12 @@ namespace Nabira.Win.Core;
 /// </summary>
 internal static class Converter
 {
+    internal sealed record SageTextEdit(
+        string Original,
+        IntPtr ForegroundWindow,
+        IntPtr SourceLayout,
+        IntPtr TargetLayout,
+        bool ExplicitSelection);
     // Last conversion, for reconvert. "_a" is what's currently on screen; "_b" is the alternative.
     // Each side carries its layout so reconvert also restores the right keyboard layout.
     private static string _aText = "";
@@ -245,6 +251,80 @@ internal static class Converter
         bool ok = ConvertSelection(smart);
         if (!ok) TextInjector.SendKey(VK_END);   // drop the selection (go to line end)
         return ok;
+    }
+
+    /// <summary>
+    /// Captures an explicit selection, or selects and captures the complete current line.
+    /// The user's clipboard is restored immediately. The selection is intentionally left active
+    /// so the asynchronously computed SAGE result can replace exactly this text later.
+    /// </summary>
+    public static SageTextEdit? CaptureSelectionOrCurrentLine()
+    {
+        IntPtr window = GetForegroundWindow();
+        if (window == IntPtr.Zero) return null;
+        IntPtr sourceHkl = LayoutSwitcher.Current();
+        if (LayoutSwitcher.Opposite() is not { } targetHkl) return null;
+
+        IDataObject? saved = SnapshotClipboard();
+        bool selectionKnown = SelectionProbe.TryHasExplicitSelection(out bool explicitSelection);
+        string selected = explicitSelection || !selectionKnown ? CopySelection(attempts: 2) : "";
+        if (!explicitSelection && (selectionKnown || selected.Length == 0))
+        {
+            TextInjector.SendKey(VK_HOME);
+            Thread.Sleep(25);
+            TextInjector.SendShift(VK_END);
+            Thread.Sleep(45);
+            selected = CopySelection(attempts: 3);
+        }
+        else if (!selectionKnown)
+        {
+            // Fallback for applications without UI Automation: a successful copy is treated as an
+            // explicit selection, matching the old behavior and preserving terminal compatibility.
+            explicitSelection = selected.Length > 0;
+        }
+        RestoreClipboard(saved);
+        if (selected.Length == 0) return null;
+        return new SageTextEdit(selected, window, sourceHkl, targetHkl, explicitSelection);
+    }
+
+    /// <summary>Replaces the still-selected captured text. If focus or selection changed while the
+    /// model was running, nothing is modified.</summary>
+    public static bool ApplySageCorrection(SageTextEdit edit, string replacement)
+    {
+        if (GetForegroundWindow() != edit.ForegroundWindow) return false;
+        IDataObject? saved = SnapshotClipboard();
+        string currentSelection = CopySelection(attempts: 2);
+        if (!string.Equals(currentSelection, edit.Original, StringComparison.Ordinal))
+        {
+            RestoreClipboard(saved);
+            return false;
+        }
+        if (string.Equals(replacement, edit.Original, StringComparison.Ordinal))
+        {
+            RestoreClipboard(saved);
+            if (!edit.ExplicitSelection) TextInjector.SendKey(VK_END);
+            return true;
+        }
+
+        SafeSetText(replacement);
+        TextInjector.SendCtrl(VK_V);
+        Thread.Sleep(80);
+        RestoreClipboard(saved);
+        ClearReconvert();
+        return true;
+    }
+
+    private static string CopySelection(int attempts)
+    {
+        for (int attempt = 0; attempt < attempts; attempt++)
+        {
+            SafeClear();
+            TextInjector.SendCtrl(VK_C);
+            Thread.Sleep(attempt == 0 ? 70 : 120);
+            string value = SafeGetText() ?? "";
+            if (value.Length > 0) return value;
+        }
+        return "";
     }
 
     // Trim non-letters off both ends and lowercase — the key used for the never-convert exception list.

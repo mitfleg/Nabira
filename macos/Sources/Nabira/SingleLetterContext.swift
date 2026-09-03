@@ -8,9 +8,15 @@ enum SingleLetterContext {
     static func resolved(original: String, converted: String, contextWord: String) -> String? {
         let target = script(of: contextWord)
         guard target == .latin || target == .cyrillic else { return nil }
-        if script(of: original) == target { return original }
-        if script(of: converted) == target { return converted }
+        if script(of: original) == target { return canonical(original, for: target) }
+        if script(of: converted) == target { return canonical(converted, for: target) }
         return nil
+    }
+
+    private static func canonical(_ value: String, for script: Script) -> String {
+        // The only standalone lowercase English `i` is the pronoun `I`.
+        if script == .latin, value.lowercased() == "i" { return "I" }
+        return value
     }
 
     static func script(of text: String) -> Script {

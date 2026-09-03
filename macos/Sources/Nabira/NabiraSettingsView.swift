@@ -448,7 +448,7 @@ enum NabiraPalette {
 }
 
 enum NabiraSection: String, CaseIterable, Identifiable {
-    case account, overview, corrections, learning, applications, shortcuts, advanced, about
+    case account, overview, corrections, localAI, learning, applications, shortcuts, advanced, about
     var id: String { rawValue }
 
     var title: String {
@@ -456,6 +456,7 @@ enum NabiraSection: String, CaseIterable, Identifiable {
         case .account: return NabiraCopy.text("Аккаунт", "Account")
         case .overview: return NabiraCopy.text("Обзор", "Overview")
         case .corrections: return NabiraCopy.text("Исправления", "Corrections")
+        case .localAI: return NabiraCopy.text("Локальная ИИ-модель", "Local AI model")
         case .learning: return NabiraCopy.text("Обучение", "Learning")
         case .applications: return NabiraCopy.text("Приложения", "Applications")
         case .shortcuts: return NabiraCopy.text("Горячие клавиши", "Shortcuts")
@@ -469,6 +470,7 @@ enum NabiraSection: String, CaseIterable, Identifiable {
         case .account: return "person.crop.circle"
         case .overview: return "sparkles.rectangle.stack"
         case .corrections: return "text.badge.checkmark"
+        case .localAI: return "sparkles"
         case .learning: return "brain.head.profile"
         case .applications: return "square.grid.2x2"
         case .shortcuts: return "keyboard"
@@ -520,6 +522,7 @@ struct NabiraSettingsView: View {
         case .account: NabiraAccountSettingsView()
         case .overview: NabiraOverviewView(model: model)
         case .corrections: NabiraCorrectionsView(model: model)
+        case .localAI: NabiraSageSettingsView()
         case .learning: NabiraLearningView(model: model)
         case .applications: NabiraApplicationsView(model: model)
         case .shortcuts: NabiraShortcutsView(model: model)
@@ -530,6 +533,163 @@ struct NabiraSettingsView: View {
 
     private var versionString: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
+    }
+}
+
+private struct NabiraSageSettingsView: View {
+    @ObservedObject private var manager = SageModelManager.shared
+    @State private var confirmingRemoval = false
+
+    var body: some View {
+        NabiraPage(
+            title: NabiraCopy.text("Локальная ИИ-коррекция", "Local AI correction"),
+            subtitle: NabiraCopy.text(
+                "Исправление целой строки или выделенного текста по отдельной команде.",
+                "Correct a whole line or selected text with a separate command."
+            )
+        ) {
+            NabiraCard {
+                VStack(alignment: .leading, spacing: 18) {
+                    HStack(alignment: .top, spacing: 16) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .fill(NabiraPalette.cobalt.opacity(0.12))
+                            Image(systemName: "text.badge.sparkles")
+                                .font(.system(size: 24, weight: .semibold))
+                                .foregroundStyle(NabiraPalette.cobalt)
+                        }
+                        .frame(width: 56, height: 56)
+
+                        VStack(alignment: .leading, spacing: 5) {
+                            Text("SAGE FredT5 95M")
+                                .font(.system(size: 17, weight: .bold, design: .rounded))
+                                .foregroundStyle(NabiraPalette.ink)
+                            Text(NabiraCopy.text(
+                                "Исправляет орфографию, пунктуацию и регистр с учётом контекста.",
+                                "Corrects spelling, punctuation, and letter case using context."
+                            ))
+                            .font(.system(size: 12))
+                            .foregroundStyle(NabiraPalette.secondary)
+                        }
+                        Spacer()
+                        statusBadge
+                    }
+
+                    Divider()
+
+                    VStack(alignment: .leading, spacing: 11) {
+                        benefit("selection", NabiraCopy.text(
+                            "Работает только с выделенным текстом или текущей строкой",
+                            "Works only with selected text or the current line"
+                        ))
+                        benefit("lock.shield", NabiraCopy.text(
+                            "Текст обрабатывается на этом Mac и никуда не отправляется",
+                            "Text is processed on this Mac and is never uploaded"
+                        ))
+                        benefit("externaldrive", NabiraCopy.text(
+                            "Отдельная загрузка около 251 МБ; основной установщик не раздувается",
+                            "Separate download of about 251 MB; the main installer stays compact"
+                        ))
+                    }
+
+                    if case let .downloading(completed, total) = manager.state {
+                        VStack(alignment: .leading, spacing: 7) {
+                            ProgressView(value: Double(completed), total: Double(max(total, 1)))
+                                .tint(NabiraPalette.cobalt)
+                            Text(NabiraCopy.text(
+                                "Загрузка файлов: \(min(completed + 1, total)) из \(total)",
+                                "Downloading files: \(min(completed + 1, total)) of \(total)"
+                            ))
+                            .font(.system(size: 10.5))
+                            .foregroundStyle(NabiraPalette.secondary)
+                        }
+                    }
+
+                    if case let .failed(message) = manager.state {
+                        Label(message, systemImage: "exclamationmark.triangle.fill")
+                            .font(.system(size: 11.5))
+                            .foregroundStyle(.red)
+                    }
+
+                    HStack(spacing: 10) {
+                        primaryAction
+                        if manager.state == .installed {
+                            Button(NabiraCopy.text("Проверить файлы", "Verify files")) { manager.verify() }
+                                .buttonStyle(.bordered)
+                            Button(NabiraCopy.text("Удалить модель", "Remove model"), role: .destructive) {
+                                confirmingRemoval = true
+                            }
+                            .buttonStyle(.bordered)
+                        }
+                    }
+                }
+            }
+
+            NabiraCard {
+                HStack(spacing: 14) {
+                    Image(systemName: "keyboard")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(NabiraPalette.cobalt)
+                        .frame(width: 30)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(NabiraCopy.text("После подключения", "After connecting"))
+                            .font(.system(size: 13.5, weight: .semibold))
+                            .foregroundStyle(NabiraPalette.ink)
+                        Text(NabiraCopy.text(
+                            "Выделите одну или несколько строк. Без выделения исправится текущая строка.",
+                            "Select one or more lines. Without a selection, the current line is corrected."
+                        ))
+                        .font(.system(size: 11))
+                        .foregroundStyle(NabiraPalette.secondary)
+                    }
+                    Spacer()
+                    NabiraShortcutBadge(text: "⌃⌥Space")
+                }
+            }
+        }
+        .confirmationDialog(
+            NabiraCopy.text("Удалить локальную ИИ-модель?", "Remove the local AI model?"),
+            isPresented: $confirmingRemoval
+        ) {
+            Button(NabiraCopy.text("Удалить модель", "Remove model"), role: .destructive) { manager.remove() }
+            Button(NabiraCopy.text("Отмена", "Cancel"), role: .cancel) { }
+        }
+    }
+
+    @ViewBuilder
+    private var primaryAction: some View {
+        switch manager.state {
+        case .installed:
+            EmptyView()
+        case .downloading, .checking:
+            Button(NabiraCopy.text("Подключение…", "Connecting…")) { }
+                .buttonStyle(.borderedProminent)
+                .disabled(true)
+        case .notInstalled, .failed:
+            Button(NabiraCopy.text("Скачать и подключить", "Download and connect")) { manager.connect() }
+                .buttonStyle(.borderedProminent)
+        }
+    }
+
+    @ViewBuilder
+    private var statusBadge: some View {
+        let installed = manager.state == .installed
+        Label(
+            installed ? NabiraCopy.text("Подключено", "Connected") : NabiraCopy.text("Не подключено", "Not connected"),
+            systemImage: installed ? "checkmark.circle.fill" : "arrow.down.circle"
+        )
+        .font(.system(size: 10.5, weight: .semibold))
+        .foregroundStyle(installed ? NabiraPalette.success : NabiraPalette.secondary)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background((installed ? NabiraPalette.success : NabiraPalette.secondary).opacity(0.1))
+        .clipShape(Capsule())
+    }
+
+    private func benefit(_ icon: String, _ text: String) -> some View {
+        Label(text, systemImage: icon)
+            .font(.system(size: 11.5))
+            .foregroundStyle(NabiraPalette.ink)
     }
 }
 

@@ -32,12 +32,17 @@ internal static class AutoConverter
         string tgtTag = SmartConvert.LangTag(targetHkl);
         bool caps = keys.All(k => k.Caps);
 
-        if (!ShouldConvert(typed, converted, srcTag, tgtTag, caps)) return false;
-
-        converted = TechnicalAbbreviations.AutomaticTechnicalReplacement(
+        string? technicalReplacement = TechnicalAbbreviations.AutomaticTechnicalReplacement(
             typed, converted, srcTag, tgtTag,
             Dict.Available || WordFrequency.Available(srcTag) || WordFrequency.Available(tgtTag),
-            IsKnownWord) ?? converted;
+            IsKnownWord);
+        string layoutCandidate = technicalReplacement
+            ?? TypoCorrector.Replacement(converted, tgtTag)
+            ?? converted;
+
+        if (technicalReplacement == null &&
+            !ShouldConvert(typed, layoutCandidate, srcTag, tgtTag, caps)) return false;
+        converted = layoutCandidate;
 
         TextInjector.Replace(backspaces: keys.Count + 1, text: converted + " ");
         LayoutSwitcher.SwitchTo(targetHkl);

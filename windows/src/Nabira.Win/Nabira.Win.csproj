@@ -1,10 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <!-- Nabira for Windows. No external (NuGet) dependencies. Low-level engine (LL hook,
-       SendInput injection, tray) is raw Win32 P/Invoke; WinForms (first-party .NET) is used
-       only for the clipboard and the settings window. EnableWindowsTargeting lets it also
-       compile on macOS (P/Invoke compiles, can't run) for a fast local compile-check; the real
-       build/test/exe come from the windows-latest CI. -->
+  <!-- Nabira for Windows. The low-level engine (LL hook, SendInput injection, tray) is raw
+       Win32 P/Invoke; WinForms is used for the clipboard and settings, while ONNX Runtime is
+       bundled for the optional local SAGE component. EnableWindowsTargeting keeps the project
+       compile-checkable on macOS; real execution tests and EXE builds run on windows-latest. -->
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net8.0-windows</TargetFramework>
@@ -28,6 +27,11 @@
     <Version>0.11.8</Version>
     <ApplicationIcon>Resources\Nabira.ico</ApplicationIcon>
   </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Interop.UIAutomationClient" Version="10.19041.0" />
+    <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.23.2" />
+  </ItemGroup>
 
   <ItemGroup>
     <!-- Let the test project reach internal engine types (AutoConverter verdict, etc.). -->

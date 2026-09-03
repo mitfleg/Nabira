@@ -214,6 +214,8 @@ final class KeyboardMonitor: @unchecked Sendable {
     private var caseLastTapTime: Date?
     /// Колбэк смены регистра (issue #29). Ставится из AppDelegate.
     var onCaseHotkey: (() -> Void)?
+    /// Explicit local SAGE action (Ctrl+Option+Space). Dormant until the user connects the model.
+    var onSageCorrection: (() -> Void)?
     /// Глобальная вставка без форматирования. Событие Cmd+Shift+V съедается активным tap,
     /// затем обработчик сам отправляет приложению безопасный Cmd+V или исходный хоткей.
     var onPlainTextPaste: (() -> Void)?
@@ -394,6 +396,15 @@ final class KeyboardMonitor: @unchecked Sendable {
             fullReset()
             nabiraLog("shortcut: undo last correction")
             DispatchQueue.main.async { [weak self] in self?.onAltReconvert?() }
+            return true
+        }
+
+        let actionModifiers = flags.intersection([.maskCommand, .maskControl, .maskAlternate, .maskShift])
+        if SageModelFiles.isInstalled, keyCode == KC.space,
+           actionModifiers == [.maskControl, .maskAlternate] {
+            fullReset()
+            let callback = onSageCorrection
+            DispatchQueue.main.async { callback?() }
             return true
         }
 

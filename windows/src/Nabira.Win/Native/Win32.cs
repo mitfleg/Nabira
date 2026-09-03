@@ -217,6 +217,7 @@ internal static class Win32
     public const uint WM_TRAYICON = WM_APP + 1;
     public const uint WM_AUTOCONVERT = WM_APP + 2;   // auto-convert deferred off the LL-hook callback
     public const uint WM_CHANGECASE = WM_APP + 3;
+    public const uint WM_SAGE_CORRECTION = WM_APP + 4;
     public const uint WM_LBUTTONUP = 0x0202;
     public const uint WM_RBUTTONUP = 0x0205;
     public const uint WM_COMMAND = 0x0111;

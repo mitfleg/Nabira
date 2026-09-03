@@ -31,6 +31,7 @@ internal sealed class TrayIcon : IDisposable
     /// <summary>Fired on the message-loop thread when an as-you-type auto-convert was posted from the hook.</summary>
     public event Action? AutoConvertActivated;
     public event Action? ChangeCaseActivated;
+    public event Action? SageCorrectionActivated;
 
     public TrayIcon() => _wndProc = WindowProc;
 
@@ -58,6 +59,11 @@ internal sealed class TrayIcon : IDisposable
     public void PostChangeCase()
     {
         if (_hwnd != IntPtr.Zero) PostMessageW(_hwnd, WM_CHANGECASE, IntPtr.Zero, IntPtr.Zero);
+    }
+
+    public void PostSageCorrection()
+    {
+        if (_hwnd != IntPtr.Zero) PostMessageW(_hwnd, WM_SAGE_CORRECTION, IntPtr.Zero, IntPtr.Zero);
     }
 
     public void Show(string tooltip)
@@ -132,6 +138,10 @@ internal sealed class TrayIcon : IDisposable
                 ChangeCaseActivated?.Invoke();
                 return IntPtr.Zero;
 
+            case WM_SAGE_CORRECTION:
+                SageCorrectionActivated?.Invoke();
+                return IntPtr.Zero;
+
             case WM_DESTROY:
                 PostQuitMessage(0);
                 return IntPtr.Zero;
@@ -163,6 +173,8 @@ internal sealed class TrayIcon : IDisposable
             SetTrigger,
             on => { s.ConvertWholeLine = on; s.Save(); },
             on => { s.AutoConvert = on; s.Save(); },
+            SageModel.IsInstalled,
+            () => SageCorrectionActivated?.Invoke(),
             () => AccountRequested?.Invoke(),
             () => SettingsRequested?.Invoke(),
             () => UpdateRequested?.Invoke(),

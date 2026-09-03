@@ -46,4 +46,11 @@ final class SingleLetterContextTests: XCTestCase {
             "I"
         )
     }
+
+    func testLowercaseWrongLayoutPronounGetsCanonicalEnglishCase() {
+        XCTAssertEqual(
+            SingleLetterContext.resolved(original: "ш", converted: "i", contextWord: "need"),
+            "I"
+        )
+    }
 }

@@ -117,6 +117,27 @@ internal static class Program
                 : !buffer.IsEmpty ? Converter.CycleLastWord(buffer) : Converter.CycleCaseSelection();
             Log($"change-case: acted={acted}");
         };
+        tray.SageCorrectionActivated += async () =>
+        {
+            if (!EffectiveEnabled() || !SageModel.IsInstalled) return;
+            Converter.SageTextEdit? edit = Converter.CaptureSelectionOrCurrentLine();
+            if (edit == null) return;
+            Log($"sage: captured chars={edit.Original.Length}");
+            try
+            {
+                string layoutNormalized = SmartConvert.Selection(edit.Original, edit.SourceLayout, edit.TargetLayout);
+                string corrected = await Task.Run(() => SageCorrectionService.Shared.Correct(layoutNormalized));
+                bool applied = Converter.ApplySageCorrection(edit, corrected);
+                if (applied) buffer.Reset();
+                Log($"sage: applied={applied} result_chars={corrected.Length}");
+            }
+            catch (Exception ex)
+            {
+                Log("sage failed: " + ex.GetType().Name + ": " + ex.Message);
+                MessageBox.Show("Не удалось выполнить локальную ИИ-коррекцию. Проверьте модель в настройках.",
+                    "Nabira", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+        };
         tray.EnabledChanged += on => { userEnabled = on; Log($"enabled = {on}"); };
         tray.TriggerChanged += kind => { detector.Kind = kind; Log($"trigger set: {kind}"); };  // Settings written by the tray
         tray.SettingsRequested += () =>
@@ -155,6 +176,17 @@ internal static class Program
         hook.KeyDown += (vk, sc) =>
         {
             if (!EffectiveEnabled()) return false;
+
+            // Explicit local-AI action. It is dormant until the user downloads the model pack.
+            if (vk == KeystrokeBuffer.VK_SPACE && SageModel.IsInstalled
+                && (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0
+                && (GetAsyncKeyState(VK_MENU) & 0x8000) != 0
+                && (GetAsyncKeyState(VK_SHIFT) & 0x8000) == 0)
+            {
+                buffer.Reset();
+                tray.PostSageCorrection();
+                return true;
+            }
 
             // Ctrl+Shift+V: temporarily strip formatting from the clipboard while the original
             // shortcut continues to the focused application.

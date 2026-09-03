@@ -24,6 +24,38 @@ fi
 
 echo "=== Building $APP_NAME v$SHORT_VERSION (build $BUILD_VERSION) ==="
 
+# Optional local AI uses ONNX Runtime, but the 251 MB language model is deliberately NOT
+# bundled and is downloaded only after an explicit click in Settings. The signed runtime and
+# a tiny persistent helper are bundled so a connected model works on both Apple Silicon and Intel.
+ORT_VERSION="1.23.2"
+ORT_SHA256="49ae8e3a66ccb18d98ad3fe7f5906b6d7887df8a5edd40f49eb2b14e20885809"
+ORT_ROOT="$PROJECT_DIR/.build/onnxruntime-$ORT_VERSION"
+ORT_ARCHIVE="$PROJECT_DIR/.build/onnxruntime-osx-universal2-$ORT_VERSION.tgz"
+if [ ! -f "$ORT_ROOT/lib/libonnxruntime.1.23.2.dylib" ]; then
+    echo "→ Downloading pinned ONNX Runtime $ORT_VERSION..."
+    mkdir -p "$PROJECT_DIR/.build"
+    curl -fL --retry 3 -o "$ORT_ARCHIVE.tmp" \
+        "https://github.com/microsoft/onnxruntime/releases/download/v$ORT_VERSION/onnxruntime-osx-universal2-$ORT_VERSION.tgz"
+    ACTUAL_ORT_SHA=$(shasum -a 256 "$ORT_ARCHIVE.tmp" | awk '{print $1}')
+    if [ "$ACTUAL_ORT_SHA" != "$ORT_SHA256" ]; then
+        echo "ERROR: ONNX Runtime checksum mismatch." >&2
+        exit 1
+    fi
+    mv "$ORT_ARCHIVE.tmp" "$ORT_ARCHIVE"
+    mkdir -p "$ORT_ROOT.extract"
+    tar -xzf "$ORT_ARCHIVE" -C "$ORT_ROOT.extract"
+    mv "$ORT_ROOT.extract/onnxruntime-osx-universal2-$ORT_VERSION" "$ORT_ROOT"
+    rmdir "$ORT_ROOT.extract"
+fi
+
+echo "→ Building local AI helper (universal)..."
+clang++ -std=c++17 -O3 -arch arm64 -arch x86_64 \
+    -I "$ORT_ROOT/include" \
+    "$PROJECT_DIR/SageHelper/main.cpp" \
+    -L "$ORT_ROOT/lib" -lonnxruntime \
+    -Wl,-rpath,@loader_path/../Frameworks \
+    -o "$PROJECT_DIR/.build/NabiraSageHelper"
+
 # 1. Собираем release — universal (arm64 + x86_64), чтобы работало и на Intel-маках
 echo "→ swift build -c release --arch arm64 --arch x86_64 (universal)..."
 cd "$PROJECT_DIR"
@@ -34,9 +66,14 @@ echo "→ Creating app bundle..."
 rm -rf "$APP_BUNDLE"
 mkdir -p "$APP_BUNDLE/Contents/MacOS"
 mkdir -p "$APP_BUNDLE/Contents/Resources"
+mkdir -p "$APP_BUNDLE/Contents/Frameworks"
+mkdir -p "$APP_BUNDLE/Contents/Helpers"
 
 # 3. Копируем бинарник
 cp "$BUILD_DIR/$APP_NAME" "$APP_BUNDLE/Contents/MacOS/$APP_NAME"
+cp "$PROJECT_DIR/.build/NabiraSageHelper" "$APP_BUNDLE/Contents/Helpers/NabiraSageHelper"
+cp "$ORT_ROOT/lib/libonnxruntime.1.23.2.dylib" "$APP_BUNDLE/Contents/Frameworks/"
+ln -s "libonnxruntime.1.23.2.dylib" "$APP_BUNDLE/Contents/Frameworks/libonnxruntime.dylib"
 
 # SwiftPM кладёт обработанные ресурсы executable target в отдельный bundle.
 RESOURCE_BUNDLE="$BUILD_DIR/${APP_NAME}_${APP_NAME}.bundle"
@@ -52,6 +89,10 @@ if [[ "$ARCHS" != *"arm64"* || "$ARCHS" != *"x86_64"* ]]; then
     echo "ERROR: бинарь не universal (получено: $ARCHS)"; exit 1
 fi
 echo "→ Universal OK: $ARCHS"
+HELPER_ARCHS=$(lipo -archs "$APP_BUNDLE/Contents/Helpers/NabiraSageHelper")
+if [[ "$HELPER_ARCHS" != *"arm64"* || "$HELPER_ARCHS" != *"x86_64"* ]]; then
+    echo "ERROR: AI helper is not universal (got: $HELPER_ARCHS)"; exit 1
+fi
 
 # 4. Копируем Info.plist и штампуем версию из version.json
 cp "$PROJECT_DIR/Info.plist" "$APP_BUNDLE/Contents/Info.plist"
@@ -89,6 +130,9 @@ else
 fi
 
 echo "→ Code signing with: $SIGN_ID"
+# Sign nested code first, then seal the outer bundle.
+codesign --force --sign "$SIGN_ID" --options runtime "$APP_BUNDLE/Contents/Frameworks/libonnxruntime.1.23.2.dylib"
+codesign --force --sign "$SIGN_ID" --options runtime "$APP_BUNDLE/Contents/Helpers/NabiraSageHelper"
 codesign --force --deep --sign "$SIGN_ID" \
     --options runtime \
     --entitlements "$PROJECT_DIR/Nabira.entitlements" \

@@ -99,6 +99,10 @@ internal sealed class SettingsForm : Form
         _content.Controls.Add(conversionCard);
 
         y += 290;
+        CardPanel sageCard = BuildSageCard(y);
+        _content.Controls.Add(sageCard);
+
+        y += 242;
         CardPanel hotkeysCard = Section("Горячие клавиши", "Отдельные действия Nabira", y, 190);
         var switchCombo = AddCombo(hotkeysCard, 72, "Только переключить раскладку", OptionalTriggerItems(),
             s.SwitchTriggerEnabled ? (int)s.SwitchTrigger + 1 : 0);
@@ -166,6 +170,106 @@ internal sealed class SettingsForm : Form
 
         _content.AutoScrollMinSize = new Size(0, y + 82);
         AcceptButton = close;
+    }
+
+    private CardPanel BuildSageCard(int top)
+    {
+        CardPanel card = Section("Локальная ИИ-коррекция", "SAGE FredT5 95M · отдельный компонент", top, 222);
+        card.Controls.Add(NabiraTheme.Label(
+            "Исправляет орфографию, пунктуацию и регистр во всём выделенном тексте или текущей строке.",
+            22, 72, 610, 40, 9.2f, color: NabiraTheme.Ink));
+        card.Controls.Add(NabiraTheme.Label(
+            "Текст не покидает компьютер. Загрузка ≈ 251 МБ начнётся только после вашего нажатия.",
+            22, 112, 610, 34, 8.7f, color: NabiraTheme.Muted));
+
+        var status = NabiraTheme.Label("", 22, 160, 260, 30, 9, FontStyle.Bold,
+            SageModel.IsInstalled ? NabiraTheme.Success : NabiraTheme.Muted);
+        var primary = NabiraTheme.PrimaryButton("", 292, 154, 220, 40);
+        var secondary = NabiraTheme.SecondaryButton("Проверить", 518, 154, 120, 40);
+        var progress = new ProgressBar
+        {
+            Left = 22,
+            Top = 198,
+            Width = 616,
+            Height = 5,
+            Style = ProgressBarStyle.Continuous,
+            Minimum = 0,
+            Maximum = 4,
+            Visible = false,
+        };
+
+        void Refresh()
+        {
+            bool installed = SageModel.IsInstalled;
+            status.Text = installed ? "Подключено · Ctrl+Alt+Space" : "Не подключено";
+            status.ForeColor = installed ? NabiraTheme.Success : NabiraTheme.Muted;
+            primary.Text = installed ? "Удалить модель" : "Скачать и подключить";
+            secondary.Visible = installed;
+            progress.Visible = false;
+            primary.Enabled = true;
+            secondary.Enabled = true;
+        }
+
+        primary.Click += async (_, _) =>
+        {
+            if (SageModel.IsInstalled)
+            {
+                if (MessageBox.Show("Удалить локальную ИИ-модель? Её можно будет скачать снова.",
+                    "Nabira", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
+                {
+                    SageModel.Remove();
+                    Refresh();
+                }
+                return;
+            }
+
+            primary.Enabled = false;
+            secondary.Enabled = false;
+            progress.Visible = true;
+            progress.Value = 0;
+            status.ForeColor = NabiraTheme.Accent;
+            status.Text = "Подготовка загрузки…";
+            var reporter = new Progress<SageDownloadProgress>(value =>
+            {
+                progress.Value = Math.Clamp(value.CompletedFiles, 0, value.TotalFiles);
+                status.Text = value.CompletedFiles >= value.TotalFiles
+                    ? "Проверка установки…"
+                    : $"Загрузка {value.CompletedFiles + 1} из {value.TotalFiles}…";
+            });
+            try
+            {
+                await SageModel.InstallAsync(reporter);
+                Refresh();
+            }
+            catch (Exception ex)
+            {
+                status.Text = "Не удалось подключить модель";
+                status.ForeColor = NabiraTheme.Danger;
+                primary.Enabled = true;
+                progress.Visible = false;
+                MessageBox.Show(ex.Message, "Nabira", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+        };
+
+        secondary.Click += async (_, _) =>
+        {
+            primary.Enabled = false;
+            secondary.Enabled = false;
+            status.Text = "Проверяем файлы…";
+            bool valid = false;
+            try { valid = await SageModel.VerifyAsync(); } catch { }
+            if (!valid)
+            {
+                SageModel.Remove();
+                MessageBox.Show("Файлы модели повреждены. Скачайте и подключите модель заново.",
+                    "Nabira", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+            Refresh();
+        };
+
+        card.Controls.AddRange(new Control[] { status, primary, secondary, progress });
+        Refresh();
+        return card;
     }
 
     private static GradientPanel BuildSidebar()
