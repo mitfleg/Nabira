@@ -24,29 +24,60 @@ internal static class WritingAssistant
             return PassBoundary(completed.BoundaryVk);
 
         var settings = Settings.Current;
+        string? application = ForegroundApp.ProcessName();
         IntPtr sourceHkl = LayoutSwitcher.Current();
         string original = KeyMapper.ConvertWord(completed.Keys, sourceHkl);
         if (string.IsNullOrEmpty(original)) return PassBoundary(completed.BoundaryVk);
-        if (IsLaughter(original)) return PassBoundary(completed.BoundaryVk);
+        string sourceTag = SmartConvert.LangTag(sourceHkl);
+        if (IsLaughter(original))
+            return ObserveAndPass(original, sourceTag, application, completed.BoundaryVk);
         if (settings.NeverConvert.Contains(original.ToLowerInvariant(), StringComparer.OrdinalIgnoreCase))
-            return PassBoundary(completed.BoundaryVk);
+            return ObserveAndPass(original, sourceTag, application, completed.BoundaryVk);
 
         string replacement = original;
         IntPtr resultHkl = sourceHkl;
+        string resultTag = sourceTag;
 
         if (settings.AutoConvert && LayoutSwitcher.Opposite() is { } targetHkl)
         {
             string converted = KeyMapper.ConvertWord(completed.Keys, targetHkl);
-            string srcTag = SmartConvert.LangTag(sourceHkl);
+            string srcTag = sourceTag;
             string tgtTag = SmartConvert.LangTag(targetHkl);
             bool caps = completed.Keys.All(k => k.Caps);
-            if (AutoConverter.ShouldConvertPure(original, converted, srcTag, tgtTag, caps,
-                    Dict.Available, Dict.IsValidWord, settings.NeverConvert, settings.AlwaysConvert))
+            bool dictionaryAvailable = Dict.Available
+                || WordFrequency.Available(srcTag) || WordFrequency.Available(tgtTag);
+            bool Known(string word, string language) =>
+                (Dict.Available && Dict.IsValidWord(word, language))
+                    || WordFrequency.IsKnown(word, language);
+            string? technical = TechnicalAbbreviations.AutomaticTechnicalReplacement(
+                original, converted, srcTag, tgtTag, dictionaryAvailable, Known);
+            string layoutCandidate = technical
+                ?? TypoCorrector.Replacement(converted, tgtTag)
+                ?? converted;
+            bool baseVerdict = technical != null || AutoConverter.ShouldConvertPure(
+                original, layoutCandidate, srcTag, tgtTag, caps,
+                dictionaryAvailable, Dict.IsValidWord, settings.NeverConvert,
+                settings.AlwaysConvert, WordFrequency.IsKnown);
+
+            string? prefix = LanguageContext.Prefix(tgtTag, application);
+            bool safeEligibility = original.Length >= 3
+                && original.All(char.IsLetter) && layoutCandidate.All(char.IsLetter)
+                && (caps || (!IsAllCaps(original) && !LooksLikeCode(original)));
+            bool shouldConvert = LanguageIntentPolicy.ShouldConvert(
+                baseVerdict,
+                safeEligibility,
+                srcTag,
+                tgtTag,
+                LanguageContext.Dominant(application),
+                Known(original.ToLowerInvariant(), srcTag),
+                Known(layoutCandidate.ToLowerInvariant(), tgtTag),
+                prefix == null ? null : LanguageIntentModel.Scores(prefix + " " + original),
+                prefix == null ? null : LanguageIntentModel.Scores(prefix + " " + layoutCandidate));
+            if (shouldConvert)
             {
-                replacement = TechnicalAbbreviations.AutomaticTechnicalReplacement(
-                    original, converted, srcTag, tgtTag,
-                    Dict.Available, Dict.IsValidWord) ?? converted;
+                replacement = layoutCandidate;
                 resultHkl = targetHkl;
+                resultTag = tgtTag;
             }
         }
 
@@ -69,11 +100,12 @@ internal static class WritingAssistant
             replacement = Yoficator.Replacement(replacement) ?? replacement;
 
         if (replacement == original && resultHkl == sourceHkl)
-            return PassBoundary(completed.BoundaryVk);
+            return ObserveAndPass(original, sourceTag, application, completed.BoundaryVk);
 
         if (!TextInjector.ReplaceCapturedWord(completed.Keys.Count, replacement, completed.BoundaryVk))
             return false;
         if (resultHkl != sourceHkl) LayoutSwitcher.SwitchTo(resultHkl);
+        UpdateContext(replacement, resultTag, application, completed.BoundaryVk);
 
         // Repeated trigger can undo a Space-delimited automatic correction. Enter/Tab are deliberately
         // not recorded because they are semantic submit/focus actions, not plain text characters.
@@ -86,6 +118,37 @@ internal static class WritingAssistant
     {
         TextInjector.SendKey((ushort)boundaryVk);
         return false;
+    }
+
+    private static bool ObserveAndPass(
+        string word, string language, string? application, uint boundaryVk)
+    {
+        UpdateContext(word, language, application, boundaryVk);
+        return PassBoundary(boundaryVk);
+    }
+
+    private static void UpdateContext(
+        string word, string language, string? application, uint boundaryVk)
+    {
+        if (boundaryVk == KeystrokeBuffer.VK_RETURN)
+        {
+            LanguageContext.Reset(application);
+            return;
+        }
+        bool known = WordFrequency.IsKnown(word, language)
+            || (Dict.Available && Dict.IsValidWord(word.ToLowerInvariant(), language));
+        if (known && word.All(char.IsLetter)) LanguageContext.Observe(word, language, application);
+    }
+
+    private static bool IsAllCaps(string value) =>
+        value == value.ToUpperInvariant() && value != value.ToLowerInvariant();
+
+    private static bool LooksLikeCode(string value)
+    {
+        if (value.Skip(1).Any(char.IsUpper)) return true;
+        bool latin = value.Any(c => c is >= 'a' and <= 'z' or >= 'A' and <= 'Z');
+        bool cyrillic = value.Any(c => c is >= '\u0400' and <= '\u052F');
+        return latin && cyrillic;
     }
 
     /// <summary>Repeated conversational laughter is intentional text. Preserve it when it is already

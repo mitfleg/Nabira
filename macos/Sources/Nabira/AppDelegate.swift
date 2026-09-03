@@ -81,6 +81,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
             Task { @MainActor in Dict.warmUp() }
             if SettingsManager.shared.typoCorrectionEnabled { TypoCorrector.warmUp() }
+            if SettingsManager.shared.autoConvert { LanguageIntentModel.shared.warmUp() }
             if SettingsManager.shared.yoficatorEnabled { Yoficator.warmUp() }
         }
     }
@@ -867,7 +868,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func observeContextWord(_ word: String, language: String, bundleID: String?) {
         guard isStrongContextWord(word, lang: language) else { return }
-        contextLanguageModel.observe(language: language, bundleID: bundleID)
+        contextLanguageModel.observe(word: word, language: language, bundleID: bundleID)
     }
 
     /// Усиливает базовый словарный вердикт только при двух согласованных соседних
@@ -886,7 +887,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             && LayoutDetector.isKnownWord(typed, language: current)
         let convertedValid = LayoutDetector.hasLexicon(opposite)
             && LayoutDetector.isKnownWord(converted, language: opposite)
-        return ContextLanguageModel.refine(
+        let frequencyVerdict = ContextLanguageModel.refine(
             base: base,
             typed: typed,
             converted: converted,
@@ -897,6 +898,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             convertedIsValid: convertedValid,
             typedFrequency: WordFrequency.frequency(of: typed, language: current),
             convertedFrequency: WordFrequency.frequency(of: converted, language: opposite)
+        )
+        guard frequencyVerdict == .keep,
+              let prefix = contextLanguageModel.contextPrefix(
+                  language: opposite, bundleID: bundleID
+              ) else { return frequencyVerdict }
+
+        let typedScores = LanguageIntentModel.shared.scores(for: prefix + " " + typed)
+        let convertedScores = LanguageIntentModel.shared.scores(for: prefix + " " + converted)
+        return LanguageIntentPolicy.refine(
+            base: frequencyVerdict,
+            currentLanguage: current,
+            otherLanguage: opposite,
+            dominantLanguage: contextLanguageModel.dominantLanguage(bundleID: bundleID),
+            typedIsValid: typedValid,
+            convertedIsValid: convertedValid,
+            typedScores: typedScores,
+            convertedScores: convertedScores
         )
     }
 
@@ -2225,6 +2243,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // Не теряем буфер обмена в 2-секундном окне отложенного восстановления
         // (актуально и при само-обновлении, которое завершает процесс).
         textConverter.flushPendingClipboardRestore()
+        LanguageIntentModel.shared.stop()
         NSWorkspace.shared.notificationCenter.removeObserver(self)
     }
 

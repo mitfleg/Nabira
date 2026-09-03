@@ -39,6 +39,8 @@
     <EmbeddedResource Include="Resources\yoficator.tsv" LogicalName="Nabira.Yoficator.tsv" />
     <EmbeddedResource Include="..\..\..\macos\Sources\Nabira\Resources\frequency_en_50k.txt" LogicalName="Nabira.frequency_en_50k.txt" />
     <EmbeddedResource Include="..\..\..\macos\Sources\Nabira\Resources\frequency_ru_50k.txt" LogicalName="Nabira.frequency_ru_50k.txt" />
+    <EmbeddedResource Include="..\..\..\macos\Sources\Nabira\Resources\language_intent.onnx" LogicalName="Nabira.language_intent.onnx" />
+    <EmbeddedResource Include="..\..\..\macos\Sources\Nabira\Resources\language_intent_dictionary.json" LogicalName="Nabira.language_intent_dictionary.json" />
   </ItemGroup>
 
 </Project>

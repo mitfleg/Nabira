@@ -21,6 +21,9 @@ Windows-клиент поддерживает вход и регистрацию
 - **Автоконверсия после пробела** — физический пробел перехватывается, а исправленное слово и новый
   пробел отправляются одним пакетом. Это исключает дубли и пропавший текст в Parallels.
 - **Разговорные выражения** — повторяющийся смех (`ахахах`, `hahaha`) сохраняется без исправлений.
+- **Гибридный RU/EN-движок** — встроенные частотные словари, индекс вариантов с одной опечаткой
+  и компактная контекстная ONNX-модель работают локально и одинаково с macOS, даже если
+  системный Spell Checking API недоступен.
 - **Exception lists** — never-convert / always-convert, editable in Settings → Exceptions.
 - **Layout-switch hotkey** (issue #14) — a separate hotkey that only switches the layout.
 - **Per-app layout memory** — remembers and restores each application's last-used layout.

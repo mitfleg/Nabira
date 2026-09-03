@@ -1,9 +1,11 @@
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstdint>
 #include <iostream>
 #include <limits>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -29,9 +31,72 @@ void print_ids(const std::vector<int64_t>& ids) {
     std::cout << '\n' << std::flush;
 }
 
+void print_probabilities(const float* logits, std::size_t count) {
+    if (count < 4) throw std::runtime_error("bad-language-output");
+    const float maximum = *std::max_element(logits, logits + 4);
+    std::array<float, 4> probabilities{};
+    float total = 0.0f;
+    for (std::size_t index = 0; index < probabilities.size(); ++index) {
+        probabilities[index] = std::exp(logits[index] - maximum);
+        total += probabilities[index];
+    }
+    for (std::size_t index = 0; index < probabilities.size(); ++index) {
+        if (index) std::cout << ',';
+        std::cout << probabilities[index] / total;
+    }
+    std::cout << '\n' << std::flush;
+}
+
+int run_language_model(const char* model_path) {
+    Ort::Env env(ORT_LOGGING_LEVEL_WARNING, "nabira-language-intent");
+    Ort::SessionOptions options;
+    options.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
+    options.SetInterOpNumThreads(1);
+    options.SetIntraOpNumThreads(1);
+    Ort::Session session(env, model_path, options);
+    Ort::MemoryInfo memory = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
+    Ort::AllocatorWithDefaultOptions allocator;
+    auto input_name = session.GetInputNameAllocated(0, allocator);
+    auto output_name = session.GetOutputNameAllocated(0, allocator);
+    const char* input_names[] = {input_name.get()};
+    const char* output_names[] = {output_name.get()};
+
+    std::string line;
+    while (std::getline(std::cin, line)) {
+        try {
+            std::vector<int64_t> input_ids = parse_ids(line);
+            if (input_ids.size() != 45) {
+                std::cout << "ERR:input-size\n" << std::flush;
+                continue;
+            }
+            std::array<int64_t, 2> shape{1, 45};
+            auto input = Ort::Value::CreateTensor<int64_t>(
+                memory, input_ids.data(), input_ids.size(), shape.data(), shape.size()
+            );
+            auto outputs = session.Run(
+                Ort::RunOptions{nullptr}, input_names, &input, 1, output_names, 1
+            );
+            auto info = outputs[0].GetTensorTypeAndShapeInfo();
+            print_probabilities(outputs[0].GetTensorData<float>(), info.GetElementCount());
+        } catch (const std::exception& error) {
+            std::cerr << "language request failed: " << error.what() << '\n';
+            std::cout << "ERR:inference\n" << std::flush;
+        }
+    }
+    return 0;
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
+    if (argc == 3 && std::string(argv[1]) == "--language") {
+        try {
+            return run_language_model(argv[2]);
+        } catch (const std::exception& error) {
+            std::cerr << "language startup failed: " << error.what() << '\n';
+            return 70;
+        }
+    }
     if (argc != 3) {
         std::cerr << "usage: NabiraSageHelper <encoder.onnx> <decoder.onnx>\n";
         return 64;

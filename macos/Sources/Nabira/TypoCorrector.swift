@@ -44,6 +44,7 @@ enum TypoCorrector {
 
     static func warmUp() {
         WordFrequency.warmUp()
+        SymmetricDeleteSpeller.warmUp()
     }
 
     /// Returns a confident correction while preserving the capitalization of the input.
@@ -54,8 +55,6 @@ enum TypoCorrector {
         let lang = String(language.lowercased().prefix(2))
         guard supportedLanguages.contains(lang),
               isEligible(normalized, language: lang),
-              Dict.isAvailable(lang),
-              !Dict.isValidWord(normalized.lowercased(), lang: lang),
               let lexicon = WordFrequency.table(language: lang) else { return nil }
 
         if let replacement = highConfidenceOverrides[lang]?[normalized.lowercased()] {
@@ -66,6 +65,7 @@ enum TypoCorrector {
         // corpus word as intentional instead of replacing it with a nearby common word
         // such as `phone`. Explicit high-confidence typo overrides above still win.
         if (lexicon[normalized.lowercased()] ?? 0) >= 20 { return nil }
+        if Dict.isAvailable(lang), Dict.isValidWord(normalized.lowercased(), lang: lang) { return nil }
         // Outside the explicit high-confidence list, a capitalized unknown token is
         // more likely to be a person's name or a brand than a typo.
         guard normalized.first?.isUppercase != true else { return nil }
@@ -73,23 +73,24 @@ enum TypoCorrector {
         let query = spellQuery(word: normalized, context: context)
         let range = query.range
         let text = query.text
-        let correction = checker.correction(
-            forWordRange: range,
-            in: text,
-            language: lang,
+        let correction = Dict.isAvailable(lang) ? checker.correction(
+            forWordRange: range, in: text, language: lang, inSpellDocumentWithTag: 0
+        ) : nil
+        let appleGuesses = Dict.isAvailable(lang) ? (checker.guesses(
+            forWordRange: range, in: text, language: lang,
             inSpellDocumentWithTag: 0
-        )
-        let guesses = checker.guesses(
-            forWordRange: range,
-            in: text,
-            language: lang,
-            inSpellDocumentWithTag: 0
-        ) ?? []
+        ) ?? []) : []
+        var guesses = Array(appleGuesses.prefix(maxCandidateCount))
+        for suggestion in SymmetricDeleteSpeller.suggestions(
+            for: normalized, language: lang, limit: maxCandidateCount
+        ) where !guesses.contains(where: { $0.caseInsensitiveCompare(suggestion) == .orderedSame }) {
+            guesses.append(suggestion)
+        }
 
         guard let selected = selectCandidate(
             typed: normalized,
             correction: correction,
-            guesses: Array(guesses.prefix(maxCandidateCount)),
+            guesses: guesses,
             frequencies: lexicon,
             language: lang
         ) else { return nil }

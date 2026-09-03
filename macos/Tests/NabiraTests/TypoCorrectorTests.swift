@@ -9,6 +9,7 @@ final class TypoCorrectorTests: XCTestCase {
         XCTAssertEqual(TypoCorrector.replacement(for: "bokk", language: "en"), "book")
         XCTAssertEqual(TypoCorrector.replacement(for: "adress", language: "en"), "address")
         XCTAssertEqual(TypoCorrector.replacement(for: "Helo", language: "en"), "Hello")
+        XCTAssertEqual(TypoCorrector.replacement(for: "iphnoe", language: "en"), "iphone")
 
         XCTAssertNil(TypoCorrector.replacement(for: "привет", language: "ru"))
         XCTAssertNil(TypoCorrector.replacement(for: "Nabira", language: "en"))

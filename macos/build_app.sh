@@ -162,6 +162,17 @@ if [ "$SAGE_SMOKE_STATUS" -ne 64 ]; then
 fi
 echo "→ Local AI helper startup smoke test passed"
 
+# The same persistent helper also serves the tiny bundled language-intent model.
+# `hello` is encoded with the pinned dictionary and padded to the model's 45-char window.
+LANGUAGE_IDS="19,4,22,22,10"
+for _ in $(seq 1 40); do LANGUAGE_IDS="$LANGUAGE_IDS,0"; done
+LANGUAGE_RESULT=$(printf '%s\n' "$LANGUAGE_IDS" | \
+  "$APP_BUNDLE/Contents/Helpers/NabiraSageHelper" --language \
+  "$PROJECT_DIR/Sources/Nabira/Resources/language_intent.onnx")
+/usr/bin/python3 -c 'import sys; p=[float(x) for x in sys.argv[1].split(",")]; assert len(p)==4 and p[1] > 0.90 and p[0] < 0.10' \
+  "$LANGUAGE_RESULT"
+echo "→ Language-intent ONNX smoke test passed"
+
 echo ""
 echo "=== Done! ==="
 echo "App bundle: $APP_BUNDLE"

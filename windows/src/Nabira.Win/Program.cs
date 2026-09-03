@@ -54,6 +54,8 @@ internal static class Program
             }
             catch { /* ignore */ }
         }
+        if (settings.TypoCorrection) _ = Task.Run(TypoCorrector.WarmUp);
+        if (settings.AutoConvert) _ = Task.Run(LanguageIntentModel.WarmUp);
 
         using var tray = new TrayIcon();
         var detector = new TriggerDetector(settings.Trigger);

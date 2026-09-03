@@ -7,6 +7,7 @@ import Foundation
 /// обе раскладки дали настоящие слова, а целевая форма заметно частотнее исходной.
 struct ContextLanguageModel {
     private struct Observation {
+        let word: String
         let language: String
         let at: Date
     }
@@ -15,11 +16,15 @@ struct ContextLanguageModel {
     private let lifetime: TimeInterval = 25
 
     mutating func observe(language: String, bundleID: String?, at date: Date = Date()) {
+        observe(word: "", language: language, bundleID: bundleID, at: date)
+    }
+
+    mutating func observe(word: String, language: String, bundleID: String?, at date: Date = Date()) {
         let key = bundleID ?? "<unknown>"
         let lang = String(language.lowercased().prefix(2))
         guard lang.count == 2 else { return }
         var items = recentItems(for: key, at: date)
-        items.append(Observation(language: lang, at: date))
+        items.append(Observation(word: Self.normalizedContextWord(word), language: lang, at: date))
         observationsByApp[key] = Array(items.suffix(3))
     }
 
@@ -37,6 +42,20 @@ struct ContextLanguageModel {
     mutating func reset(bundleID: String?) {
         if let bundleID { observationsByApp.removeValue(forKey: bundleID) }
         else { observationsByApp.removeAll() }
+    }
+
+    /// До двух последних надёжных слов того же языка. Данные живут только в памяти
+    /// процесса и нужны, чтобы ONNX-модель оценивала слово внутри реальной фразы.
+    mutating func contextPrefix(language: String, bundleID: String?, at date: Date = Date()) -> String? {
+        let key = bundleID ?? "<unknown>"
+        let lang = String(language.lowercased().prefix(2))
+        let items = recentItems(for: key, at: date)
+        observationsByApp[key] = items
+        let words = items.suffix(2).compactMap { item in
+            item.language == lang && !item.word.isEmpty ? item.word : nil
+        }
+        guard words.count == 2 else { return nil }
+        return words.joined(separator: " ")
     }
 
     /// Контекст меняет только `.keep` при двух валидных словах. Все жёсткие вето
@@ -79,5 +98,9 @@ struct ContextLanguageModel {
         (observationsByApp[key] ?? []).filter {
             date.timeIntervalSince($0.at) >= 0 && date.timeIntervalSince($0.at) <= lifetime
         }
+    }
+
+    private static func normalizedContextWord(_ raw: String) -> String {
+        String(raw.prefix(32)).precomposedStringWithCanonicalMapping
     }
 }

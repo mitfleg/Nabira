@@ -9,7 +9,7 @@ namespace Nabira.Win.Core;
 /// </summary>
 internal static class WordFrequency
 {
-    private const int MinimumKnownFrequency = 20;
+    internal const int MinimumKnownFrequency = 20;
     private static readonly IReadOnlyDictionary<string, Dictionary<string, int>> Tables =
         new Dictionary<string, Dictionary<string, int>>(StringComparer.OrdinalIgnoreCase)
         {
@@ -24,6 +24,15 @@ internal static class WordFrequency
         Tables.TryGetValue(NormalizeLanguage(language), out Dictionary<string, int>? table) &&
         table.TryGetValue(word.Normalize(NormalizationForm.FormC).ToLowerInvariant(), out int frequency) &&
         frequency >= MinimumKnownFrequency;
+
+    internal static IReadOnlyDictionary<string, int> Table(string language) =>
+        Tables.TryGetValue(NormalizeLanguage(language), out Dictionary<string, int>? table)
+            ? table : new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
+    internal static int? Frequency(string word, string language) =>
+        Tables.TryGetValue(NormalizeLanguage(language), out Dictionary<string, int>? table)
+        && table.TryGetValue(word.Normalize(NormalizationForm.FormC).ToLowerInvariant(), out int value)
+            ? value : null;
 
     private static Dictionary<string, int> Load(string language)
     {

@@ -26,6 +26,21 @@ final class ContextLanguageModelTests: XCTestCase {
         XCTAssertNil(model.dominantLanguage(bundleID: "first.app", at: now.addingTimeInterval(30)))
     }
 
+    func testKeepsTwoWordsForNeuralPhraseContextOnlyInMemory() {
+        let now = Date(timeIntervalSince1970: 3_000)
+        var model = ContextLanguageModel()
+        model.observe(word: "привет", language: "ru", bundleID: "test.app", at: now)
+        model.observe(word: "как", language: "ru", bundleID: "test.app", at: now.addingTimeInterval(1))
+
+        XCTAssertEqual(
+            model.contextPrefix(language: "ru", bundleID: "test.app", at: now.addingTimeInterval(2)),
+            "привет как"
+        )
+        XCTAssertNil(model.contextPrefix(
+            language: "en", bundleID: "test.app", at: now.addingTimeInterval(2)
+        ))
+    }
+
     func testRefinesOnlyAConfidentDictionaryCollision() {
         XCTAssertEqual(
             ContextLanguageModel.refine(
