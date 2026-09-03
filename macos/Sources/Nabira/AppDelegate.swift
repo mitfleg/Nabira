@@ -645,8 +645,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         monitoringActive = true
         keyboardMonitor.onWordBoundary = { [weak self] boundary, keyCode, flags in
             guard let self else { return }
+            let replacementRevision = self.textConverter.completedWordReplacementRevisionSnapshot()
             self.handleAutoConvert(boundary: boundary)
             if !boundary.boundaryAlreadyDelivered {
+                self.textConverter.includeForwardedBoundaryInReconversion(
+                    ifReplacementOccurredAfter: replacementRevision,
+                    keyCode: keyCode,
+                    flags: flags
+                )
                 self.textConverter.forwardKeyAfterPendingOperations(keyCode: keyCode, flags: flags)
             }
         }

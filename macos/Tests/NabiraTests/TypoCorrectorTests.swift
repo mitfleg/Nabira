@@ -12,9 +12,26 @@ final class TypoCorrectorTests: XCTestCase {
 
         XCTAssertNil(TypoCorrector.replacement(for: "привет", language: "ru"))
         XCTAssertNil(TypoCorrector.replacement(for: "Nabira", language: "en"))
+        XCTAssertNil(TypoCorrector.replacement(for: "iphone", language: "en"))
         XCTAssertNil(TypoCorrector.replacement(for: "API", language: "en"))
         XCTAssertNil(TypoCorrector.replacement(for: "userName", language: "en"))
         XCTAssertNil(TypoCorrector.replacement(for: "I", language: "en"))
+    }
+
+    func testCaseOnlyProductCorrectionWinsOverAWordChangingGuess() {
+        let selected = TypoCorrector.selectCandidate(
+            typed: "iphone",
+            correction: "iPhone",
+            guesses: ["iPhone", "phone", "iPhones"],
+            frequencies: ["phone": 235_246, "iphone": 1_027],
+            language: "en"
+        )
+        XCTAssertEqual(selected, "iPhone")
+        XCTAssertNil(TypoCorrector.canonicalCaseCorrection(
+            typed: "john",
+            correction: "John",
+            language: "en"
+        ))
     }
 
     func testDamerauLevenshteinDistance() {

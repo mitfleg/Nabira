@@ -61,6 +61,11 @@ enum TypoCorrector {
         if let replacement = highConfidenceOverrides[lang]?[normalized.lowercased()] {
             return preserveCapitalization(of: normalized, in: replacement)
         }
+        // The bundled frequency corpus contains common brands and product names that
+        // AppleSpell may not accept (for example `iphone`).  Treat an established
+        // corpus word as intentional instead of replacing it with a nearby common word
+        // such as `phone`. Explicit high-confidence typo overrides above still win.
+        if (lexicon[normalized.lowercased()] ?? 0) >= 20 { return nil }
         // Outside the explicit high-confidence list, a capitalized unknown token is
         // more likely to be a person's name or a brand than a typo.
         guard normalized.first?.isUppercase != true else { return nil }
@@ -117,6 +122,18 @@ enum TypoCorrector {
         frequencies: [String: Int],
         language: String
     ) -> String? {
+        // AppleSpell often returns the canonical spelling of a product only by case
+        // (`iphone` -> `iPhone`). Accept that exact-letter correction before lowercasing
+        // candidates; otherwise it disappears as a no-op and the next guess (`phone`)
+        // can be selected as a false typo correction.
+        if let canonicalCase = canonicalCaseCorrection(
+            typed: typed,
+            correction: correction,
+            language: language
+        ) {
+            return canonicalCase
+        }
+
         let source = typed.lowercased()
         let sourceWasLowercase = typed == typed.lowercased()
         let systemCorrection = normalizedCandidate(
@@ -190,6 +207,25 @@ enum TypoCorrector {
         return best.word
     }
 
+    /// A conservative case-only canonicalization for mixed-case product names.
+    /// Initial-capital-only suggestions (`john` -> `John`) remain untouched because
+    /// they are too context-dependent for an automatic correction.
+    static func canonicalCaseCorrection(
+        typed: String,
+        correction: String?,
+        language: String
+    ) -> String? {
+        guard let correction = correction?.precomposedStringWithCanonicalMapping,
+              correction != typed,
+              correction.caseInsensitiveCompare(typed) == .orderedSame,
+              correction.dropFirst().contains(where: { $0.isUppercase }),
+              correction.allSatisfy({ $0.isLetter }),
+              self.language(for: correction) == String(language.lowercased().prefix(2)) else {
+            return nil
+        }
+        return correction
+    }
+
     static func damerauLevenshteinDistance(_ lhs: String, _ rhs: String) -> Int {
         let a = Array(lhs)
         let b = Array(rhs)
@@ -247,6 +283,9 @@ enum TypoCorrector {
     }
 
     private static func preserveCapitalization(of source: String, in lowerTarget: String) -> String {
+        // A mixed-case system correction (`iPhone`, `macOS`, `GitHub`) already carries
+        // its canonical capitalization and must not be flattened or title-cased.
+        if lowerTarget.dropFirst().contains(where: { $0.isUppercase }) { return lowerTarget }
         guard source.first?.isUppercase == true else { return lowerTarget }
         guard let first = lowerTarget.first else { return lowerTarget }
         return String(first).uppercased() + lowerTarget.dropFirst()

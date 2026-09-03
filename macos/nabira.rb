@@ -1,6 +1,6 @@
 cask "nabira" do
-  version "3.4.6"
-  sha256 "181d203ab23da170c45b17da0a75eabbf74eed44eb48eec2f73add0f7765abdc"
+  version "3.4.7"
+  sha256 "14ae41c4e30c37708c7836735d526130db6040d3bf53d823636d4ec583f4f8e7"
 
   url "https://nabira.site/downloads/Nabira-macOS.dmg?version=#{version}"
   name "Nabira"

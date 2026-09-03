@@ -26,7 +26,11 @@ internal static class TypoCorrector
         if (Overrides.TryGetValue(input, out string? known)) return PreserveCase(input, known);
 
         string source = input.ToLowerInvariant();
-        var candidates = Dict.Suggestions(source, language)
+        IReadOnlyList<string> suggestions = Dict.Suggestions(source, language);
+        if (CanonicalCaseSuggestion(input, suggestions, language) is { } canonicalCase)
+            return canonicalCase;
+
+        var candidates = suggestions
             .Select(s => s.ToLowerInvariant())
             .Where(s => s != source && s.All(char.IsLetter) && Damerau(source, s) == 1)
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -34,6 +38,28 @@ internal static class TypoCorrector
             .ToList();
         if (candidates.Count != 1) return null;
         return PreserveCase(input, candidates[0]);
+    }
+
+    /// <summary>Preserves a system-provided mixed-case product spelling such as iPhone,
+    /// macOS or GitHub. Initial-capital-only names remain context-dependent and are ignored.</summary>
+    internal static string? CanonicalCaseSuggestion(
+        string input,
+        IEnumerable<string> suggestions,
+        string language)
+    {
+        foreach (string suggestion in suggestions)
+        {
+            if (suggestion == input ||
+                !suggestion.Equals(input, StringComparison.OrdinalIgnoreCase) ||
+                !suggestion.Skip(1).Any(char.IsUpper) ||
+                !suggestion.All(char.IsLetter)) continue;
+
+            bool cyrillic = suggestion.All(c => c is >= '\u0400' and <= '\u052F');
+            bool latin = suggestion.All(c => c is >= 'A' and <= 'Z' or >= 'a' and <= 'z');
+            if (language == "ru" ? cyrillic : language == "en" && latin)
+                return suggestion;
+        }
+        return null;
     }
 
     private static bool Eligible(string word, string language)

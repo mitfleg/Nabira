@@ -18,6 +18,10 @@ final class TextConverter {
     private var lastOriginal = ""
     private var lastConverted = ""
     private var lastWasBuffer = false
+    /// Incremented only when an automatic completed-word replacement records a new
+    /// reversible buffer state. The boundary callback uses it to attach the swallowed
+    /// Space only to the correction produced by that same callback.
+    private var completedWordReplacementRevision: UInt64 = 0
     /// Нужно ли при отмене последней замены также вернуть раскладку. Для ёфикатора — нет.
     private(set) var reconvertShouldSwitchLayout = true
     /// Последняя clipboard-конверсия содержала RTL — реконверт стрелками небезопасен.
@@ -89,6 +93,32 @@ final class TextConverter {
     }
 
     // MARK: - Public API
+
+    func completedWordReplacementRevisionSnapshot() -> UInt64 {
+        completedWordReplacementRevision
+    }
+
+    /// A delayed word-boundary Space is injected after the replacement. It is visible
+    /// on screen and therefore must be part of both reconversion strings. Otherwise
+    /// undoing `phone ` with `phone`.count Backspaces leaves `p` and inserts `iphone`,
+    /// producing `piphone`.
+    func includeForwardedBoundaryInReconversion(
+        ifReplacementOccurredAfter revision: UInt64,
+        keyCode: UInt16,
+        flags: CGEventFlags
+    ) {
+        guard completedWordReplacementRevision != revision, lastWasBuffer else { return }
+        lastOriginal = Self.appendingForwardedBoundary(lastOriginal, keyCode: keyCode, flags: flags)
+        lastConverted = Self.appendingForwardedBoundary(lastConverted, keyCode: keyCode, flags: flags)
+    }
+
+    nonisolated static func appendingForwardedBoundary(
+        _ text: String,
+        keyCode: UInt16,
+        flags: CGEventFlags
+    ) -> String {
+        AutomaticBoundaryPolicy.isBareSpace(keyCode: keyCode, flags: flags) ? text + " " : text
+    }
 
     /// Конвертирует именно текущее пользовательское выделение. Вызывается раньше
     /// буфера последнего слова и режима всей строки, поэтому выделение всегда имеет
@@ -221,6 +251,7 @@ final class TextConverter {
         lastConverted = insert
         lastWasBuffer = true
         reconvertShouldSwitchLayout = changesLayout
+        completedWordReplacementRevision &+= 1
         let bsCount = original.count + passthroughSuffix.count + boundaryCount
         nabiraLog("word replace: \(original.count)→\(replacement.count) chars (+\(passthroughSuffix.count) punct, +\(boundaryCount) sp)")
 
@@ -767,13 +798,13 @@ final class TextConverter {
     // MARK: - Private
 
     /// Стирает n символов (Backspace × n) — для движка перепечатки.
-    /// Пауза минимальная: порядок доставки гарантирует системная очередь HID, а при
-    /// прежних 3мс/клавишу стирание длинного слова растягивалось на кадры отрисовки —
-    /// пользователь видел «стёрли-и-перепечатали» вместо мгновенной замены.
+    /// Небольшая пауза нужна WebView/Electron-полям: при 0,5мс они иногда не успевали
+    /// применить всю серию событий до Unicode-вставки. 2мс остаётся визуально быстро,
+    /// но даёт редактору обработать каждое удаление.
     nonisolated private func backspace(_ n: Int) {
         for _ in 0..<n {
             simKey(keyCode: KC.backspace, flags: [])
-            usleep(500)
+            usleep(2_000)
         }
     }
 

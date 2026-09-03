@@ -60,6 +60,15 @@ public class WritingCorrectionsTests
         Assert.Equal(expected, TypoCorrector.Damerau(source, target));
 
     [Fact]
+    public void Canonical_product_case_wins_over_a_word_changing_suggestion()
+    {
+        Assert.Equal("iPhone", TypoCorrector.CanonicalCaseSuggestion(
+            "iphone", ["iPhone", "phone", "iPhones"], "en"));
+        Assert.Null(TypoCorrector.CanonicalCaseSuggestion(
+            "john", ["John"], "en"));
+    }
+
+    [Fact]
     public void Yoficator_uses_the_shared_unambiguous_dictionary()
     {
         Assert.Equal("ёлка", Yoficator.Replacement("елка"));

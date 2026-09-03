@@ -1,7 +1,7 @@
 {
-  "version": "0.11.6",
-  "url": "https://nabira.site/downloads/beta/Nabira-Windows-x64.exe?version=0.11.6",
-  "notes": "Что нового в 0.11.6 beta:\n• Автоконверсия понимает безопасные технические snake_case-имена, например internal_crm.\n• Выделенный текст теперь всегда конвертируется первым по главному триггеру.\n• При проверке выделения полностью сохраняются текст, файлы и изображения из буфера обмена.",
+  "version": "0.11.7",
+  "url": "https://nabira.site/downloads/beta/Nabira-Windows-x64.exe?version=0.11.7",
+  "notes": "Что нового в 0.11.7 beta:\n• Системные варианты написания вроде iPhone, macOS и GitHub больше не превращаются в похожие слова.\n• Исправлена ложная замена iphone на phone.\n• Проверки словарных исправлений синхронизированы с версией для macOS.",
   "sha256": "304027661ffd60dab24067b1a680dc7084f2e8976ae967cd7f7acd4e9d07bfad",
   "signed_payload": "eyJzY2hlbWEiOjEsInBsYXRmb3JtIjoid2luZG93cyIsInZlcnNpb24iOiIwLjExLjYiLCJ1cmwiOiJodHRwczovL25hYmlyYS5zaXRlL2Rvd25sb2Fkcy9iZXRhL05hYmlyYS1XaW5kb3dzLXg2NC5leGU/dmVyc2lvbj0wLjExLjYiLCJub3RlcyI6ItCn0YLQviDQvdC+0LLQvtCz0L4g0LIgMC4xMS42IGJldGE6XG7igKIg0JDQstGC0L7QutC+0L3QstC10YDRgdC40Y8g0L/QvtC90LjQvNCw0LXRgiDQsdC10LfQvtC/0LDRgdC90YvQtSDRgtC10YXQvdC40YfQtdGB0LrQuNC1IHNuYWtlX2Nhc2Ut0LjQvNC10L3QsCwg0L3QsNC/0YDQuNC80LXRgCBpbnRlcm5hbF9jcm0uXG7igKIg0JLRi9C00LXQu9C10L3QvdGL0Lkg0YLQtdC60YHRgiDRgtC10L/QtdGA0Ywg0LLRgdC10LPQtNCwINC60L7QvdCy0LXRgNGC0LjRgNGD0LXRgtGB0Y8g0L/QtdGA0LLRi9C8INC/0L4g0LPQu9Cw0LLQvdC+0LzRgyDRgtGA0LjQs9Cz0LXRgNGDLlxu4oCiINCf0YDQuCDQv9GA0L7QstC10YDQutC1INCy0YvQtNC10LvQtdC90LjRjyDQv9C+0LvQvdC+0YHRgtGM0Y4g0YHQvtGF0YDQsNC90Y/RjtGC0YHRjyDRgtC10LrRgdGCLCDRhNCw0LnQu9GLINC4INC40LfQvtCx0YDQsNC20LXQvdC40Y8g0LjQtyDQsdGD0YTQtdGA0LAg0L7QsdC80LXQvdCwLiIsInNoYTI1NiI6IjMwNDAyNzY2MWZmZDYwZGFiMjQwNjdiMWE2ODBkYzcwODRmMmU4OTc2YWU5NjdjZDdmN2FjZDRlOWQwN2JmYWQifQ==",
   "signature": "MEUCIQCxFK9ArcY0JvT5uKhwDGcMYaQh2s5av2rOoJNyA4zcgQIgfOyXXPskG50VduFM7fikvE/DHTSsrAGB+eyQh1TTZ6E=",

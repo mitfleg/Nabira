@@ -17,6 +17,23 @@ final class SubmitBoundaryTests: XCTestCase {
         XCTAssertTrue(SubmitBoundaryPolicy.isBareSubmitKey(keyCode: KC.keypadEnter, flags: .maskNumericPad))
     }
 
+    func testForwardedSpaceIsIncludedInAutomaticReconversion() {
+        let corrected = TextConverter.appendingForwardedBoundary(
+            "phone", keyCode: KC.space, flags: []
+        )
+        let original = TextConverter.appendingForwardedBoundary(
+            "iphone", keyCode: KC.space, flags: []
+        )
+
+        XCTAssertEqual(corrected, "phone ")
+        XCTAssertEqual(original, "iphone ")
+        XCTAssertEqual(corrected.count, 6)
+        XCTAssertEqual(
+            TextConverter.appendingForwardedBoundary("phone", keyCode: KC.enter, flags: []),
+            "phone"
+        )
+    }
+
     func testModifiedReturnBelongsToFrontmostApplication() {
         XCTAssertFalse(SubmitBoundaryPolicy.isBareSubmitKey(keyCode: KC.enter, flags: .maskShift))
         XCTAssertFalse(SubmitBoundaryPolicy.isBareSubmitKey(keyCode: KC.enter, flags: .maskCommand))
