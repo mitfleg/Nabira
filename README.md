@@ -30,6 +30,13 @@
   <a href="https://nabira.site/#downloads">Скачать для macOS и Windows</a>
 </p>
 
+<p align="center">
+  <a href="ROADMAP.md">Roadmap</a> ·
+  <a href="CONTRIBUTING.md">Contributing</a> ·
+  <a href="SECURITY.md">Security</a> ·
+  <a href="https://github.com/mitfleg/Nabira/issues">Issues</a>
+</p>
+
 ---
 
 ## English

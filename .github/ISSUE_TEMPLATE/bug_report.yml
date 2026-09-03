@@ -1,0 +1,56 @@
+name: Сообщить об ошибке
+description: Воспроизводимая проблема в Nabira для macOS или Windows
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Спасибо за отчёт. Не публикуйте пароли, токены и приватную переписку. Для уязвимостей используйте SECURITY.md.
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Платформа
+      options:
+        - macOS
+        - Windows 11
+        - Windows 10
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Версия Nabira
+      placeholder: Например, 3.4.6 или 0.11.6
+    validations:
+      required: true
+  - type: input
+    id: application
+    attributes:
+      label: Где возникла ошибка
+      placeholder: Telegram, Chrome, ChatGPT, Word и т. п.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Как воспроизвести
+      description: Укажите безопасный пример исходного текста, действие и фактический результат.
+      placeholder: |
+        1. Ввёл: ...
+        2. Нажал: ...
+        3. Получил: ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Ожидаемый результат
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Дополнительная информация
+      description: Раскладки, виртуальная машина, скриншот без чувствительных данных и другие детали.

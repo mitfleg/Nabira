@@ -1,0 +1,34 @@
+name: Предложить улучшение
+description: Новая функция или изменение поведения Nabira
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Какую проблему нужно решить
+      description: Опишите ситуацию пользователя, а не только желаемую кнопку или технологию.
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: Как должен выглядеть результат
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Платформа
+      options:
+        - Обе платформы
+        - macOS
+        - Windows
+        - Не зависит от платформы
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Чем вы пользуетесь сейчас
