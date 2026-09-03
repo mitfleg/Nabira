@@ -1,10 +1,10 @@
 {
-  "version": "0.11.4",
-  "url": "https://nabira.site/downloads/Nabira-Windows-x64.exe?version=0.11.4",
-  "notes": "Что нового в 0.11.4:\n• Интерфейс Windows приведён к стабильному выпуску.\n• Усилена защита подключения к сервису Nabira.\n• Версия клиента в сетевых запросах теперь определяется автоматически.",
-  "sha256": "fce5cf6129d842c37ff10d81c586e84d3404e06e099d410a65950dfb331110b4",
-  "signed_payload": "eyJzY2hlbWEiOjEsInBsYXRmb3JtIjoid2luZG93cyIsInZlcnNpb24iOiIwLjExLjMiLCJ1cmwiOiJodHRwczovL25hYmlyYS5zaXRlL2Rvd25sb2Fkcy9OYWJpcmEtV2luZG93cy14NjQuZXhlP3ZlcnNpb249MC4xMS4zIiwibm90ZXMiOiLQp9GC0L4g0L3QvtCy0L7Qs9C+INCyIDAuMTEuMzpcbuKAoiBbZltmW2Yg0YLQtdC/0LXRgNGMINCw0LLRgtC+0LzQsNGC0LjRh9C10YHQutC4INC/0YDQtdCy0YDQsNGJ0LDQtdGC0YHRjyDQsiDRhdCw0YXQsNGF0LAuXG7igKIg0J/RgNCw0LLQuNC70YzQvdC+INC90LDQsdGA0LDQvdC90YvQtSDQsNGF0LDRhdCwL9GF0LDRhdCw0YXQsCDQvtGB0YLQsNGO0YLRgdGPINCx0LXQtyDQuNC30LzQtdC90LXQvdC40LkuXG7igKIg0JDQstGC0L7QuNGB0L/RgNCw0LLQu9C10L3QuNC1INCy0YvQv9C+0LvQvdGP0LXRgtGB0Y8g0LTQviDQvtGC0L/RgNCw0LLQutC4INGB0L7QvtCx0YnQtdC90LjRjyDQvtCx0YvRh9C90YvQvCBFbnRlci4iLCJzaGEyNTYiOiJmY2U1Y2Y2MTI5ZDg0MmMzN2ZmMTBkODFjNTg2ZTg0ZDM0MDRlMDZlMDk5ZDQxMGE2NTk1MGRmYjMzMTExMGI0In0=",
-  "signature": "MEUCIQD/cHJP3CLJyC1WfTOYmRrY/bPZ+BUSSjXLyT753EKuVQIgS+xcFMI5JU1FTQUZQhyIhumUPHGOjslaawPDsPPGyc8=",
+  "version": "0.11.8",
+  "url": "https://nabira.site/downloads/Nabira-Windows-x64.exe?version=0.11.8",
+  "notes": "Что нового в 0.11.8:\n• Подключён расширенный словарь русских и английских слов для определения неверной раскладки.\n• шзрщту теперь автоматически превращается в iphone.\n• Правильно набранные известные слова больше не заменяются похожими словами.",
+  "sha256": "0f62985e80b29468989cf65fc9feb15f247e46cd0f04abfa1c8eaab58063e845",
+  "signed_payload": "eyJzY2hlbWEiOjEsInBsYXRmb3JtIjoid2luZG93cyIsInZlcnNpb24iOiIwLjExLjgiLCJ1cmwiOiJodHRwczovL25hYmlyYS5zaXRlL2Rvd25sb2Fkcy9OYWJpcmEtV2luZG93cy14NjQuZXhlP3ZlcnNpb249MC4xMS44Iiwibm90ZXMiOiLQp9GC0L4g0L3QvtCy0L7Qs9C+INCyIDAuMTEuODpcbuKAoiDQn9C+0LTQutC70Y7Rh9GR0L0g0YDQsNGB0YjQuNGA0LXQvdC90YvQuSDRgdC70L7QstCw0YDRjCDRgNGD0YHRgdC60LjRhSDQuCDQsNC90LPQu9C40LnRgdC60LjRhSDRgdC70L7QsiDQtNC70Y8g0L7Qv9GA0LXQtNC10LvQtdC90LjRjyDQvdC10LLQtdGA0L3QvtC5INGA0LDRgdC60LvQsNC00LrQuC5cbuKAoiDRiNC30YDRidGC0YMg0YLQtdC/0LXRgNGMINCw0LLRgtC+0LzQsNGC0LjRh9C10YHQutC4INC/0YDQtdCy0YDQsNGJ0LDQtdGC0YHRjyDQsiBpcGhvbmUuXG7igKIg0J/RgNCw0LLQuNC70YzQvdC+INC90LDQsdGA0LDQvdC90YvQtSDQuNC30LLQtdGB0YLQvdGL0LUg0YHQu9C+0LLQsCDQsdC+0LvRjNGI0LUg0L3QtSDQt9Cw0LzQtdC90Y/RjtGC0YHRjyDQv9C+0YXQvtC20LjQvNC4INGB0LvQvtCy0LDQvNC4LiIsInNoYTI1NiI6IjBmNjI5ODVlODBiMjk0Njg5ODljZjY1ZmM5ZmViMTVmMjQ3ZTQ2Y2QwZjA0YWJmYTFjOGVhYWI1ODA2M2U4NDUifQ==",
+  "signature": "MEUCIFENJvWMneyXSnJYsuV70jUpTyiAAcbovXMHTEjrWladAiEA5hqcuTt36T7zB7KrjBb+0wXXtfPtpOIA7/TeBa9veDA=",
   "signature_algorithm": "ecdsa-p256-sha256",
   "key_id": "01d93189e15525ff"
 }
