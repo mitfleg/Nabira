@@ -4,9 +4,9 @@ name: windows-release
 # Triggered by pushing a tag like `win-v0.9.0` (the Windows track is versioned separately from the
 # macOS `vX.Y.Z` tags). Publishing is therefore an explicit, human action: pushing the tag.
 #
-# SignPath Foundation is the preferred provider for the open-source build. A conventional PFX
-# certificate remains supported as a fallback. Until either provider is configured the workflow
-# can still produce an unsigned beta build. Stable releases fail closed without a trusted signer.
+# SignPath remains supported if a future application is approved. A conventional PFX certificate
+# is also supported. Until either provider is configured the workflow can produce an unsigned beta
+# build, while stable releases fail closed without a trusted signer.
 on:
   push:
     tags:

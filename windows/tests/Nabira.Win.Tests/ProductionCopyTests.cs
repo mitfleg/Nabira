@@ -40,8 +40,9 @@ public sealed class ProductionCopyTests
         Assert.Contains("signpath/github-action-submit-signing-request@c92b958760219087e01f8d67a1669ed57afe2627", workflow, StringComparison.Ordinal);
         Assert.Contains("Require a trusted signer for stable releases", workflow, StringComparison.Ordinal);
         Assert.Contains("Verify trusted Authenticode signatures", workflow, StringComparison.Ordinal);
-        Assert.Contains("Free code signing provided by [SignPath.io]", policy, StringComparison.Ordinal);
-        Assert.Contains("certificate by\n[SignPath Foundation]", policy.ReplaceLineEndings("\n"), StringComparison.Ordinal);
+        Assert.DoesNotContain("Free code signing provided by", policy, StringComparison.Ordinal);
+        Assert.Contains("does not currently have a trusted Authenticode certificate", policy, StringComparison.Ordinal);
+        Assert.Contains("update feed is signed with a separate offline", policy, StringComparison.Ordinal);
         Assert.Contains("product-name=\"Nabira\"", appConfiguration, StringComparison.Ordinal);
         Assert.Contains("Nabira-win-arm64.exe", appConfiguration, StringComparison.Ordinal);
         Assert.Contains("Nabira-Setup-${version}.exe", installerConfiguration, StringComparison.Ordinal);

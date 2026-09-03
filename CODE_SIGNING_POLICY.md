@@ -1,7 +1,16 @@
 # Nabira code signing policy
 
-Free code signing provided by [SignPath.io](https://signpath.io/), certificate by
-[SignPath Foundation](https://signpath.org/).
+## Current signing status
+
+Nabira does not currently have a trusted Authenticode certificate. The SignPath Foundation
+application was not approved because the project is still new and does not yet have enough public
+adoption signals. Current Windows downloads may therefore trigger browser reputation warnings and
+Microsoft Defender SmartScreen.
+
+Windows artifacts are built from this public repository by GitHub Actions. The release workflow
+publishes SHA-256 checksums, while the application's update feed is signed with a separate offline
+ECDSA release key. These checks protect file integrity and update metadata, but they are not a
+replacement for an Authenticode signature and do not establish a trusted Windows publisher.
 
 ## Scope
 
@@ -10,10 +19,11 @@ artifacts are built only from this public repository by the `windows-release` Gi
 workflow on GitHub-hosted Windows runners. A release is started by an explicit `win-vX.Y.Z` tag or
 manual release workflow invocation.
 
-The workflow builds and tests the source, signs the x64 and arm64 application executables, builds
-the Inno Setup installer from the already signed x64 executable, signs the installer, verifies all
-Authenticode signatures, and only then publishes checksums and release assets. Every SignPath
-Foundation signing request requires manual approval.
+The workflow builds and tests the source, builds the Inno Setup installer, and publishes checksums
+and release assets. When a trusted provider is configured, it also signs the x64 and arm64
+executables and installer and verifies every Authenticode signature before publication. Stable
+workflow runs fail closed without a trusted signer; explicitly selected beta runs may remain
+unsigned.
 
 ## Project roles
 
@@ -43,10 +53,11 @@ Security and signing concerns can be reported privately to
 [mitfleg@icloud.com](mailto:mitfleg@icloud.com). Do not include passwords, session tokens, private
 keys, or other secrets in a report.
 
-## SignPath CI configuration
+## Optional signing configuration
 
-After SignPath Foundation approves the project, the repository owner configures one GitHub Actions
-secret and five repository variables:
+The workflow retains support for either SignPath or a conventional PFX certificate. If SignPath
+approves a future application, the repository owner configures one GitHub Actions secret and five
+repository variables:
 
 - secret `SIGNPATH_API_TOKEN`;
 - variable `SIGNPATH_ORGANIZATION_ID`;
