@@ -24,6 +24,7 @@ internal static class TypoCorrector
     {
         if (!Eligible(input, language) || Dict.IsValidWord(input.ToLowerInvariant(), language)) return null;
         if (Overrides.TryGetValue(input, out string? known)) return PreserveCase(input, known);
+        if (WordFrequency.IsKnown(input, language)) return null;
 
         string source = input.ToLowerInvariant();
         IReadOnlyList<string> suggestions = Dict.Suggestions(source, language);

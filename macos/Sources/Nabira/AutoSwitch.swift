@@ -43,6 +43,17 @@ enum LayoutVerdict: Equatable { case switchToConverted, keep, undecided }
 /// Решает, набрано ли слово в неправильной раскладке. Точность важнее полноты:
 /// при любой неуверенности → .undecided (ничего не делаем). Ручной триггер остаётся.
 enum LayoutDetector {
+    @MainActor
+    static func hasLexicon(_ language: String) -> Bool {
+        Dict.isAvailable(language) || WordFrequency.isAvailable(language)
+    }
+
+    @MainActor
+    static func isKnownWord(_ word: String, language: String) -> Bool {
+        (Dict.isAvailable(language) && Dict.isValidWord(word.lowercased(), lang: language))
+            || WordFrequency.isKnownWord(word, language: language)
+    }
+
     /// Общий узкий позитивный сигнал для технических слов и безопасных snake_case-имён.
     /// Детектор и фактическая замена обязаны использовать один и тот же результат.
     @MainActor
@@ -138,7 +149,7 @@ enum LayoutDetector {
             guard typed.count >= 3 else { return .undecided }              // короткий частотный сигнал для иврита не строим
             let hebrewIsCurrent = isHebrew(cur)
             let sideLang = hebrewIsCurrent ? oth : cur
-            guard !isHebrew(sideLang), Dict.isAvailable(sideLang) else { return .undecided }
+            guard !isHebrew(sideLang), hasLexicon(sideLang) else { return .undecided }
             if hebrewIsCurrent {
                 // NSSpellChecker токенизирует («привет!» для него валиден), а часть ивритских
                 // букв живёт на пунктуационных клавишах — EN-образ КОРРЕКТНОГО иврита может
@@ -146,10 +157,10 @@ enum LayoutDetector {
                 // тот же класс, что «думаю vs дума.» в 2.7.0). Словарю отдаём только
                 // целиком буквенный образ; иначе .undecided — ручной триггер работает.
                 guard converted.allSatisfy({ $0.isLetter }) else { return .undecided }
-                return Dict.isValidWord(converted.lowercased(), lang: sideLang)
+                return isKnownWord(converted, language: sideLang)
                     ? .switchToConverted : .undecided
             }
-            return Dict.isValidWord(typed.lowercased(), lang: sideLang) ? .keep : .undecided
+            return isKnownWord(typed, language: sideLang) ? .keep : .undecided
         }
 
         // --- Короткие (2-буквенные) слова: позитивный частотный сигнал (3.1, issue #22) ---
@@ -169,9 +180,9 @@ enum LayoutDetector {
         }
 
         // Словарь — без учёта регистра (Caps Lock не должен мешать определению слова).
-        guard Dict.isAvailable(oth) else { return .undecided }
-        guard Dict.isValidWord(converted.lowercased(), lang: oth) else { return .keep }
-        if Dict.isAvailable(cur), Dict.isValidWord(typed.lowercased(), lang: cur) {
+        guard hasLexicon(oth) else { return .undecided }
+        guard isKnownWord(converted, language: oth) else { return .keep }
+        if hasLexicon(cur), isKnownWord(typed, language: cur) {
             return .keep
         }
         return .switchToConverted

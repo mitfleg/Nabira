@@ -61,6 +61,21 @@ final class SubmitBoundaryTests: XCTestCase {
     }
 
     @MainActor
+    func testWrongLayoutProductNameUsesBundledLexicon() {
+        XCTAssertTrue(WordFrequency.isKnownWord("iphone", language: "en"))
+        XCTAssertEqual(
+            LayoutDetector.decide(
+                typed: "шзрщту",
+                converted: "iphone",
+                currentLang: "ru",
+                otherLang: "en",
+                capsLock: false
+            ),
+            .switchToConverted
+        )
+    }
+
+    @MainActor
     func testWrongLayoutLaughterIsAConfidentAutomaticCorrection() {
         XCTAssertEqual(
             LayoutDetector.decide(

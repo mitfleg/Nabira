@@ -35,7 +35,9 @@ internal static class AutoConverter
         if (!ShouldConvert(typed, converted, srcTag, tgtTag, caps)) return false;
 
         converted = TechnicalAbbreviations.AutomaticTechnicalReplacement(
-            typed, converted, srcTag, tgtTag, Dict.Available, Dict.IsValidWord) ?? converted;
+            typed, converted, srcTag, tgtTag,
+            Dict.Available || WordFrequency.Available(srcTag) || WordFrequency.Available(tgtTag),
+            IsKnownWord) ?? converted;
 
         TextInjector.Replace(backspaces: keys.Count + 1, text: converted + " ");
         LayoutSwitcher.SwitchTo(targetHkl);
@@ -47,16 +49,25 @@ internal static class AutoConverter
     // so it can be unit-tested off Windows (no COM / no Win32).
     private static bool ShouldConvert(string typed, string converted, string srcTag, string tgtTag, bool caps) =>
         ShouldConvertPure(typed, converted, srcTag, tgtTag, caps,
-            Dict.Available, Dict.IsValidWord,
-            Settings.Current.NeverConvert, Settings.Current.AlwaysConvert);
+            Dict.Available || WordFrequency.Available(srcTag) || WordFrequency.Available(tgtTag),
+            Dict.IsValidWord,
+            Settings.Current.NeverConvert, Settings.Current.AlwaysConvert,
+            WordFrequency.IsKnown);
+
+    private static bool IsKnownWord(string word, string language) =>
+        Dict.IsValidWord(word, language) || WordFrequency.IsKnown(word, language);
 
     /// <summary>The verdict logic, ported from the macOS <c>LayoutDetector.decide</c>. Pure: the
     /// dictionary and exception lists are passed in, so it is fully unit-testable. Returns true only
     /// when the word should be flipped to the opposite layout.</summary>
     internal static bool ShouldConvertPure(string typed, string converted, string srcTag, string tgtTag,
         bool caps, bool dictAvailable, Func<string, string, bool> isValidWord,
-        ICollection<string> never, ICollection<string> always)
+        ICollection<string> never, ICollection<string> always,
+        Func<string, string, bool>? isKnownWord = null)
     {
+        bool Known(string word, string language) =>
+            isValidWord(word, language) || isKnownWord?.Invoke(word, language) == true;
+
         string typedLc = typed.ToLowerInvariant();
         string convertedLc = converted.ToLowerInvariant();
 
@@ -77,7 +88,7 @@ internal static class AutoConverter
         // This permits only audited abbreviations and safe identifiers such as
         // `штеуктфд_скь` → `internal_crm`; arbitrary code/URL/email remains blocked below.
         if (TechnicalAbbreviations.AutomaticTechnicalReplacement(
-                typed, converted, srcTag, tgtTag, dictAvailable, isValidWord) != null)
+                typed, converted, srcTag, tgtTag, dictAvailable, Known) != null)
             return true;
 
         if (!typed.All(char.IsLetter)) return false;        // digits / punctuation / URL / code / email
@@ -99,7 +110,7 @@ internal static class AutoConverter
                 // The EN image of correct Hebrew can be "word + punctuation" and falsely pass the
                 // dictionary — only feed it an all-letter image.
                 if (!converted.All(char.IsLetter)) return false;
-                return isValidWord(convertedLc, sideTag);
+                return Known(convertedLc, sideTag);
             }
             // Typed on the non-Hebrew side: never auto-convert toward Hebrew (direction unresolvable
             // without a Hebrew dictionary — precision over recall). The manual trigger still works.
@@ -108,8 +119,8 @@ internal static class AutoConverter
 
         // --- common same-alphabet-swap case ---
         if (!dictAvailable) return false;
-        if (!isValidWord(convertedLc, tgtTag)) return false;   // flipped form isn't a real word → keep
-        if (isValidWord(typedLc, srcTag)) return false;        // typed form is already real → keep
+        if (!Known(convertedLc, tgtTag)) return false;   // flipped form isn't a known word → keep
+        if (Known(typedLc, srcTag)) return false;        // typed form is already known → keep
         return true;
     }
 

@@ -764,8 +764,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let lower = word.lowercased()
         let language = String(lang.lowercased().prefix(2))
         if lower.count == 2 { return ShortWords.common(language)?.contains(lower) == true }
-        guard lower.count >= 3, Dict.isAvailable(language) else { return false }
-        return Dict.isValidWord(lower, lang: language)
+        guard lower.count >= 3, LayoutDetector.hasLexicon(language) else { return false }
+        return LayoutDetector.isKnownWord(lower, language: language)
     }
 
     private func observeContextWord(_ word: String, language: String, bundleID: String?) {
@@ -785,10 +785,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     ) -> LayoutVerdict {
         let current = String(langs.current.lowercased().prefix(2))
         let opposite = String(langs.opposite.lowercased().prefix(2))
-        let typedValid = Dict.isAvailable(current)
-            && Dict.isValidWord(typed.lowercased(), lang: current)
-        let convertedValid = Dict.isAvailable(opposite)
-            && Dict.isValidWord(converted.lowercased(), lang: opposite)
+        let typedValid = LayoutDetector.hasLexicon(current)
+            && LayoutDetector.isKnownWord(typed, language: current)
+        let convertedValid = LayoutDetector.hasLexicon(opposite)
+            && LayoutDetector.isKnownWord(converted, language: opposite)
         return ContextLanguageModel.refine(
             base: base,
             typed: typed,

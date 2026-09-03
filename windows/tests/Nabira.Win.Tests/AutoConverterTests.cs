@@ -30,6 +30,15 @@ public class AutoConverterTests
         Assert.True(r);
     }
 
+    [Fact]
+    public void Converts_wrong_layout_product_name_from_supplemental_lexicon()
+    {
+        bool r = AutoConverter.ShouldConvertPure("шзрщту", "iphone", "ru", "en",
+            caps: false, dictAvailable: true, Dict(), None, None,
+            Dict(("iphone", "en")));
+        Assert.True(r);
+    }
+
     [Theory]
     [InlineData("мзт", "vpn", "VPN")]
     [InlineData("фзш", "api", "API")]

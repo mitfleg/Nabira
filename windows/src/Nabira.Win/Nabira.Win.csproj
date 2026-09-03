@@ -25,7 +25,7 @@
     <LangVersion>latest</LangVersion>
     <Platforms>x64;ARM64</Platforms>
     <!-- Keep in sync with windows/version.json. -->
-    <Version>0.11.7</Version>
+    <Version>0.11.8</Version>
     <ApplicationIcon>Resources\Nabira.ico</ApplicationIcon>
   </PropertyGroup>
 
@@ -33,6 +33,8 @@
     <!-- Let the test project reach internal engine types (AutoConverter verdict, etc.). -->
     <InternalsVisibleTo Include="Nabira.Win.Tests" />
     <EmbeddedResource Include="Resources\yoficator.tsv" LogicalName="Nabira.Yoficator.tsv" />
+    <EmbeddedResource Include="..\..\..\macos\Sources\Nabira\Resources\frequency_en_50k.txt" LogicalName="Nabira.frequency_en_50k.txt" />
+    <EmbeddedResource Include="..\..\..\macos\Sources\Nabira\Resources\frequency_ru_50k.txt" LogicalName="Nabira.frequency_ru_50k.txt" />
   </ItemGroup>
 
 </Project>

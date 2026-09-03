@@ -1,12 +1,12 @@
 {
-  "version": "3.4.7",
-  "build": "60",
+  "version": "3.4.8",
+  "build": "61",
   "dev": "",
-  "url": "https://nabira.site/downloads/Nabira-macOS.dmg?version=3.4.7",
-  "notes": "Что нового в 3.4.7:\n• Известные слова и названия продуктов, например iphone, больше не заменяются похожими словами.\n• Отмена автоматического исправления учитывает пробел и не оставляет первую букву старого слова.\n• Замена текста надёжнее работает в ChatGPT, Codex и других приложениях на WebView.",
+  "url": "https://nabira.site/downloads/Nabira-macOS.dmg?version=3.4.8",
+  "notes": "Что нового в 3.4.8:\n• Слова и названия продуктов из расширенного словаря теперь распознаются при наборе в неверной раскладке: например, шзрщту превращается в iphone.\n• Правильно набранные известные слова больше не заменяются похожими словами.\n• Отмена автоматического исправления учитывает пробел и не оставляет первую букву старого слова.",
   "legacy_manual_install": true,
-  "signed_payload": "eyJzY2hlbWEiOjEsInBsYXRmb3JtIjoibWFjb3MiLCJ2ZXJzaW9uIjoiMy40LjciLCJ1cmwiOiJodHRwczovL25hYmlyYS5zaXRlL2Rvd25sb2Fkcy9OYWJpcmEtbWFjT1MuZG1nP3ZlcnNpb249My40LjciLCJub3RlcyI6ItCn0YLQviDQvdC+0LLQvtCz0L4g0LIgMy40Ljc6XG7igKIg0JjQt9Cy0LXRgdGC0L3Ri9C1INGB0LvQvtCy0LAg0Lgg0L3QsNC30LLQsNC90LjRjyDQv9GA0L7QtNGD0LrRgtC+0LIsINC90LDQv9GA0LjQvNC10YAgaXBob25lLCDQsdC+0LvRjNGI0LUg0L3QtSDQt9Cw0LzQtdC90Y/RjtGC0YHRjyDQv9C+0YXQvtC20LjQvNC4INGB0LvQvtCy0LDQvNC4Llxu4oCiINCe0YLQvNC10L3QsCDQsNCy0YLQvtC80LDRgtC40YfQtdGB0LrQvtCz0L4g0LjRgdC/0YDQsNCy0LvQtdC90LjRjyDRg9GH0LjRgtGL0LLQsNC10YIg0L/RgNC+0LHQtdC7INC4INC90LUg0L7RgdGC0LDQstC70Y/QtdGCINC/0LXRgNCy0YPRjiDQsdGD0LrQstGDINGB0YLQsNGA0L7Qs9C+INGB0LvQvtCy0LAuXG7igKIg0JfQsNC80LXQvdCwINGC0LXQutGB0YLQsCDQvdCw0LTRkdC20L3QtdC1INGA0LDQsdC+0YLQsNC10YIg0LIgQ2hhdEdQVCwgQ29kZXgg0Lgg0LTRgNGD0LPQuNGFINC/0YDQuNC70L7QttC10L3QuNGP0YUg0L3QsCBXZWJWaWV3LiIsInNoYTI1NiI6IjE0YWU0MWM0ZTMwYzM3NzA4Yzc4MzY3MzVkNTI2MTMwZGI2MDQwZDNiZjUzZDgyMzYzNmQ0ZWM1ODNmNGY4ZTcifQ==",
-  "signature": "MEUCIQDpaEizlLfOqzsWmyDNn5I8niJCJr2Bufae4i7XwSr/MQIgeTJL97So19mlpWmk1MiPhR/2QQA8hTrXBaWZ1sHoQbc=",
+  "signed_payload": "eyJzY2hlbWEiOjEsInBsYXRmb3JtIjoibWFjb3MiLCJ2ZXJzaW9uIjoiMy40LjgiLCJ1cmwiOiJodHRwczovL25hYmlyYS5zaXRlL2Rvd25sb2Fkcy9OYWJpcmEtbWFjT1MuZG1nP3ZlcnNpb249My40LjgiLCJub3RlcyI6ItCn0YLQviDQvdC+0LLQvtCz0L4g0LIgMy40Ljg6XG7igKIg0KHQu9C+0LLQsCDQuCDQvdCw0LfQstCw0L3QuNGPINC/0YDQvtC00YPQutGC0L7QsiDQuNC3INGA0LDRgdGI0LjRgNC10L3QvdC+0LPQviDRgdC70L7QstCw0YDRjyDRgtC10L/QtdGA0Ywg0YDQsNGB0L/QvtC30L3QsNGO0YLRgdGPINC/0YDQuCDQvdCw0LHQvtGA0LUg0LIg0L3QtdCy0LXRgNC90L7QuSDRgNCw0YHQutC70LDQtNC60LU6INC90LDQv9GA0LjQvNC10YAsINGI0LfRgNGJ0YLRgyDQv9GA0LXQstGA0LDRidCw0LXRgtGB0Y8g0LIgaXBob25lLlxu4oCiINCf0YDQsNCy0LjQu9GM0L3QviDQvdCw0LHRgNCw0L3QvdGL0LUg0LjQt9Cy0LXRgdGC0L3Ri9C1INGB0LvQvtCy0LAg0LHQvtC70YzRiNC1INC90LUg0LfQsNC80LXQvdGP0Y7RgtGB0Y8g0L/QvtGF0L7QttC40LzQuCDRgdC70L7QstCw0LzQuC5cbuKAoiDQntGC0LzQtdC90LAg0LDQstGC0L7QvNCw0YLQuNGH0LXRgdC60L7Qs9C+INC40YHQv9GA0LDQstC70LXQvdC40Y8g0YPRh9C40YLRi9Cy0LDQtdGCINC/0YDQvtCx0LXQuyDQuCDQvdC1INC+0YHRgtCw0LLQu9GP0LXRgiDQv9C10YDQstGD0Y4g0LHRg9C60LLRgyDRgdGC0LDRgNC+0LPQviDRgdC70L7QstCwLiIsInNoYTI1NiI6ImY4Y2Q2OGRhMDc4ODY1NjFhNWMzZWY0Y2Q2MTJkZmIzMzY0MTJjMGJhOWU5ODMxZDIzOWNlNmMwYWJiNzE2NzgifQ==",
+  "signature": "MEQCIFYEilg0hBEQ0zoI0Y/SVTQLd+7qEiJHOM6ASmdHq1n9AiBFH6crJCX3dwAD0zOAR9+Z18qvffjWB9yLN5DhY2eojw==",
   "signature_algorithm": "ecdsa-p256-sha256",
   "key_id": "01d93189e15525ff"
 }
