@@ -53,4 +53,59 @@ final class SingleLetterContextTests: XCTestCase {
             "I"
         )
     }
+
+    func testFindsNeighbourBeforeDelayedSpaceBoundary() {
+        let spaces = SingleLetterContext.separatorSpaces(
+            pendingOriginal: "ш",
+            pendingConverted: "i",
+            currentWord: "see",
+            line: "ш see ",
+            deliveredBoundaryCount: 0
+        )
+        let letter = SingleLetterContext.resolved(
+            original: "ш", converted: "i", contextWord: "see"
+        )
+
+        XCTAssertEqual(spaces, 1)
+        XCTAssertEqual(letter.map { $0 + String(repeating: " ", count: spaces ?? 0) + "see you" },
+                       "I see you")
+    }
+
+    func testFindsNeighbourBeforeSubmitBoundary() {
+        XCTAssertEqual(
+            SingleLetterContext.separatorSpaces(
+                pendingOriginal: "ш",
+                pendingConverted: "i",
+                currentWord: "see",
+                line: "ш see",
+                deliveredBoundaryCount: 0
+            ),
+            1
+        )
+    }
+
+    func testFindsNeighbourWhenRemoteBoundaryWasDelivered() {
+        XCTAssertEqual(
+            SingleLetterContext.separatorSpaces(
+                pendingOriginal: "z",
+                pendingConverted: "я",
+                currentWord: "вижу",
+                line: "z  вижу ",
+                deliveredBoundaryCount: 1
+            ),
+            2
+        )
+    }
+
+    func testRejectsStaleOrNonAdjacentPendingLetter() {
+        XCTAssertNil(
+            SingleLetterContext.separatorSpaces(
+                pendingOriginal: "ш",
+                pendingConverted: "i",
+                currentWord: "see",
+                line: "другой текст see ",
+                deliveredBoundaryCount: 0
+            )
+        )
+    }
 }

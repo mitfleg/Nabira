@@ -932,18 +932,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// и возвращает фактическое число пробелов между ними. Это защищает от устаревшего
     /// контекста после Enter, клика, стрелки или ручной смены раскладки.
     private func spacesBeforeCurrentWord(pending: PendingSingleLetter, current: String,
-                                         finalSpaces: Int) -> Int? {
-        guard finalSpaces >= 0,
-              let line = DynamicKeyMapping.lineString(from: keyboardMonitor.lineKeys),
-              line.count >= finalSpaces else { return nil }
-        let withoutFinalSpaces = finalSpaces == 0 ? line : String(line.dropLast(finalSpaces))
-        guard withoutFinalSpaces.hasSuffix(current) else { return nil }
-        let beforeCurrent = withoutFinalSpaces.dropLast(current.count)
-        let spaces = beforeCurrent.reversed().prefix { $0 == " " }.count
-        guard spaces > 0 else { return nil }
-        let beforeSpaces = beforeCurrent.dropLast(spaces)
-        return beforeSpaces.hasSuffix(pending.original) || beforeSpaces.hasSuffix(pending.converted)
-            ? spaces : nil
+                                         line: String?, finalSpaces: Int) -> Int? {
+        guard finalSpaces >= 0, let line else { return nil }
+        return SingleLetterContext.separatorSpaces(
+            pendingOriginal: pending.original,
+            pendingConverted: pending.converted,
+            currentWord: current,
+            line: line,
+            deliveredBoundaryCount: finalSpaces
+        )
     }
 
     /// Пытается заменить отложенную одиночную букву вместе с текущим контекстным словом.
@@ -952,6 +949,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         pair: (original: String, converted: String),
         suffix: String,
         langs: (current: String, opposite: String),
+        lineContext: String?,
         boundaryCount: Int,
         deferToRemote: Bool
     ) -> Bool {
@@ -973,6 +971,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         guard let spaces = spacesBeforeCurrentWord(
             pending: pending,
             current: currentOriginal,
+            line: lineContext,
             finalSpaces: boundaryCount
         ) else {
             nabiraLog("single-context: stale pending letter — dropped")
@@ -1390,6 +1389,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // разрешаем предыдущую букву по сильному сигналу текущего слова.
         if settings.autoConvert,
            resolvePendingSingleLetter(pair: detectionPair, suffix: suffix, langs: langs,
+                                      lineContext: lineContext,
                                       boundaryCount: bc, deferToRemote: deferToRemote) {
             return
         }
